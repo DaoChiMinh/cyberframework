@@ -127,19 +127,20 @@ class CyberGrid extends StatelessWidget {
 
             final availableHeight = constraints.maxHeight - paddingVertical;
 
-            // Parse heightRows to estimate total height
+            // Parse heightRows to check if scroll is needed
             final rowHeights = _parseHeightRows(heightRows!, availableHeight);
 
-            // Calculate total estimated height
-            double totalEstimatedHeight = 0;
-            bool hasAutoRows = false;
+            // Calculate total content height
+            double totalContentHeight = 0;
+            bool needsScroll = false;
 
             for (var h in rowHeights) {
               if (h == -1 || h == -2) {
-                hasAutoRows = true;
-                // For auto rows, we can't know exact height, assume needs scroll
+                // Has auto or star rows - assume might need scroll
+                needsScroll = true;
+                break;
               } else {
-                totalEstimatedHeight += h;
+                totalContentHeight += h;
               }
             }
 
@@ -147,25 +148,27 @@ class CyberGrid extends StatelessWidget {
             final totalSpacing = rowSpac != null
                 ? rowSpac! * (children.length - 1)
                 : 0.0;
-            totalEstimatedHeight += totalSpacing;
+            totalContentHeight += totalSpacing;
 
-            // If has auto rows or total exceeds available, use scroll
-            final needsScroll =
-                hasAutoRows || totalEstimatedHeight > availableHeight;
+            // Check if needs scroll
+            if (!needsScroll) {
+              needsScroll = totalContentHeight > availableHeight;
+            }
 
-            final rowsWidget = Column(
+            Widget content = Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.min,
               children: _buildRowsWithHeights(rowHeights),
             );
 
+            // Wrap in scroll if needed
             if (needsScroll) {
               return Padding(
                 padding: effectivePadding,
-                child: SingleChildScrollView(child: rowsWidget),
+                child: SingleChildScrollView(child: content),
               );
             } else {
-              return Padding(padding: effectivePadding, child: rowsWidget);
+              return Padding(padding: effectivePadding, child: content);
             }
           },
         ),
