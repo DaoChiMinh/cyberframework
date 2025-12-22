@@ -1,8 +1,7 @@
 name: cyberframework
 description: "A Flutter framework providing base UI components, form lifecycle,
-  API integration helpers, storage utilities, and enterprise-ready
-  architecture patterns used in CyberSoft ERP/DMS mobile applications."
-version: 0.0.24
+  API integration helpers, storage utilities, and enterprise-ready"
+version: 0.0.25
 
 homepage: https://cybersoft.com.vn/
 repository: https://github.com/DaoChiMinh/cyberframework
