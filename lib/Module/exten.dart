@@ -31,6 +31,7 @@ IconData? v_parseIcon(String codePointStr) {
   }
 }
 
+// ignore: non_constant_identifier_names
 String V_MaHoa(String data) {
   try {
     List<int> inputBytes = utf8.encode(data);
@@ -44,6 +45,7 @@ String V_MaHoa(String data) {
   }
 }
 
+// ignore: non_constant_identifier_names
 String V_GiaiMa(String encryptedData) {
   try {
     String normalized = _normalizeBase64(encryptedData);

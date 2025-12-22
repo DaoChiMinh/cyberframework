@@ -40,8 +40,8 @@ class CyberGrid extends StatelessWidget {
         height == null || height == "*" || (height is String && height == "*");
 
     // Check if height is "auto" (fit content)
-    final bool isAutoHeight =
-        height != null && height is String && height.toLowerCase() == "auto";
+    // final bool isAutoHeight =
+    //     height != null && height is String && height.toLowerCase() == "auto";
 
     // Parse numeric height if provided
     final double? numericHeight = _parseHeight();
@@ -238,46 +238,46 @@ class CyberGrid extends StatelessWidget {
     return rows;
   }
 
-  /// Build rows với height management
-  Widget _buildWithHeightRows(
-    EdgeInsetsGeometry effectivePadding,
-    double totalHeight,
-  ) {
-    // Calculate available height (trừ padding)
-    final paddingVertical = effectivePadding is EdgeInsets
-        ? effectivePadding.top + effectivePadding.bottom
-        : 16.0;
+  // /// Build rows với height management
+  // Widget _buildWithHeightRows(
+  //   EdgeInsetsGeometry effectivePadding,
+  //   double totalHeight,
+  // ) {
+  //   // Calculate available height (trừ padding)
+  //   final paddingVertical = effectivePadding is EdgeInsets
+  //       ? effectivePadding.top + effectivePadding.bottom
+  //       : 16.0;
 
-    final availableHeight = totalHeight - paddingVertical;
+  //   final availableHeight = totalHeight - paddingVertical;
 
-    // Parse heightRows
-    final rowHeights = _parseHeightRows(heightRows!, availableHeight);
+  //   // Parse heightRows
+  //   final rowHeights = _parseHeightRows(heightRows!, availableHeight);
 
-    // Build rows with calculated heights
-    final List<Widget> rows = [];
+  //   // Build rows with calculated heights
+  //   final List<Widget> rows = [];
 
-    for (int i = 0; i < children.length && i < rowHeights.length; i++) {
-      final rowHeight = rowHeights[i];
+  //   for (int i = 0; i < children.length && i < rowHeights.length; i++) {
+  //     final rowHeight = rowHeights[i];
 
-      if (rowHeight == -1) {
-        // Auto height
-        rows.add(children[i]);
-      } else {
-        // Fixed or star height
-        rows.add(SizedBox(height: rowHeight, child: children[i]));
-      }
+  //     if (rowHeight == -1) {
+  //       // Auto height
+  //       rows.add(children[i]);
+  //     } else {
+  //       // Fixed or star height
+  //       rows.add(SizedBox(height: rowHeight, child: children[i]));
+  //     }
 
-      // Add spacing
-      if (i < children.length - 1 && rowSpac != null) {
-        rows.add(SizedBox(height: rowSpac));
-      }
-    }
+  //     // Add spacing
+  //     if (i < children.length - 1 && rowSpac != null) {
+  //       rows.add(SizedBox(height: rowSpac));
+  //     }
+  //   }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: rows,
-    );
-  }
+  //   return Column(
+  //     crossAxisAlignment: CrossAxisAlignment.stretch,
+  //     children: rows,
+  //   );
+  // }
 
   /// Build rows với height management (fill parent mode)
   Widget _buildWithHeightRowsExpanded(EdgeInsetsGeometry effectivePadding) {
