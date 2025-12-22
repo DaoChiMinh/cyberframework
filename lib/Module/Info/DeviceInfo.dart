@@ -1,5 +1,6 @@
 import 'package:cyberframework/Module/save_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:uuid/uuid.dart';
 
 class DeviceInfo extends ChangeNotifier {
   static Future<String> get dnsName async => await AppStorage.get("DNS");
@@ -16,8 +17,17 @@ class DeviceInfo extends ChangeNotifier {
   static Future<void> setmacdevice(String value) async =>
       await AppStorage.set("macdevice", value);
 
-  static Future<String> get cetificate async =>
-      await AppStorage.get("cetificate");
+  static Future<String> get cetificate async {
+    String _cer = await AppStorage.get("cetificate");
+    if (_cer == "") {
+      var uuid = Uuid();
+      _cer = uuid.v1();
+      await setcetificate(_cer);
+    }
+
+    return _cer;
+  }
+
   static Future<void> setcetificate(String value) async =>
       await AppStorage.set("cetificate", value);
   //cetificate
