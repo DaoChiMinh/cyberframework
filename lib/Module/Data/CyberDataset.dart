@@ -86,7 +86,7 @@ class CyberDataset extends ChangeNotifier {
       // ✅ Kiểm tra Status = "N"
       if (statusValue == 'N') {
         // Hiển thị message nếu isShowMsg = true
-        if (isShowMsg && msgValue != 'Y') {
+        if (isShowMsg) {
           // Tránh hiển thị 2 lần
           message.V_MsgBox(contex, type: CyberMsgBoxType.error);
         }
