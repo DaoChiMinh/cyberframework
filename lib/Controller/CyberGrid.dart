@@ -9,7 +9,8 @@ class CyberGrid extends StatelessWidget {
 
   /// Chiều cao tổng của grid
   /// null hoặc "*" = fill toàn bộ parent
-  /// Number = chiều cao cố định
+  /// "auto" = tự động theo content
+  /// Number = chiều cao cố định (tự scroll nếu content > height)
   final dynamic height;
 
   /// Định nghĩa chiều cao cho từng row
@@ -38,37 +39,54 @@ class CyberGrid extends StatelessWidget {
     final bool shouldFillParent =
         height == null || height == "*" || (height is String && height == "*");
 
+    // Check if height is "auto" (fit content)
+    final bool isAutoHeight =
+        height != null && height is String && height.toLowerCase() == "auto";
+
     // Parse numeric height if provided
     final double? numericHeight = _parseHeight();
 
-    Widget content = DecoratedBox(
-      decoration: BoxDecoration(color: backgroundColor ?? Colors.transparent),
-      child: Padding(
-        padding: effectivePadding,
-        child: numericHeight != null && heightRows != null
-            ? _buildWithHeightRows(effectivePadding, numericHeight)
-            : (shouldFillParent && heightRows != null)
-            ? _buildWithHeightRowsExpanded(effectivePadding)
-            : Column(
-                mainAxisSize: shouldFillParent
-                    ? MainAxisSize.max
-                    : MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: _buildRows(),
-              ),
-      ),
-    );
+    Widget content;
 
-    // Wrap with Expanded if should fill parent
-    if (shouldFillParent) {
+    if (numericHeight != null && heightRows != null) {
+      // Fixed height with heightRows - auto scroll if needed
+      content = _buildWithFixedHeightAndScroll(effectivePadding, numericHeight);
+    } else if (numericHeight != null) {
+      // Fixed height without heightRows - wrap in scroll
+      content = _buildWithFixedHeightScroll(effectivePadding, numericHeight);
+    } else if (shouldFillParent && heightRows != null) {
+      // Fill parent with heightRows
+      content = DecoratedBox(
+        decoration: BoxDecoration(color: backgroundColor ?? Colors.transparent),
+        child: Padding(
+          padding: effectivePadding,
+          child: _buildWithHeightRowsExpanded(effectivePadding),
+        ),
+      );
+    } else {
+      // Auto height or fill parent without heightRows or default
+      content = DecoratedBox(
+        decoration: BoxDecoration(color: backgroundColor ?? Colors.transparent),
+        child: Padding(
+          padding: effectivePadding,
+          child: Column(
+            mainAxisSize: shouldFillParent
+                ? MainAxisSize.max
+                : MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: _buildRows(),
+          ),
+        ),
+      );
+    }
+
+    // Wrap with Expanded if should fill parent (without fixed height)
+    if (shouldFillParent && numericHeight == null) {
       if (heightRows != null) {
-        return content; // LayoutBuilder will handle it
+        return content; // LayoutBuilder inside will handle it
       } else {
-        // Fill parent without heightRows - use Expanded
         return Expanded(child: content);
       }
-    } else if (numericHeight != null) {
-      return SizedBox(height: numericHeight, child: content);
     }
 
     return content;
@@ -78,7 +96,8 @@ class CyberGrid extends StatelessWidget {
   double? _parseHeight() {
     if (height == null ||
         height == "*" ||
-        (height is String && height == "*")) {
+        (height is String &&
+            (height == "*" || height.toLowerCase() == "auto"))) {
       return null;
     }
 
@@ -89,6 +108,116 @@ class CyberGrid extends StatelessWidget {
     }
 
     return null;
+  }
+
+  /// Build with fixed height and auto scroll if content exceeds
+  Widget _buildWithFixedHeightAndScroll(
+    EdgeInsetsGeometry effectivePadding,
+    double totalHeight,
+  ) {
+    return SizedBox(
+      height: totalHeight,
+      child: DecoratedBox(
+        decoration: BoxDecoration(color: backgroundColor ?? Colors.transparent),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final paddingVertical = effectivePadding is EdgeInsets
+                ? effectivePadding.top + effectivePadding.bottom
+                : 16.0;
+
+            final availableHeight = constraints.maxHeight - paddingVertical;
+
+            // Parse heightRows to estimate total height
+            final rowHeights = _parseHeightRows(heightRows!, availableHeight);
+
+            // Calculate total estimated height
+            double totalEstimatedHeight = 0;
+            bool hasAutoRows = false;
+
+            for (var h in rowHeights) {
+              if (h == -1 || h == -2) {
+                hasAutoRows = true;
+                // For auto rows, we can't know exact height, assume needs scroll
+              } else {
+                totalEstimatedHeight += h;
+              }
+            }
+
+            // Add spacing
+            final totalSpacing = rowSpac != null
+                ? rowSpac! * (children.length - 1)
+                : 0.0;
+            totalEstimatedHeight += totalSpacing;
+
+            // If has auto rows or total exceeds available, use scroll
+            final needsScroll =
+                hasAutoRows || totalEstimatedHeight > availableHeight;
+
+            final rowsWidget = Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: _buildRowsWithHeights(rowHeights),
+            );
+
+            if (needsScroll) {
+              return Padding(
+                padding: effectivePadding,
+                child: SingleChildScrollView(child: rowsWidget),
+              );
+            } else {
+              return Padding(padding: effectivePadding, child: rowsWidget);
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  /// Build with fixed height and scroll (no heightRows)
+  Widget _buildWithFixedHeightScroll(
+    EdgeInsetsGeometry effectivePadding,
+    double totalHeight,
+  ) {
+    return SizedBox(
+      height: totalHeight,
+      child: DecoratedBox(
+        decoration: BoxDecoration(color: backgroundColor ?? Colors.transparent),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: effectivePadding,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: _buildRows(),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Build rows with calculated heights (for scroll mode)
+  List<Widget> _buildRowsWithHeights(List<double> rowHeights) {
+    final List<Widget> rows = [];
+
+    for (int i = 0; i < children.length && i < rowHeights.length; i++) {
+      final rowHeight = rowHeights[i];
+
+      if (rowHeight == -1 || rowHeight == -2) {
+        // Auto height or star (in scroll mode, treat as auto)
+        rows.add(children[i]);
+      } else {
+        // Fixed height
+        rows.add(SizedBox(height: rowHeight, child: children[i]));
+      }
+
+      // Add spacing
+      if (i < children.length - 1 && rowSpac != null) {
+        rows.add(SizedBox(height: rowSpac));
+      }
+    }
+
+    return rows;
   }
 
   /// Build rows với height management
