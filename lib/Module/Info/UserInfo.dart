@@ -22,15 +22,10 @@ class UserInfo {
     String? cetificate = await DeviceInfo.cetificate;
     cetificate = cetificate ?? "";
 
-    String? _strTokenId = await CyberStorage.get("strTokenId");
+    String _strTokenId = await CyberStorage.get("strTokenId");
     _strTokenId = _strTokenId ?? ""; // ✅ Handle null
 
     String _pass = MD5(_password);
-
-    // ✅ Debug log
-    if (kDebugMode) {
-      print("🔐 Login params: $_strTokenId#$cetificate#$_userName#***#$_pass");
-    }
 
     // ✅ Call API
     ReturnData returnDatalogin = await contex.callApi(
@@ -42,26 +37,17 @@ class UserInfo {
 
     // ✅ Check response validity
     if (!returnDatalogin.isValid()) {
-      if (kDebugMode) {
-        print("❌ Login failed: ${returnDatalogin.message}");
-      }
       return false;
     }
 
     // ✅ Safe null checks
     CyberDataset? dslogin = returnDatalogin.toCyberDataset();
     if (dslogin == null) {
-      if (kDebugMode) {
-        print("❌ Cannot parse dataset");
-      }
       return false;
     }
 
     CyberDataTable? dtlogin = dslogin[0];
     if (dtlogin == null || dtlogin.rowCount == 0) {
-      if (kDebugMode) {
-        print("❌ No data returned from login");
-      }
       return false;
     }
 
@@ -115,10 +101,6 @@ class UserInfo {
       id_otp = loginRow["idotp"]?.toString() ?? "";
     } else {
       id_otp = "";
-    }
-
-    if (kDebugMode) {
-      print("✅ Login success: $user_name ($ma_dvcs), OTP: $isOTP");
     }
 
     return true;
