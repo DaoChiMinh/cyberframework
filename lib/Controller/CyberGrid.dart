@@ -6,17 +6,19 @@ class CyberGrid extends StatelessWidget {
   final double? rowSpac;
   final EdgeInsetsGeometry? padding;
   final Color? backgroundColor;
-  
+
   /// Chiều cao tổng của grid
-  final double? height;
-  
+  /// null hoặc "*" = fill toàn bộ parent
+  /// Number = chiều cao cố định
+  final dynamic height;
+
   /// Định nghĩa chiều cao cho từng row
   /// Format: "*,*" hoặc "*,Auto,*" hoặc "*,60,*"
   /// * = tự động chia đều phần còn lại
   /// Auto = tự động theo content
   /// Number = chiều cao cố định
   final String? heightRows;
-  
+
   const CyberGrid({
     super.key,
     required this.children,
@@ -31,15 +33,22 @@ class CyberGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final effectivePadding = padding ?? EdgeInsets.all(8.0);
-    
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: backgroundColor ?? Colors.transparent,
-      ),
+
+    // Check if height is "*" or null (fill parent)
+    final bool shouldFillParent =
+        height == null || height == "*" || (height is String && height == "*");
+
+    // Parse numeric height if provided
+    final double? numericHeight = _parseHeight();
+
+    Widget content = DecoratedBox(
+      decoration: BoxDecoration(color: backgroundColor ?? Colors.transparent),
       child: Padding(
         padding: effectivePadding,
-        child: height != null && heightRows != null
-            ? _buildWithHeightRows(effectivePadding)
+        child: numericHeight != null && heightRows != null
+            ? _buildWithHeightRows(effectivePadding, numericHeight)
+            : (shouldFillParent && heightRows != null)
+            ? _buildWithHeightRowsExpanded(effectivePadding)
             : Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -47,51 +56,118 @@ class CyberGrid extends StatelessWidget {
               ),
       ),
     );
+
+    // Wrap with Expanded if should fill parent
+    if (shouldFillParent && heightRows != null) {
+      return content;
+    } else if (shouldFillParent) {
+      return Expanded(child: content);
+    } else if (numericHeight != null) {
+      return SizedBox(height: numericHeight, child: content);
+    }
+
+    return content;
+  }
+
+  /// Parse height to double
+  double? _parseHeight() {
+    if (height == null ||
+        height == "*" ||
+        (height is String && height == "*")) {
+      return null;
+    }
+
+    if (height is double) return height;
+    if (height is int) return height.toDouble();
+    if (height is String) {
+      return double.tryParse(height);
+    }
+
+    return null;
   }
 
   /// Build rows với height management
-  Widget _buildWithHeightRows(EdgeInsetsGeometry effectivePadding) {
+  Widget _buildWithHeightRows(
+    EdgeInsetsGeometry effectivePadding,
+    double totalHeight,
+  ) {
     // Calculate available height (trừ padding)
-    final paddingVertical = effectivePadding is EdgeInsets 
-        ? effectivePadding.top + effectivePadding.bottom 
+    final paddingVertical = effectivePadding is EdgeInsets
+        ? effectivePadding.top + effectivePadding.bottom
         : 16.0;
-    
-    final availableHeight = height! - paddingVertical;
-    
+
+    final availableHeight = totalHeight - paddingVertical;
+
     // Parse heightRows
     final rowHeights = _parseHeightRows(heightRows!, availableHeight);
-    
+
     // Build rows with calculated heights
     final List<Widget> rows = [];
-    
+
     for (int i = 0; i < children.length && i < rowHeights.length; i++) {
       final rowHeight = rowHeights[i];
-      
+
       if (rowHeight == -1) {
         // Auto height
         rows.add(children[i]);
       } else {
         // Fixed or star height
-        rows.add(
-          SizedBox(
-            height: rowHeight,
-            child: children[i],
-          ),
-        );
+        rows.add(SizedBox(height: rowHeight, child: children[i]));
       }
-      
+
       // Add spacing
       if (i < children.length - 1 && rowSpac != null) {
         rows.add(SizedBox(height: rowSpac));
       }
     }
-    
-    return SizedBox(
-      height: height,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: rows,
-      ),
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: rows,
+    );
+  }
+
+  /// Build rows với height management (fill parent mode)
+  Widget _buildWithHeightRowsExpanded(EdgeInsetsGeometry effectivePadding) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final paddingVertical = effectivePadding is EdgeInsets
+            ? effectivePadding.top + effectivePadding.bottom
+            : 16.0;
+
+        final availableHeight = constraints.maxHeight - paddingVertical;
+
+        // Parse heightRows
+        final rowHeights = _parseHeightRows(heightRows!, availableHeight);
+
+        // Build rows with calculated heights
+        final List<Widget> rows = [];
+
+        for (int i = 0; i < children.length && i < rowHeights.length; i++) {
+          final rowHeight = rowHeights[i];
+
+          if (rowHeight == -1) {
+            // Auto height
+            rows.add(children[i]);
+          } else if (rowHeight == -2) {
+            // Star height in fill parent mode - use Expanded
+            rows.add(Expanded(child: children[i]));
+          } else {
+            // Fixed height
+            rows.add(SizedBox(height: rowHeight, child: children[i]));
+          }
+
+          // Add spacing
+          if (i < children.length - 1 && rowSpac != null) {
+            rows.add(SizedBox(height: rowSpac));
+          }
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: rows,
+        );
+      },
     );
   }
 
@@ -99,7 +175,7 @@ class CyberGrid extends StatelessWidget {
   List<double> _parseHeightRows(String definition, double availableHeight) {
     final parts = definition.split(',').map((s) => s.trim()).toList();
     final List<_RowHeight> rowDefs = [];
-    
+
     // Parse definitions
     for (var part in parts) {
       if (part.toLowerCase() == 'auto') {
@@ -114,8 +190,33 @@ class CyberGrid extends StatelessWidget {
         rowDefs.add(_RowHeight(type: _HeightType.fixed, value: fixedHeight));
       }
     }
-    
-    return _calculateHeights(rowDefs, availableHeight);
+
+    // Check if we're in fill parent mode (infinite height from LayoutBuilder)
+    final bool isFillParentMode =
+        availableHeight == double.infinity || availableHeight > 999999;
+
+    if (isFillParentMode) {
+      return _calculateHeightsForFillMode(rowDefs);
+    } else {
+      return _calculateHeights(rowDefs, availableHeight);
+    }
+  }
+
+  /// Calculate heights for fill parent mode
+  List<double> _calculateHeightsForFillMode(List<_RowHeight> defs) {
+    final List<double> heights = [];
+
+    for (var def in defs) {
+      if (def.type == _HeightType.fixed) {
+        heights.add(def.value);
+      } else if (def.type == _HeightType.auto) {
+        heights.add(-1); // Marker for auto
+      } else if (def.type == _HeightType.star) {
+        heights.add(-2); // Marker for Expanded (star in fill mode)
+      }
+    }
+
+    return heights;
   }
 
   /// Calculate actual heights for rows
@@ -123,11 +224,11 @@ class CyberGrid extends StatelessWidget {
     double usedHeight = 0.0;
     double totalStarMultiplier = 0.0;
     final List<double> heights = List.filled(defs.length, 0.0);
-    
+
     // Subtract spacing from available height
     final totalSpacing = rowSpac != null ? rowSpac! * (defs.length - 1) : 0.0;
     available -= totalSpacing;
-    
+
     // First pass: calculate fixed heights
     for (int i = 0; i < defs.length; i++) {
       if (defs[i].type == _HeightType.fixed) {
@@ -139,19 +240,19 @@ class CyberGrid extends StatelessWidget {
         totalStarMultiplier += defs[i].value;
       }
     }
-    
+
     // Second pass: calculate star heights
     if (totalStarMultiplier > 0) {
       final remainingHeight = available - usedHeight;
       final starUnit = remainingHeight / totalStarMultiplier;
-      
+
       for (int i = 0; i < defs.length; i++) {
         if (defs[i].type == _HeightType.star) {
           heights[i] = starUnit * defs[i].value;
         }
       }
     }
-    
+
     return heights;
   }
 
