@@ -3,6 +3,7 @@
 ## Tổng quan
 
 `CyberGrid` giờ hỗ trợ quản lý chiều cao rows với 2 thuộc tính mới:
+
 - **height**: Chiều cao tổng của grid
 - **heightRows**: Định nghĩa chiều cao cho từng row
 
@@ -11,6 +12,7 @@
 ## 1. Basic Usage (Không dùng height)
 
 ### Grid tự động theo content
+
 ```dart
 CyberGrid(
   children: [
@@ -36,6 +38,7 @@ CyberGrid(
 ## 2. Height Management
 
 ### Example 1: Chia đều 2 rows
+
 ```dart
 CyberGrid(
   height: 400, // Tổng chiều cao
@@ -59,12 +62,14 @@ CyberGrid(
 ```
 
 **Kết quả:**
+
 - Row 1: 200px (50%)
 - Row 2: 200px (50%)
 
 ---
 
 ### Example 2: Row giữa Auto, 2 rows còn lại chia đều
+
 ```dart
 CyberGrid(
   height: 500,
@@ -105,6 +110,7 @@ CyberGrid(
 ```
 
 **Kết quả:**
+
 - Row 1: 210px (50% của 420px còn lại)
 - Row 2: 80px (Auto)
 - Row 3: 210px (50% của 420px còn lại)
@@ -112,6 +118,7 @@ CyberGrid(
 ---
 
 ### Example 3: Row giữa cố định 60px
+
 ```dart
 CyberGrid(
   height: 500,
@@ -151,13 +158,15 @@ CyberGrid(
 ```
 
 **Kết quả:**
+
 - Row 1: 220px (50% của 440px còn lại)
 - Row 2: 60px (Fixed)
 - Row 3: 220px (50% của 440px còn lại)
 
 ---
 
-### Example 4: Tỷ lệ khác nhau (2*, *, *)
+### Example 4: Tỷ lệ khác nhau (2*, *, \*)
+
 ```dart
 CyberGrid(
   height: 600,
@@ -197,6 +206,7 @@ CyberGrid(
 ```
 
 **Kết quả:**
+
 - Total multiplier: 2 + 1 + 1 = 4
 - Row 1: 300px (2/4 = 50%)
 - Row 2: 150px (1/4 = 25%)
@@ -207,6 +217,7 @@ CyberGrid(
 ## 3. Real-World Examples
 
 ### Example: Dashboard Layout
+
 ```dart
 class DashboardScreen extends StatelessWidget {
   @override
@@ -246,7 +257,7 @@ class DashboardScreen extends StatelessWidget {
               ),
             ],
           ),
-          
+
           // Main content
           GridRow(
             widthColumn: "*, *",
@@ -268,7 +279,7 @@ class DashboardScreen extends StatelessWidget {
               ),
             ],
           ),
-          
+
           // Footer
           GridRow(
             widthColumn: "*",
@@ -307,6 +318,7 @@ class DashboardScreen extends StatelessWidget {
 ---
 
 ### Example: Form với Header/Content/Footer
+
 ```dart
 class FormScreen extends StatefulWidget {
   @override
@@ -324,14 +336,14 @@ class _FormScreenState extends State<FormScreen> {
     dt.addColumn("name", CyberDataType.text);
     dt.addColumn("email", CyberDataType.text);
     dt.addColumn("phone", CyberDataType.text);
-    
+
     row = dt.newRow();
   }
 
   @override
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
-    
+
     return Scaffold(
       body: SafeArea(
         child: CyberGrid(
@@ -366,7 +378,7 @@ class _FormScreenState extends State<FormScreen> {
                 ),
               ],
             ),
-            
+
             // Content
             GridRow(
               widthColumn: "*",
@@ -397,7 +409,7 @@ class _FormScreenState extends State<FormScreen> {
                 ),
               ],
             ),
-            
+
             // Footer
             GridRow(
               widthColumn: "*",
@@ -408,7 +420,7 @@ class _FormScreenState extends State<FormScreen> {
                     color: Colors.white,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
+                        color: Colors.black.withValues(alpha:0.1),
                         blurRadius: 4,
                         offset: Offset(0, -2),
                       ),
@@ -436,6 +448,7 @@ class _FormScreenState extends State<FormScreen> {
 ---
 
 ### Example: Split View (Master-Detail)
+
 ```dart
 class SplitViewScreen extends StatelessWidget {
   @override
@@ -443,8 +456,8 @@ class SplitViewScreen extends StatelessWidget {
     return Scaffold(
       body: SafeArea(
         child: CyberGrid(
-          height: MediaQuery.of(context).size.height - 
-                  MediaQuery.of(context).padding.top - 
+          height: MediaQuery.of(context).size.height -
+                  MediaQuery.of(context).padding.top -
                   MediaQuery.of(context).padding.bottom,
           heightRows: "*", // Single row
           padding: EdgeInsets.zero,
@@ -468,7 +481,7 @@ class SplitViewScreen extends StatelessWidget {
                     },
                   ),
                 ),
-                
+
                 // Detail
                 Container(
                   color: Colors.white,
@@ -493,14 +506,14 @@ class SplitViewScreen extends StatelessWidget {
 
 ### Basic Patterns
 
-| Pattern | Description | Example (height=400) |
-|---------|-------------|---------------------|
-| `"*,*"` | 2 rows, chia đều | 200px, 200px |
-| `"*,*,*"` | 3 rows, chia đều | 133px, 133px, 133px |
-| `"2*,*"` | Row 1 gấp đôi row 2 | 267px, 133px |
-| `"*,60"` | Row 2 cố định 60 | 340px, 60px |
-| `"Auto,*"` | Row 1 auto, row 2 flex | Auto, (400-auto) |
-| `"80,*,60"` | Header/Content/Footer | 80px, 260px, 60px |
+| Pattern     | Description            | Example (height=400) |
+| ----------- | ---------------------- | -------------------- |
+| `"*,*"`     | 2 rows, chia đều       | 200px, 200px         |
+| `"*,*,*"`   | 3 rows, chia đều       | 133px, 133px, 133px  |
+| `"2*,*"`    | Row 1 gấp đôi row 2    | 267px, 133px         |
+| `"*,60"`    | Row 2 cố định 60       | 340px, 60px          |
+| `"Auto,*"`  | Row 1 auto, row 2 flex | Auto, (400-auto)     |
+| `"80,*,60"` | Header/Content/Footer  | 80px, 260px, 60px    |
 
 ### Complex Patterns
 
@@ -523,6 +536,7 @@ heightRows: "50,*,60,*,40"
 ## 5. With Spacing
 
 ### Spacing ảnh hưởng tính toán
+
 ```dart
 CyberGrid(
   height: 400,
@@ -534,6 +548,7 @@ CyberGrid(
 ```
 
 **Tính toán:**
+
 - Total height: 400
 - Padding vertical: 20
 - Spacing: 20
@@ -602,6 +617,7 @@ CyberGrid(
 ## 7. Migration Guide
 
 ### Old Code (No height management)
+
 ```dart
 CyberGrid(
   children: [
@@ -612,6 +628,7 @@ CyberGrid(
 ```
 
 ### New Code (With height management)
+
 ```dart
 CyberGrid(
   height: 400,

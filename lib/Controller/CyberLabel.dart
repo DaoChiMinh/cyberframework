@@ -151,11 +151,11 @@ class CyberLabel extends StatelessWidget {
         return InkWell(
           onTap: () => onLeaver?.call(""),
           splashColor:
-              rippleColor?.withOpacity(0.3) ??
-              Theme.of(context).primaryColor.withOpacity(0.2),
+              rippleColor?.withValues(alpha: 0.3) ??
+              Theme.of(context).primaryColor.withValues(alpha: 0.2),
           highlightColor:
-              rippleColor?.withOpacity(0.1) ??
-              Theme.of(context).primaryColor.withOpacity(0.1),
+              rippleColor?.withValues(alpha: 0.1) ??
+              Theme.of(context).primaryColor.withValues(alpha: 0.1),
           borderRadius: rippleBorderRadius ?? BorderRadius.circular(4),
           child: Padding(
             padding:

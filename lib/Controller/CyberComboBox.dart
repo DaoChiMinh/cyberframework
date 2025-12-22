@@ -188,7 +188,6 @@ class _CyberComboBoxState extends State<CyberComboBox> {
       if (_boundRow != expr.row || _boundField != expr.fieldName) {
         _boundRow = expr.row;
         _boundField = expr.fieldName;
-        print('CyberComboBox: Re-parsed binding - field: $_boundField');
       }
     }
 
@@ -197,20 +196,12 @@ class _CyberComboBoxState extends State<CyberComboBox> {
     if (_boundRow != null && _boundField != null) {
       try {
         rawValue = _boundRow![_boundField!];
-        print(
-          'CyberComboBox: getCurrentValue from binding[$_boundField] = $rawValue (${rawValue.runtimeType})',
-        );
       } catch (e) {
-        print('CyberComboBox: Error getting value from binding: $e');
         return null;
       }
     } else if (widget.text != null && widget.text is! CyberBindingExpression) {
       rawValue = widget.text;
-      print(
-        'CyberComboBox: getCurrentValue from static text = $rawValue (${rawValue.runtimeType})',
-      );
     } else {
-      print('CyberComboBox: No value available');
       return null;
     }
 
@@ -224,7 +215,6 @@ class _CyberComboBoxState extends State<CyberComboBox> {
       try {
         return expr.row[expr.fieldName]?.toString() ?? '';
       } catch (e) {
-        print('CyberComboBox: Error getting displayMember from binding: $e');
         return '';
       }
     }
@@ -238,7 +228,6 @@ class _CyberComboBoxState extends State<CyberComboBox> {
       try {
         return expr.row[expr.fieldName]?.toString() ?? '';
       } catch (e) {
-        print('CyberComboBox: Error getting valueMember from binding: $e');
         return '';
       }
     }
@@ -267,15 +256,12 @@ class _CyberComboBoxState extends State<CyberComboBox> {
         final rowValue = row[valueMember];
         if (rowValue?.toString() == currentValue?.toString()) {
           final displayText = row[displayMember]?.toString() ?? '';
-          print(
-            'CyberComboBox: Found display text = $displayText for value = $currentValue',
-          );
+
           return displayText;
         }
       }
-    } catch (e) {
-      print('CyberComboBox: Error getting display text: $e');
-    }
+      // ignore: empty_catches
+    } catch (e) {}
 
     return widget.hint ?? '';
   }
@@ -283,33 +269,24 @@ class _CyberComboBoxState extends State<CyberComboBox> {
   /// Update selected value
   void _updateValue(dynamic newValue) {
     if (!widget.enabled) {
-      print('CyberComboBox: disabled, cannot update');
       return;
     }
 
-    print('CyberComboBox: updating to $newValue');
     _isUpdating = true;
 
     // ✅ Update binding
     if (_boundRow != null && _boundField != null) {
       final originalValue = _boundRow![_boundField!];
-      print(
-        'CyberComboBox: original value = $originalValue (${originalValue.runtimeType})',
-      );
 
       // Preserve original type
       if (originalValue is String && newValue != null) {
         _boundRow![_boundField!] = newValue.toString();
-        print('CyberComboBox: updated String to ${_boundRow![_boundField!]}');
       } else if (originalValue is int && newValue is int) {
         _boundRow![_boundField!] = newValue;
-        print('CyberComboBox: updated int to ${_boundRow![_boundField!]}');
       } else if (originalValue is double && newValue is num) {
         _boundRow![_boundField!] = newValue.toDouble();
-        print('CyberComboBox: updated double to ${_boundRow![_boundField!]}');
       } else {
         _boundRow![_boundField!] = newValue;
-        print('CyberComboBox: updated dynamic to ${_boundRow![_boundField!]}');
       }
     }
 
@@ -330,7 +307,6 @@ class _CyberComboBoxState extends State<CyberComboBox> {
     final displayMember = _getDisplayMember();
 
     if (valueMember.isEmpty || displayMember.isEmpty) {
-      print('CyberComboBox: valueMember or displayMember is empty');
       return;
     }
 

@@ -1,4 +1,4 @@
-import 'package:cyberframework/Module/Data/CyberDataRow.dart';
+import 'package:cyberframework/cyberframework.dart';
 
 /// Extension để CyberDataRow hỗ trợ method bind()
 /// Dùng thay vì indexer để tạo binding expression rõ ràng

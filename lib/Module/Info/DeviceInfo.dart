@@ -1,3 +1,4 @@
+// ignore: file_names
 import 'package:cyberframework/Module/save_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
@@ -18,14 +19,14 @@ class DeviceInfo extends ChangeNotifier {
       await AppStorage.set("macdevice", value);
 
   static Future<String> get cetificate async {
-    String _cer = await AppStorage.get("cetificate");
-    if (_cer == "") {
+    String cer = await AppStorage.get("cetificate");
+    if (cer == "") {
       var uuid = Uuid();
-      _cer = uuid.v1();
-      await setcetificate(_cer);
+      cer = uuid.v1();
+      await setcetificate(cer);
     }
 
-    return _cer;
+    return cer;
   }
 
   static Future<void> setcetificate(String value) async =>

@@ -1,6 +1,6 @@
 import 'package:cyberframework/cyberframework.dart';
 import 'package:get_it/get_it.dart';
-import 'spScreen.config.dart';
+import 'spscreen.config.dart';
 
 final getIt = GetIt.instance;
 

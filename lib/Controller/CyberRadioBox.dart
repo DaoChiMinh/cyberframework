@@ -97,9 +97,6 @@ class _CyberRadioBoxState extends State<CyberRadioBox> {
       _boundRow = expr.row;
       _boundField = expr.fieldName;
 
-      print(
-        'CyberRadioBox[${widget.group}]: Parsed binding - row: ${_boundRow != null}, field: $_boundField',
-      );
       return;
     }
 
@@ -157,9 +154,6 @@ class _CyberRadioBoxState extends State<CyberRadioBox> {
       if (_boundRow != expr.row || _boundField != expr.fieldName) {
         _boundRow = expr.row;
         _boundField = expr.fieldName;
-        print(
-          'CyberRadioBox[${_getGroupName()}]: Re-parsed binding - field: $_boundField',
-        );
       }
     }
 
@@ -168,39 +162,16 @@ class _CyberRadioBoxState extends State<CyberRadioBox> {
     if (_boundRow != null && _boundField != null) {
       try {
         rawValue = _boundRow![_boundField!];
-        print(
-          'CyberRadioBox[${_getGroupName()}]: getCurrentGroupValue from binding[$_boundField] = $rawValue (${rawValue.runtimeType})',
-        );
       } catch (e) {
-        print(
-          'CyberRadioBox[${_getGroupName()}]: Error getting value from binding: $e',
-        );
         return null;
       }
     } else if (widget.text != null && widget.text is! CyberBindingExpression) {
       rawValue = widget.text;
-      print(
-        'CyberRadioBox[${_getGroupName()}]: getCurrentGroupValue from static text = $rawValue (${rawValue.runtimeType})',
-      );
     } else {
-      print('CyberRadioBox[${_getGroupName()}]: No group value available');
       return null;
     }
 
     return rawValue;
-  }
-
-  /// Get group name (support binding)
-  String _getGroupName() {
-    if (widget.group is CyberBindingExpression) {
-      final expr = widget.group as CyberBindingExpression;
-      try {
-        return expr.row[expr.fieldName]?.toString() ?? 'unknown';
-      } catch (e) {
-        return 'unknown';
-      }
-    }
-    return widget.group?.toString() ?? 'unknown';
   }
 
   /// Get current value (support binding)
@@ -209,14 +180,9 @@ class _CyberRadioBoxState extends State<CyberRadioBox> {
       final expr = widget.value as CyberBindingExpression;
       try {
         final val = expr.row[expr.fieldName];
-        print(
-          'CyberRadioBox[${_getGroupName()}]: getValue from binding = $val',
-        );
+
         return val;
       } catch (e) {
-        print(
-          'CyberRadioBox[${_getGroupName()}]: Error getting value from binding: $e',
-        );
         return null;
       }
     }
@@ -229,51 +195,32 @@ class _CyberRadioBoxState extends State<CyberRadioBox> {
 
     // ✅ So sánh theo string để tránh lỗi type mismatch
     final isSelected = groupValue?.toString() == myValue?.toString();
-    print(
-      'CyberRadioBox[${_getGroupName()}]: isSelected = $isSelected (groupValue: $groupValue, myValue: $myValue)',
-    );
 
     return isSelected;
   }
 
   void _updateValue() {
     if (!widget.enabled) {
-      print('CyberRadioBox[${_getGroupName()}]: disabled, cannot update');
       return;
     }
 
     final newValue = _getValue();
-    print('CyberRadioBox[${_getGroupName()}]: updating to $newValue');
+
     _isUpdating = true;
 
     // ✅ Update binding
     if (_boundRow != null && _boundField != null) {
       final originalValue = _boundRow![_boundField!];
-      print(
-        'CyberRadioBox[${_getGroupName()}]: original value = $originalValue (${originalValue.runtimeType})',
-      );
 
       // Preserve original type
       if (originalValue is String && newValue != null) {
         _boundRow![_boundField!] = newValue.toString();
-        print(
-          'CyberRadioBox[${_getGroupName()}]: updated String to ${_boundRow![_boundField!]}',
-        );
       } else if (originalValue is int && newValue is int) {
         _boundRow![_boundField!] = newValue;
-        print(
-          'CyberRadioBox[${_getGroupName()}]: updated int to ${_boundRow![_boundField!]}',
-        );
       } else if (originalValue is double && newValue is num) {
         _boundRow![_boundField!] = newValue.toDouble();
-        print(
-          'CyberRadioBox[${_getGroupName()}]: updated double to ${_boundRow![_boundField!]}',
-        );
       } else {
         _boundRow![_boundField!] = newValue;
-        print(
-          'CyberRadioBox[${_getGroupName()}]: updated dynamic to ${_boundRow![_boundField!]}',
-        );
       }
     }
 

@@ -1,9 +1,12 @@
-import 'package:cyberframework/Controller/CyberContentView.dart';
+// ignore: file_names
+import 'package:cyberframework/Controller/cybercontentview.dart';
 import 'package:cyberframework/Module/cyber.form.dart';
 import 'package:get_it/get_it.dart';
 
 final _getIt = GetIt.instance;
+// ignore: non_constant_identifier_names
 final Map<String, CyberForm Function()> _factoryMap_form = {};
+// ignore: non_constant_identifier_names
 final Map<String, CyberContentViewForm Function()> _factoryMap_contentView = {};
 
 void buildFactoryMap() {
@@ -17,9 +20,8 @@ void buildFactoryMap() {
       final lowerName = form.runtimeType.toString().toLowerCase();
       _factoryMap_form[lowerName] = () => form;
     }
-  } catch (e) {
-    print('⚠️ No CyberForm registered: $e');
-  }
+    // ignore: empty_catches
+  } catch (e) {}
 
   // Build ContentView factory map
   try {
@@ -28,9 +30,8 @@ void buildFactoryMap() {
       final lowerName = view.runtimeType.toString().toLowerCase();
       _factoryMap_contentView[lowerName] = () => view;
     }
-  } catch (e) {
-    print('⚠️ No CyberContentViewForm registered: $e');
-  }
+    // ignore: empty_catches
+  } catch (e) {}
 }
 // void buildFactoryMap() {
 //   _factoryMap_form.clear();
@@ -52,6 +53,7 @@ void buildFactoryMap() {
 // }
 
 /// Get CyberFormView từ tên form
+// ignore: non_constant_identifier_names
 CyberFormView? V_getScreen(
   String strfrm,
   String title,
@@ -73,6 +75,7 @@ CyberFormView? V_getScreen(
   );
 }
 
+// ignore: non_constant_identifier_names
 CyberContentViewWidget? V_getView(
   String viewName, {
   String cpName = "",
@@ -92,6 +95,7 @@ CyberContentViewWidget? V_getView(
   );
 }
 
+// ignore: non_constant_identifier_names
 CyberContentViewForm? V_getViewInstance(
   String viewName, {
   String cpName = "",

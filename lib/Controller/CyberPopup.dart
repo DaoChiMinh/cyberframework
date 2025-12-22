@@ -55,16 +55,19 @@ class CyberPopup {
       return await _showAsDialog<T>();
     }
   }
+
   Future<T?> showBotton<T>() async {
     onShow?.call();
 
     return await _showAsBottomSheet<T>();
   }
+
   Future<T?> showFullScreen<T>() async {
     onShow?.call();
 
     return await _showAsFullScreen<T>();
   }
+
   Future<T?> _showAsDialog<T>() async {
     final result = await showGeneralDialog<T>(
       context: context,
@@ -133,7 +136,7 @@ class CyberPopup {
                 ? [boxShadow!]
                 : [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
+                      color: Colors.black.withValues(alpha: 0.2),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),

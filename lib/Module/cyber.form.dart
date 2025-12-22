@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 class CyberFormView extends StatefulWidget {
   final CyberForm Function() formBuilder;
   final String title;
+  // ignore: non_constant_identifier_names
   final String cp_name;
   final String strparameter;
   final bool hideAppBar;
@@ -11,6 +12,7 @@ class CyberFormView extends StatefulWidget {
     super.key,
     required this.title,
     required this.formBuilder,
+    // ignore: non_constant_identifier_names
     required this.cp_name,
     required this.strparameter,
     this.hideAppBar = false,
@@ -207,6 +209,7 @@ abstract class CyberForm {
   // ============================================================================
 
   /// Navigate đến form khác
+  // ignore: non_constant_identifier_names
   void V_Call(String strfrm, String title, String cpName, String strparameter) {
     var frm = V_getScreen(strfrm, title, cpName, strparameter);
     if (frm == null) return;

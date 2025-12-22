@@ -1,7 +1,6 @@
-import 'package:cyberframework/Controller/CyberMessageBox.dart';
-import 'package:flutter/material.dart';
 import 'dart:convert';
-import 'CyberDataTable.dart';
+
+import 'package:cyberframework/cyberframework.dart';
 
 /// CyberDataset - collection của CyberDataTable với proper disposal
 class CyberDataset extends ChangeNotifier {
@@ -15,6 +14,7 @@ class CyberDataset extends ChangeNotifier {
     return Table(tableName);
   }
 
+  // ignore: non_constant_identifier_names
   CyberDataTable? Table(dynamic TableNameOrindex) {
     if (TableNameOrindex is String) {
       return _tables[TableNameOrindex];

@@ -1,5 +1,4 @@
-import 'package:flutter/material.dart';
-import 'CyberDataRow.dart';
+import 'package:cyberframework/cyberframework.dart';
 
 /// CyberDataTable - collection của CyberDataRow với proper disposal
 class CyberDataTable extends ChangeNotifier {

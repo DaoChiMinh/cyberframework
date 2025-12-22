@@ -221,7 +221,7 @@ class _CyberNumericState extends State<CyberNumeric> {
     }
 
     if (decPart.isNotEmpty) {
-      formatted += '.' + decPart;
+      formatted += '.$decPart';
     }
 
     return formatted;
@@ -282,13 +282,13 @@ class _CyberNumericState extends State<CyberNumeric> {
       final dotIndex = value.indexOf('.');
       _textController.selection = TextSelection.collapsed(offset: dotIndex + 2);
     } else {
-      var _valueNew = _normalizeDecimalOverwrite(
+      var valueNew = _normalizeDecimalOverwrite(
         widget.text.toString(),
         value,
         widget.format ?? "### ### ### ###.##",
       );
-      value = _valueNew.$2;
-      if (_valueNew.$1) {
+      value = valueNew.$2;
+      if (valueNew.$1) {
         final pos = _textController.selection.baseOffset;
         final len = _textController.text.length;
 

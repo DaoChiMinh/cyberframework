@@ -1,3 +1,4 @@
+// ignore: file_names
 import 'package:cyberframework/cyberframework.dart';
 
 class UserInfo {
@@ -6,28 +7,35 @@ class UserInfo {
   static Future<void> setstrTokenId(String value) async =>
       await AppStorage.set("strTokenId", value);
 
+  // ignore: non_constant_identifier_names
   static String user_name = "";
+  // ignore: non_constant_identifier_names
   static String ma_dvcs = "";
   static String comment = "";
   static String isOTP = "";
+  // ignore: non_constant_identifier_names
   static String id_otp = "";
 
+  // ignore: non_constant_identifier_names
   static Future<bool> V_Login(
     BuildContext contex,
-    String _userName,
-    String _password,
-    String _ma_Dvcs, {
+    String userName,
+    String password,
+    String maDvcs, {
     bool isShowMsg = true,
   }) async {
     // ✅ Get certificate và token
-    // ignore: unused_local_variable
+    // ignore: unused_local_variable, no_leading_underscores_for_local_identifiers
     String _certificate = await DeviceInfo.cetificate;
+    // ignore: no_leading_underscores_for_local_identifiers
     String _strTokenId = await strTokenId;
-    String _pass = MD5(_password);
+    // ignore: no_leading_underscores_for_local_identifiers
+    String _pass = MD5(password);
     // ✅ Call API
+    // ignore: use_build_context_synchronously
     ReturnData returnDatalogin = await contex.callApi(
       functionName: "CP_APPNBSysLogin",
-      parameter: "$_strTokenId#$_certificate#$_userName#$_pass#$_ma_Dvcs",
+      parameter: "$_strTokenId#$_certificate#$userName#$_pass#$maDvcs",
       showError: true,
       showLoading: true,
     );
@@ -42,6 +50,7 @@ class UserInfo {
     if (dslogin == null) {
       return false;
     }
+    // ignore: use_build_context_synchronously
     if (!dslogin.checkStatus(contex, isShowMsg: isShowMsg)) return false;
     CyberDataTable? dtlogin = dslogin[0];
     if (dtlogin == null || dtlogin.rowCount == 0) {

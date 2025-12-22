@@ -49,7 +49,7 @@ class CyberControl extends StatelessWidget {
   final CyberDataTable? dataSource;
 
   const CyberControl({
-    Key? key,
+    super.key,
     required this.type,
     // Common
     this.text,
@@ -85,7 +85,7 @@ class CyberControl extends StatelessWidget {
     this.displayMember,
     this.valueMember,
     this.dataSource,
-  }) : super(key: key);
+  });
 
   factory CyberControl.label({
     dynamic text,

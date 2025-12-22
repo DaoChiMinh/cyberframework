@@ -1,10 +1,13 @@
 import 'package:cyberframework/cyberframework.dart';
 
+// ignore: non_constant_identifier_names
 MaterialApp V_Root(
   String strfrm, {
   String title = "",
+  // ignore: non_constant_identifier_names
   String cp_name = "",
   String strparameter = "",
+  // ignore: non_constant_identifier_names
   bool ShowTitleBar = true,
 }) {
   return MaterialApp(
@@ -27,10 +30,12 @@ MaterialApp V_Root(
   );
 }
 
+// ignore: non_constant_identifier_names
 void V_MainScreen(
   BuildContext context,
   String strfrm, {
   String title = "",
+  // ignore: non_constant_identifier_names
   String cp_name = "",
   String strparameter = "",
   bool showAppBar = false,
@@ -55,6 +60,7 @@ void V_MainScreen(
   );
 }
 
+// ignore: non_constant_identifier_names
 Future<bool> V_callform(
   BuildContext context,
   String strfrm,
@@ -84,6 +90,7 @@ Future<bool> V_callform(
       );
       if (!isQuerySuccess) return false;
       if (cpName == "") return false;
+      // ignore: use_build_context_synchronously
       ReturnData? retData = await context.callApi(
         functionName: cpName,
         parameter: strparameter,
@@ -171,6 +178,7 @@ PageRoute _buildPageRoute(Widget screen, bool useHeroAnimation) {
 ///   );
 /// }
 /// ```
+// ignore: non_constant_identifier_names
 Widget? V_callView(
   String viewName, {
   String cpName = "",
@@ -185,6 +193,7 @@ Widget? V_callView(
   );
 }
 
+// ignore: non_constant_identifier_names
 Future<T?> V_callViewPopup<T>(
   BuildContext context,
   String viewName, {
@@ -235,6 +244,7 @@ Future<T?> V_callViewPopup<T>(
 ///   cpName: "CP_GetData",
 /// );
 /// ```
+// ignore: non_constant_identifier_names
 Future<T?> V_callViewBottom<T>(
   BuildContext context,
   String viewName, {
@@ -276,6 +286,7 @@ Future<T?> V_callViewBottom<T>(
 ///   height: 300,
 /// );
 /// ```
+// ignore: non_constant_identifier_names
 Future<T?> V_callViewDialog<T>(
   BuildContext context,
   String viewName, {

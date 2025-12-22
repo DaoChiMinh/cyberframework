@@ -1,3 +1,4 @@
+// ignore: file_names
 import 'package:cyberframework/Module/callobject.dart';
 import 'package:flutter/material.dart';
 
@@ -33,6 +34,7 @@ class CyberDataRow extends ChangeNotifier {
   }
 
   @override
+  // ignore: unnecessary_overrides
   void removeListener(VoidCallback listener) {
     super.removeListener(listener);
   }
@@ -53,6 +55,7 @@ class CyberDataRow extends ChangeNotifier {
   }
 
   /// ✅ NEW: Check if row has listeners
+  @override
   bool get hasListeners => _trackedListeners.isNotEmpty;
 
   /// ✅ NEW: Get listener count

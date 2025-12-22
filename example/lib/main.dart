@@ -1,6 +1,5 @@
 import 'package:cyberframework/cyberframework.dart';
-
-import 'spScreen.dart';
+import 'spscreen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();

@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'package:cyberframework/Module/CallData/ReturnData.dart';
 import 'package:flutter/material.dart';
 
+// ignore: non_constant_identifier_names
 IconData? v_parseIcon(String codePointStr) {
   try {
     codePointStr = codePointStr.trim();
@@ -85,6 +86,7 @@ ReturnData parseResponse(String responseStr) {
   }
 }
 
+// ignore: non_constant_identifier_names
 String MD5(String? input) {
   if (input == "") return "";
   if (input == null) return "";

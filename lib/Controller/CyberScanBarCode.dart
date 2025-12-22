@@ -7,6 +7,7 @@ class Cyberscanbarcode extends StatefulWidget {
   final double? height;
   final double? borderRadius;
   const Cyberscanbarcode({
+    super.key,
     this.onCapture,
     this.height,
     this.borderRadius = 12.0,
@@ -77,6 +78,7 @@ class _CyberCameraScreenState extends State<Cyberscanbarcode>
             MobileScanner(
               controller: controller,
               onDetect: (data) {
+                // ignore: no_leading_underscores_for_local_identifiers
                 var _barcode = data.barcodes.firstOrNull;
                 if (_barcode != null) {
                   if (_barcode.rawValue != null) {

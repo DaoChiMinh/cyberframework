@@ -1,8 +1,5 @@
-import 'package:cyberframework/Module/Data/CyberDataRow.dart';
-import 'package:cyberframework/Module/Data/CyberDataTable.dart';
-import 'package:flutter/material.dart';
+import 'package:cyberframework/cyberframework.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
-import 'package:cyberframework/Module/exten.dart';
 
 typedef FutureDataCallback =
     Future<CyberDataTable> Function(
@@ -879,7 +876,7 @@ class _MenuItemTile extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: textColor.withOpacity(0.1),
+                  color: textColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(icon, color: textColor, size: 24),
@@ -898,7 +895,7 @@ class _MenuItemTile extends StatelessWidget {
             Icon(
               Icons.arrow_forward_ios,
               size: 16,
-              color: textColor.withOpacity(0.5),
+              color: textColor.withValues(alpha: 0.5),
             ),
           ],
         ),

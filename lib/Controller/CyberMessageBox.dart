@@ -5,10 +5,10 @@ import 'CyberPopup.dart';
 enum CyberMsgBoxType {
   /// Default: Icon tích xanh, màu xanh, chỉ có nút OK
   defaultType,
-  
+
   /// Warning: Icon hỏi vàng, màu vàng, có nút OK và Cancel
   warning,
-  
+
   /// Error: Icon lỗi đỏ, màu đỏ, chỉ có nút OK
   error,
 }
@@ -32,7 +32,7 @@ class CyberMessageBox {
   /// Show MessageBox và trả về kết quả
   Future<bool> show(BuildContext context) async {
     final config = _getConfig();
-    
+
     final popup = CyberPopup(
       context: context,
       child: _MessageBoxContent(
@@ -43,7 +43,9 @@ class CyberMessageBox {
         contentColor: config.contentColor,
         confirmText: confirmText ?? config.defaultConfirmText,
         confirmColor: config.confirmColor,
-        cancelText: type == CyberMsgBoxType.warning ? (cancelText ?? 'Hủy') : null,
+        cancelText: type == CyberMsgBoxType.warning
+            ? (cancelText ?? 'Hủy')
+            : null,
         cancelColor: config.cancelColor,
       ),
       width: 400,
@@ -67,7 +69,7 @@ class CyberMessageBox {
           defaultTitle: 'Thông báo',
           defaultConfirmText: 'Xác nhận',
         );
-        
+
       case CyberMsgBoxType.warning:
         return _MessageBoxConfig(
           icon: Icons.help_outline,
@@ -78,7 +80,7 @@ class CyberMessageBox {
           defaultTitle: 'Cảnh báo',
           defaultConfirmText: 'Xác nhận',
         );
-        
+
       case CyberMsgBoxType.error:
         return _MessageBoxConfig(
           icon: Icons.error_outline,
@@ -149,34 +151,24 @@ class _MessageBoxContent extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           // Icon
-          Icon(
-            icon,
-            size: 64,
-            color: iconColor,
-          ),
+          Icon(icon, size: 64, color: iconColor),
           const SizedBox(height: 16),
-          
+
           // Title
           Text(
             title,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
-          
+
           // Message
           Text(
             message,
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 16,
-              color: contentColor,
-            ),
+            style: TextStyle(fontSize: 16, color: contentColor),
           ),
           const SizedBox(height: 24),
-          
+
           // Buttons
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -195,16 +187,13 @@ class _MessageBoxContent extends StatelessWidget {
                     ),
                     child: Text(
                       cancelText!,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        color: Colors.white,
-                      ),
+                      style: const TextStyle(fontSize: 16, color: Colors.white),
                     ),
                   ),
                 ),
                 const SizedBox(width: 16),
               ],
-              
+
               // Confirm button
               Expanded(
                 child: ElevatedButton(
@@ -218,10 +207,7 @@ class _MessageBoxContent extends StatelessWidget {
                   ),
                   child: Text(
                     confirmText,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      color: Colors.white,
-                    ),
+                    style: const TextStyle(fontSize: 16, color: Colors.white),
                   ),
                 ),
               ),
@@ -236,7 +222,7 @@ class _MessageBoxContent extends StatelessWidget {
 /// Extension method cho String - giống MAUI
 extension CyberMessageBoxExtension on String {
   /// Show MessageBox từ String
-  /// 
+  ///
   /// Usage:
   /// ```dart
   /// bool result = await "Nội dung thông báo".V_MsgBox(
@@ -245,15 +231,15 @@ extension CyberMessageBoxExtension on String {
   ///   type: CyberMsgBoxType.warning,
   /// );
   /// ```
+  // ignore: non_constant_identifier_names
   Future<bool> V_MsgBox(
     BuildContext context, {
-    String? title="",
+    String? title = "",
     CyberMsgBoxType type = CyberMsgBoxType.defaultType,
     String? confirmText,
     String? cancelText,
   }) async {
-
-    if(title==""){
+    if (title == "") {
       switch (type) {
         case CyberMsgBoxType.defaultType:
           title = 'Thông báo';
@@ -283,10 +269,10 @@ extension CyberMessageBoxContextExtension on BuildContext {
   /// Show Default MessageBox (Success)
   Future<bool> showSuccess(
     String message, {
-    String? title="",
+    String? title = "",
     String? confirmText,
   }) async {
-    if(title==""){
+    if (title == "") {
       title = 'Thông báo';
     }
     return await message.V_MsgBox(
@@ -300,11 +286,11 @@ extension CyberMessageBoxContextExtension on BuildContext {
   /// Show Warning MessageBox
   Future<bool> showWarning(
     String message, {
-    String? title="",
+    String? title = "",
     String? confirmText,
     String? cancelText,
   }) async {
-    if(title==""){
+    if (title == "") {
       title = 'Cảnh báo';
     }
     return await message.V_MsgBox(
@@ -319,10 +305,10 @@ extension CyberMessageBoxContextExtension on BuildContext {
   /// Show Error MessageBox
   Future<bool> showErrorMsg(
     String message, {
-    String? title="",
+    String? title = "",
     String? confirmText,
   }) async {
-    if(title==""){
+    if (title == "") {
       title = 'Lỗi';
     }
     return await message.V_MsgBox(

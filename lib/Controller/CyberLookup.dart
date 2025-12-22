@@ -328,8 +328,9 @@ class _CyberLookupState extends State<CyberLookup> {
 
     final listeners = <Listenable>[];
     if (_boundTextRow != null) listeners.add(_boundTextRow!);
-    if (_boundDisplayRow != null && _boundDisplayRow != _boundTextRow)
+    if (_boundDisplayRow != null && _boundDisplayRow != _boundTextRow) {
       listeners.add(_boundDisplayRow!);
+    }
     if (listeners.isNotEmpty) {
       return ListenableBuilder(
         listenable: Listenable.merge(listeners),
@@ -365,7 +366,7 @@ class _LookupBottomSheetState extends State<_LookupBottomSheet> {
   bool _isLoading = false;
 
   bool _isMultiSelect = false;
-  Set<int> _selectedIndices = {};
+  final Set<int> _selectedIndices = {};
 
   @override
   void initState() {
@@ -627,7 +628,7 @@ class _LookupBottomSheetState extends State<_LookupBottomSheet> {
                 color: Colors.white,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 10,
                     offset: Offset(0, -5),
                   ),

@@ -308,7 +308,7 @@ class _CyberCameraState extends State<CyberCamera> {
                                 vertical: 8,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.6),
+                                color: Colors.black.withValues(alpha: 0.6),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
@@ -329,7 +329,7 @@ class _CyberCameraState extends State<CyberCamera> {
             if (_isCapturing)
               Positioned.fill(
                 child: Container(
-                  color: Colors.white.withOpacity(0.5),
+                  color: Colors.white.withValues(alpha: 0.5),
                   child: Center(
                     child: Icon(
                       Icons.camera_alt,
@@ -357,7 +357,7 @@ class _CyberCameraState extends State<CyberCamera> {
           Container(
             margin: EdgeInsets.only(bottom: 8),
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.5),
+              color: Colors.black.withValues(alpha: 0.5),
               shape: BoxShape.circle,
             ),
             child: IconButton(
@@ -370,7 +370,7 @@ class _CyberCameraState extends State<CyberCamera> {
         if (!widget.showTapOverlay)
           Container(
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.5),
+              color: Colors.black.withValues(alpha: 0.5),
               shape: BoxShape.circle,
             ),
             child: IconButton(
@@ -664,7 +664,7 @@ class _CyberCameraScreenState extends State<_CyberCameraScreen> {
           if (_isCapturing)
             Positioned.fill(
               child: Container(
-                color: Colors.white.withOpacity(0.5),
+                color: Colors.white.withValues(alpha: 0.5),
                 child: Center(
                   child: Icon(Icons.camera_alt, size: 64, color: Colors.white),
                 ),
@@ -683,7 +683,10 @@ class _CyberCameraScreenState extends State<_CyberCameraScreen> {
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [Colors.transparent, Colors.black.withOpacity(0.7)],
+                    colors: [
+                      Colors.transparent,
+                      Colors.black.withValues(alpha: 0.7),
+                    ],
                   ),
                 ),
                 child: Row(
@@ -729,7 +732,7 @@ class _CyberCameraScreenState extends State<_CyberCameraScreen> {
                 child: Container(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.6),
+                    color: Colors.black.withValues(alpha: 0.6),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(

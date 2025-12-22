@@ -1,4 +1,4 @@
-import 'package:cyberframework/Module/Data/CyberDataset.dart';
+import 'package:cyberframework/cyberframework.dart';
 
 class ReturnData {
   bool? status;

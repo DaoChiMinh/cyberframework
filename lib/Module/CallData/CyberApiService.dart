@@ -36,8 +36,8 @@ class CyberApiService {
             url,
             headers: {
               'Content-Type': 'application/json',
-              'Cyber-cetificate': '${await DeviceInfo.cetificate}',
-              'Cyber-Mac': '${await DeviceInfo.macdevice}',
+              'Cyber-cetificate': await DeviceInfo.cetificate,
+              'Cyber-Mac': await DeviceInfo.macdevice,
               'Access-Control-Allow-Origin': '*',
             },
             body: jsonEncode(requestStr),
