@@ -83,11 +83,6 @@ class CyberDataset extends ChangeNotifier {
       // Lấy nội dung message để hiển thị
       String message = firstRow['note'].toString();
 
-      // ✅ Nếu có Msg = "Y" và isShowMsg = true => luôn hiển thị message
-      if (msgValue == 'Y' && isShowMsg) {
-        message.V_MsgBox(contex, type: CyberMsgBoxType.warning);
-      }
-
       // ✅ Kiểm tra Status = "N"
       if (statusValue == 'N') {
         // Hiển thị message nếu isShowMsg = true
@@ -96,6 +91,10 @@ class CyberDataset extends ChangeNotifier {
           message.V_MsgBox(contex, type: CyberMsgBoxType.error);
         }
         return false; // ❌ Return false ngay khi tìm thấy Status = "N"
+      }
+      // ✅ Nếu có Msg = "Y" và isShowMsg = true => luôn hiển thị message
+      if (msgValue == 'Y' && isShowMsg) {
+        message.V_MsgBox(contex, type: CyberMsgBoxType.warning);
       }
     }
 
