@@ -2,17 +2,14 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'CyberDataTable.dart';
 
-/// CyberDataset - collection của CyberDataTable (giống ADO.NET Dataset)
+/// CyberDataset - collection của CyberDataTable với proper disposal
 class CyberDataset extends ChangeNotifier {
   final Map<String, CyberDataTable> _tables = {};
+  bool _isDisposed = false;
 
-  /// Get tables
   Map<String, CyberDataTable> get tables => Map.unmodifiable(_tables);
-
-  /// Get table count
   int get tableCount => _tables.length;
 
-  /// Indexer để get table theo name
   CyberDataTable? operator [](dynamic tableName) {
     return Table(tableName);
   }
@@ -30,48 +27,49 @@ class CyberDataset extends ChangeNotifier {
     return null;
   }
 
-  /// Add table
   void addTable(CyberDataTable table) {
+    if (_isDisposed) {
+      return;
+    }
+
     _tables[table.tableName] = table;
     table.addListener(_onTableChanged);
     notifyListeners();
   }
 
-  /// Create và add table
   CyberDataTable createTable(String tableName) {
     final table = CyberDataTable(tableName: tableName);
     addTable(table);
     return table;
   }
 
-  /// Remove table
   void removeTable(String tableName) {
     final table = _tables[tableName];
     if (table != null) {
       table.removeListener(_onTableChanged);
+      // ✅ Dispose table when removing
+      table.dispose();
       _tables.remove(tableName);
       notifyListeners();
     }
   }
 
-  /// Clear all tables
+  /// ✅ FIXED: Clear with proper disposal
   void clear() {
     for (var table in _tables.values) {
       table.removeListener(_onTableChanged);
+      // ✅ Dispose table (which will dispose all rows)
       table.dispose();
     }
     _tables.clear();
     notifyListeners();
   }
 
-  /// Load từ JSON (từ API)
-  /// JSON format: { "tableName": [ {...}, {...} ], "tableName2": [...] }
   void loadFromJson(String jsonString) {
     final data = json.decode(jsonString) as Map<String, dynamic>;
     loadFromMap(data);
   }
 
-  /// Load từ Map
   void loadFromMap(Map<String, dynamic> data) {
     clear();
 
@@ -80,28 +78,24 @@ class CyberDataset extends ChangeNotifier {
       final tableData = entry.value;
 
       if (tableData is List) {
-        // Array of objects → DataTable
         final table = createTable(tableName);
         final rows = tableData
             .map((item) => item as Map<String, dynamic>)
             .toList();
         table.loadData(rows);
       } else if (tableData is Map) {
-        // Single object → DataTable với 1 row
         final table = createTable(tableName);
         table.loadData([tableData as Map<String, dynamic>]);
       }
     }
   }
 
-  /// Load single table từ List
   void loadTable(String tableName, List<Map<String, dynamic>> data) {
     var table = _tables[tableName];
     table ??= createTable(tableName);
     table.loadData(data);
   }
 
-  /// Accept all changes
   void acceptChanges() {
     for (var table in _tables.values) {
       table.acceptChanges();
@@ -109,7 +103,6 @@ class CyberDataset extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Reject all changes
   void rejectChanges() {
     for (var table in _tables.values) {
       table.rejectChanges();
@@ -117,15 +110,12 @@ class CyberDataset extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Check có thay đổi không
   bool get hasChanges => _tables.values.any((table) => table.hasChanges);
 
-  /// Get changed tables
   List<CyberDataTable> getChangedTables() {
     return _tables.values.where((table) => table.hasChanges).toList();
   }
 
-  /// Export to Map
   Map<String, dynamic> toMap() {
     final result = <String, dynamic>{};
     for (var entry in _tables.entries) {
@@ -134,12 +124,10 @@ class CyberDataset extends ChangeNotifier {
     return result;
   }
 
-  /// Export to JSON string
   String toJson() {
     return json.encode(toMap());
   }
 
-  /// Copy dataset
   CyberDataset copy() {
     final newDataset = CyberDataset();
     for (var table in _tables.values) {
@@ -149,29 +137,42 @@ class CyberDataset extends ChangeNotifier {
   }
 
   void _onTableChanged() {
-    notifyListeners();
+    if (!_isDisposed) {
+      notifyListeners();
+    }
   }
 
+  /// ✅ ENHANCED: Dispose with proper cleanup
   @override
   void dispose() {
+    if (_isDisposed) {
+      debugPrint('⚠️ WARNING: Double dispose detected on dataset!');
+      return;
+    }
+
+    debugPrint('🗑️ Disposing CyberDataset with ${_tables.length} tables');
+
     for (var table in _tables.values) {
       table.removeListener(_onTableChanged);
       table.dispose();
     }
     _tables.clear();
+
+    _isDisposed = true;
     super.dispose();
   }
 
+  /// ✅ NEW: Check if disposed
+  bool get isDisposed => _isDisposed;
+
   @override
   String toString() {
-    return 'CyberDataset{tables: ${_tables.keys.join(", ")}, hasChanges: $hasChanges}';
+    return 'CyberDataset{tables: ${_tables.keys.join(", ")}, hasChanges: $hasChanges, disposed: $_isDisposed}';
   }
 }
 
 /// Helper để tạo dataset từ JSON response đơn giản
 class CyberDatasetHelper {
-  /// Load từ flat JSON (single table)
-  /// Example: [{"id": 1, "name": "John"}, {"id": 2, "name": "Jane"}]
   static CyberDataset fromFlatJson(
     String jsonString, {
     String tableName = "Table1",
@@ -189,8 +190,6 @@ class CyberDatasetHelper {
     return dataset;
   }
 
-  /// Load từ nested JSON (multiple tables)
-  /// Example: {"users": [...], "orders": [...]}
   static CyberDataset fromNestedJson(String jsonString) {
     final dataset = CyberDataset();
     dataset.loadFromJson(jsonString);

@@ -1,77 +1,80 @@
 import 'package:flutter/material.dart';
 import 'CyberDataRow.dart';
 
-/// CyberDataTable - collection của CyberDataRow (giống ADO.NET DataTable)
+/// CyberDataTable - collection của CyberDataRow với proper disposal
 class CyberDataTable extends ChangeNotifier {
   final String tableName;
   final List<CyberDataRow> _rows = [];
   final Map<String, Type> _columns = {};
+  bool _isDisposed = false;
 
   CyberDataTable({required this.tableName});
 
-  /// Get rows
   List<CyberDataRow> get rows => List.unmodifiable(_rows);
-
-  /// Get row count
   int get rowCount => _rows.length;
-
-  /// Get columns
   Map<String, Type> get columns => Map.unmodifiable(_columns);
 
-  /// Indexer để get row theo index
   CyberDataRow operator [](int index) {
     return _rows[index];
   }
 
-  /// Define column
   bool containerColumn(String columnName) {
     return _columns.containsKey(columnName.toLowerCase());
   }
 
-  /// Define column
   void addColumn(String columnName, Type type) {
     _columns[columnName] = type;
   }
 
-  /// Add row
   void addRow(CyberDataRow row) {
+    if (_isDisposed) {
+      debugPrint('⚠️ WARNING: Trying to add row to disposed table!');
+      return;
+    }
+
     _rows.add(row);
     row.addListener(_onRowChanged);
     notifyListeners();
   }
 
-  /// Create new row
   CyberDataRow newRow() {
     return CyberDataRow(columns);
   }
 
-  /// Remove row
   void removeRow(CyberDataRow row) {
     row.removeListener(_onRowChanged);
+    // ✅ Dispose row when removing
+    row.disposeAllListeners();
+    row.dispose();
     _rows.remove(row);
     notifyListeners();
   }
 
-  /// Remove row at index
   void removeAt(int index) {
     if (index >= 0 && index < _rows.length) {
       final row = _rows[index];
       row.removeListener(_onRowChanged);
+      // ✅ Dispose row when removing
+      row.disposeAllListeners();
+      row.dispose();
       _rows.removeAt(index);
       notifyListeners();
     }
   }
 
-  /// Clear all rows
+  /// ✅ FIXED: Clear with proper disposal
   void clear() {
     for (var row in _rows) {
       row.removeListener(_onRowChanged);
+      // ✅ Dispose all widget listeners first
+      row.disposeAllListeners();
+      // ✅ Then dispose the row itself
+      row.dispose();
     }
     _rows.clear();
     notifyListeners();
   }
 
-  /// Load từ List<Map>
   void loadData(List<Map<String, dynamic>> data) {
     clear();
     for (var item in data) {
@@ -87,7 +90,6 @@ class CyberDataTable extends ChangeNotifier {
     }
   }
 
-  /// Accept all changes
   void acceptChanges() {
     for (var row in _rows) {
       row.acceptChanges();
@@ -95,7 +97,6 @@ class CyberDataTable extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Reject all changes
   void rejectChanges() {
     for (var row in _rows) {
       row.rejectChanges();
@@ -103,20 +104,16 @@ class CyberDataTable extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Get changed rows
   List<CyberDataRow> getChangedRows() {
     return _rows.where((row) => row.isDirty).toList();
   }
 
-  /// Check có thay đổi không
   bool get hasChanges => _rows.any((row) => row.isDirty);
 
-  /// Find rows by condition
   List<CyberDataRow> findRows(bool Function(CyberDataRow) predicate) {
     return _rows.where(predicate).toList();
   }
 
-  /// Find first row by condition
   CyberDataRow? findRow(bool Function(CyberDataRow) predicate) {
     try {
       return _rows.firstWhere(predicate);
@@ -125,12 +122,10 @@ class CyberDataTable extends ChangeNotifier {
     }
   }
 
-  /// Export to List<Map>
   List<Map<String, dynamic>> toList() {
     return _rows.map((row) => row.toMap()).toList();
   }
 
-  /// Copy table
   CyberDataTable copy() {
     final newTable = CyberDataTable(tableName: tableName);
     newTable._columns.addAll(_columns);
@@ -143,21 +138,35 @@ class CyberDataTable extends ChangeNotifier {
   }
 
   void _onRowChanged() {
-    notifyListeners();
+    if (!_isDisposed) {
+      notifyListeners();
+    }
   }
 
+  /// ✅ ENHANCED: Dispose with proper cleanup
   @override
   void dispose() {
+    if (_isDisposed) {
+      return;
+    }
+
+    // ✅ Proper cleanup
     for (var row in _rows) {
       row.removeListener(_onRowChanged);
+      row.disposeAllListeners();
       row.dispose();
     }
     _rows.clear();
+
+    _isDisposed = true;
     super.dispose();
   }
 
+  /// ✅ NEW: Check if disposed
+  bool get isDisposed => _isDisposed;
+
   @override
   String toString() {
-    return 'CyberDataTable{name: $tableName, rows: $rowCount, hasChanges: $hasChanges}';
+    return 'CyberDataTable{name: $tableName, rows: $rowCount, hasChanges: $hasChanges, disposed: $_isDisposed}';
   }
 }

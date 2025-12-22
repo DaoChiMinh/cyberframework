@@ -1,23 +1,71 @@
 import 'package:cyberframework/Module/callobject.dart';
 import 'package:flutter/material.dart';
 
-/// CyberDataRow - đại diện cho một row dữ liệu (giống ADO.NET DataRow)
+/// CyberDataRow - đại diện cho một row dữ liệu với memory leak protection
 class CyberDataRow extends ChangeNotifier {
   final Map<String, dynamic> _data = {};
   final Map<String, dynamic> _originalData = {};
   final Set<String> _changedFields = {};
 
-  /// Constructor
+  // ✅ NEW: Track listeners để có thể dispose
+  final Set<VoidCallback> _trackedListeners = {};
+  bool _isDisposed = false;
+
   CyberDataRow([Map<String, dynamic>? initialData]) {
     if (initialData != null) {
       _data.addAll(initialData);
       _originalData.addAll(initialData);
     }
   }
+
+  // ============================================================================
+  // ENHANCED LISTENER MANAGEMENT
+  // ============================================================================
+
+  @override
+  void addListener(VoidCallback listener) {
+    if (_isDisposed) {
+      return;
+    }
+
+    super.addListener(listener);
+    _trackedListeners.add(listener);
+  }
+
+  @override
+  void removeListener(VoidCallback listener) {
+    super.removeListener(listener);
+  }
+
+  /// ✅ NEW: Dispose all tracked listeners
+  void disposeAllListeners() {
+    if (_trackedListeners.isEmpty) return;
+    // Create copy to avoid concurrent modification
+    final listenersCopy = _trackedListeners.toList();
+
+    for (var listener in listenersCopy) {
+      try {
+        super.removeListener(listener);
+      } catch (e) {}
+    }
+
+    _trackedListeners.clear();
+  }
+
+  /// ✅ NEW: Check if row has listeners
+  bool get hasListeners => _trackedListeners.isNotEmpty;
+
+  /// ✅ NEW: Get listener count
+  int get listenerCount => _trackedListeners.length;
+
+  // ============================================================================
+  // EXISTING METHODS (UNCHANGED)
+  // ============================================================================
+
   void V_Call(BuildContext context) {
     if (!hasField("PageName")) return;
     String pageName = this["PageName"];
-    String title = !hasField("PageName") ? "" : this["TitlePage"].toString();
+    String title = !hasField("TitlePage") ? "" : this["TitlePage"].toString();
     String cpName = !hasField("cp_name") ? "" : this["cp_name"].toString();
     String typepage = !hasField("TypePageName")
         ? ""
@@ -29,24 +77,23 @@ class CyberDataRow extends ChangeNotifier {
     V_callform(context, pageName, title, cpName, strParameter, typepage);
   }
 
-  /// Indexer để get value - trả về raw value
-  /// Dùng cho binding: drEdit['name']
   dynamic operator [](String fieldName) {
     return _data[fieldName.toLowerCase()];
   }
 
-  /// Indexer để set value
   void operator []=(String fieldName, dynamic value) {
     setValue(fieldName.toLowerCase(), value);
   }
 
-  /// Get value với type safe
   T? get<T>(String fieldName) {
     return _data[fieldName.toLowerCase()] as T?;
   }
 
-  /// Set value
   void setValue(String fieldName, dynamic value) {
+    if (_isDisposed) {
+      return;
+    }
+
     fieldName = fieldName.toLowerCase();
     final oldValue = _data[fieldName];
 
@@ -64,21 +111,16 @@ class CyberDataRow extends ChangeNotifier {
     }
   }
 
-  /// Check field có tồn tại không
   bool hasField(String fieldName) {
     return _data.containsKey(fieldName.toLowerCase());
   }
 
-  /// Get tất cả field names
   List<String> get fieldNames => _data.keys.toList();
 
-  /// Check row có thay đổi không
   bool get isDirty => _changedFields.isNotEmpty;
 
-  /// Get các field đã thay đổi
   Set<String> get changedFields => Set.unmodifiable(_changedFields);
 
-  /// Accept changes (commit)
   void acceptChanges() {
     _originalData.clear();
     _originalData.addAll(_data);
@@ -86,7 +128,6 @@ class CyberDataRow extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Reject changes (revert)
   void rejectChanges() {
     _data.clear();
     _data.addAll(_originalData);
@@ -94,22 +135,18 @@ class CyberDataRow extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Get original value
   dynamic getOriginal(String fieldName) {
     return _originalData[fieldName.toLowerCase()];
   }
 
-  /// Copy row
   CyberDataRow copy() {
     return CyberDataRow(Map<String, dynamic>.from(_data));
   }
 
-  /// To Map
   Map<String, dynamic> toMap() {
     return Map<String, dynamic>.from(_data);
   }
 
-  /// Get changed values only
   Map<String, dynamic> getChangedValues() {
     final changed = <String, dynamic>{};
     for (var field in _changedFields) {
@@ -118,16 +155,38 @@ class CyberDataRow extends ChangeNotifier {
     return changed;
   }
 
+  // ============================================================================
+  // ENHANCED DISPOSE
+  // ============================================================================
+
+  @override
+  void dispose() {
+    if (_isDisposed) {
+      return;
+    }
+    // ✅ Dispose all listeners first
+    disposeAllListeners();
+
+    // Clear data
+    _data.clear();
+    _originalData.clear();
+    _changedFields.clear();
+
+    _isDisposed = true;
+
+    super.dispose();
+  }
+
+  /// ✅ NEW: Check if disposed
+  bool get isDisposed => _isDisposed;
   @override
   String toString() {
-    return 'CyberDataRow{fields: ${_data.keys.join(", ")}, isDirty: $isDirty}';
+    return 'CyberDataRow{fields: ${_data.keys.join(", ")}, isDirty: $isDirty, listeners: $listenerCount, disposed: $_isDisposed}';
   }
 }
 
 /// Extension để format string với placeholder {0}, {1}, {2}...
 extension StringFormatExtension on String {
-  /// Format string với các placeholder {0}, {1}, {2}...
-  /// Example: "Hello {0}, you are {1} years old".format(["John", 25])
   String format(List<dynamic> args) {
     String result = this;
     for (int i = 0; i < args.length; i++) {
@@ -138,17 +197,14 @@ extension StringFormatExtension on String {
 }
 
 /// CyberBindingExpression - đại diện cho expression drEdit['name']
-/// Đây là wrapper để biết rằng value này đến từ binding
 class CyberBindingExpression {
   final CyberDataRow row;
   final String fieldName;
 
   CyberBindingExpression(this.row, this.fieldName);
 
-  /// Get value
   dynamic get value => row[fieldName.toLowerCase()];
 
-  /// Set value
   set value(dynamic newValue) {
     row[fieldName.toLowerCase()] = newValue;
   }
