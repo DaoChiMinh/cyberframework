@@ -1,6 +1,5 @@
 // ignore: file_names
-import 'package:cyberframework/Module/save_storage.dart';
-import 'package:flutter/material.dart';
+import 'package:cyberframework/cyberframework.dart';
 import 'package:uuid/uuid.dart';
 
 class DeviceInfo extends ChangeNotifier {

@@ -1,8 +1,4 @@
-// ignore: file_names
-import 'package:cyberframework/Module/CallData/CyberApiService.dart';
-import 'package:cyberframework/Module/CallData/CyberDataPost.dart';
-import 'package:cyberframework/Module/CallData/ReturnData.dart';
-import 'package:flutter/material.dart';
+import 'package:cyberframework/cyberframework.dart';
 
 extension CyberApiExtension on BuildContext {
   Future<ReturnData> callApi({

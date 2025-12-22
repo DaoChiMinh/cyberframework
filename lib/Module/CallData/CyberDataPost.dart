@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'package:cyberframework/Module/Info/UserInfo.dart';
-import 'package:cyberframework/Module/exten.dart';
+
+import 'package:cyberframework/cyberframework.dart';
 
 class CyberDataPost {
   String? functionName;
@@ -16,7 +16,7 @@ class CyberDataPost {
   Future<String> convertToRequestString() async {
     final requestData = {
       'Cyber-Date': DateTime.now().toIso8601String(),
-      'Cyber-Token': "${await UserInfo.strTokenId}",
+      'Cyber-Token': await UserInfo.strTokenId,
       'Cyber-data': toJson(),
     };
 

@@ -1,5 +1,4 @@
-import 'package:cyberframework/Module/Screenmap.dart';
-import 'package:flutter/material.dart';
+import 'package:cyberframework/cyberframework.dart';
 
 class CyberFormView extends StatefulWidget {
   final CyberForm Function() formBuilder;
