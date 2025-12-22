@@ -132,13 +132,15 @@ class CyberGrid extends StatelessWidget {
 
             // Calculate total content height
             double totalContentHeight = 0;
-            bool needsScroll = false;
+            bool hasFlexRows = false;
 
             for (var h in rowHeights) {
-              if (h == -1 || h == -2) {
-                // Has auto or star rows - assume might need scroll
-                needsScroll = true;
-                break;
+              if (h == -1) {
+                // Auto row - can't predict height
+                hasFlexRows = true;
+              } else if (h == -2) {
+                // Star/flex row
+                hasFlexRows = true;
               } else {
                 totalContentHeight += h;
               }
@@ -150,15 +152,28 @@ class CyberGrid extends StatelessWidget {
                 : 0.0;
             totalContentHeight += totalSpacing;
 
-            // Check if needs scroll
-            if (!needsScroll) {
-              needsScroll = totalContentHeight > availableHeight;
+            // Determine if scroll is needed
+            bool needsScroll =
+                hasFlexRows || (totalContentHeight > availableHeight);
+
+            // Convert row heights for scroll mode
+            List<double> scrollModeHeights = rowHeights;
+
+            if (needsScroll) {
+              // In scroll mode, convert all star (*) to auto
+              scrollModeHeights = rowHeights.map((h) {
+                if (h == -2) {
+                  // Convert star to auto
+                  return -1.0;
+                }
+                return h;
+              }).toList();
             }
 
             Widget content = Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.min,
-              children: _buildRowsWithHeights(rowHeights),
+              children: _buildRowsWithHeights(scrollModeHeights),
             );
 
             // Wrap in scroll if needed
