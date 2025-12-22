@@ -50,7 +50,9 @@ class CyberGrid extends StatelessWidget {
             : (shouldFillParent && heightRows != null)
             ? _buildWithHeightRowsExpanded(effectivePadding)
             : Column(
-                mainAxisSize: MainAxisSize.min,
+                mainAxisSize: shouldFillParent
+                    ? MainAxisSize.max
+                    : MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: _buildRows(),
               ),
@@ -58,10 +60,13 @@ class CyberGrid extends StatelessWidget {
     );
 
     // Wrap with Expanded if should fill parent
-    if (shouldFillParent && heightRows != null) {
-      return content;
-    } else if (shouldFillParent) {
-      return Expanded(child: content);
+    if (shouldFillParent) {
+      if (heightRows != null) {
+        return content; // LayoutBuilder will handle it
+      } else {
+        // Fill parent without heightRows - use Expanded
+        return Expanded(child: content);
+      }
     } else if (numericHeight != null) {
       return SizedBox(height: numericHeight, child: content);
     }
@@ -278,6 +283,8 @@ class GridRow extends StatelessWidget {
   final MainAxisAlignment? mainAxisAlignment;
   final CrossAxisAlignment? crossAxisAlignment;
   final double? spacing;
+  final Color? backgroundColor;
+  final EdgeInsetsGeometry? padding;
 
   const GridRow({
     super.key,
@@ -286,6 +293,8 @@ class GridRow extends StatelessWidget {
     this.mainAxisAlignment,
     this.crossAxisAlignment,
     this.spacing,
+    this.backgroundColor,
+    this.padding,
   });
 
   @override
@@ -297,11 +306,25 @@ class GridRow extends StatelessWidget {
           constraints.maxWidth,
         );
 
-        return Row(
+        Widget rowContent = Row(
           mainAxisAlignment: mainAxisAlignment ?? MainAxisAlignment.start,
           crossAxisAlignment: crossAxisAlignment ?? CrossAxisAlignment.center,
           children: _buildColumns(columnWidths),
         );
+
+        // Wrap with DecoratedBox if backgroundColor is provided
+        if (backgroundColor != null) {
+          rowContent = DecoratedBox(
+            decoration: BoxDecoration(color: backgroundColor),
+            child: padding != null
+                ? Padding(padding: padding!, child: rowContent)
+                : rowContent,
+          );
+        } else if (padding != null) {
+          rowContent = Padding(padding: padding!, child: rowContent);
+        }
+
+        return rowContent;
       },
     );
   }
