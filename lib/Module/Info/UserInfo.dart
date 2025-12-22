@@ -1,10 +1,12 @@
+import 'dart:ui';
+
 import 'package:cyberframework/cyberframework.dart';
 
 class UserInfo {
   static Future<String> get strTokenId async =>
-      await AppStorage.get("strTokenId1");
+      await AppStorage.get("strTokenId");
   static Future<void> setstrTokenId(String value) async =>
-      await AppStorage.set("strTokenId1", value);
+      await AppStorage.set("strTokenId", value);
 
   static String user_name = "";
   static String ma_dvcs = "";
@@ -16,8 +18,9 @@ class UserInfo {
     BuildContext contex,
     String _userName,
     String _password,
-    String _ma_Dvcs,
-  ) async {
+    String _ma_Dvcs, {
+    bool isShowMsg = true,
+  }) async {
     // ✅ Get certificate và token
     // ignore: unused_local_variable
     String _certificate = await DeviceInfo.cetificate;
@@ -43,7 +46,7 @@ class UserInfo {
     if (dslogin == null) {
       return false;
     }
-
+    if (!dslogin.checkStatus(contex, isShowMsg: isShowMsg)) return false;
     CyberDataTable? dtlogin = dslogin[0];
     if (dtlogin == null || dtlogin.rowCount == 0) {
       return false;

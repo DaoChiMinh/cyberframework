@@ -31,6 +31,7 @@ class ReturnData {
   bool isValid() {
     if (status == false && message == null) return false;
     if (status == false) return false;
+
     return true;
   }
 

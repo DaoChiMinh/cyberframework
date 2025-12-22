@@ -1,3 +1,4 @@
+import 'package:cyberframework/Controller/CyberMessageBox.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'CyberDataTable.dart';
@@ -52,6 +53,54 @@ class CyberDataset extends ChangeNotifier {
       _tables.remove(tableName);
       notifyListeners();
     }
+  }
+
+  bool checkStatus(BuildContext contex, {bool isShowMsg = true}) {
+    if (_isDisposed) {
+      return false;
+    }
+
+    // Quét tất cả các tables
+    for (var table in _tables.values) {
+      // Kiểm tra table có dòng dữ liệu
+      if (table.rows.isEmpty) {
+        continue;
+      }
+
+      // Kiểm tra có cột Status không
+      if (!table.containerColumn('status')) {
+        continue;
+      }
+      // Lấy dòng đầu tiên
+      var firstRow = table.rows.first;
+
+      // Lấy giá trị Status
+      String? statusValue = firstRow['status']?.toString();
+      String? msgValue = table.containerColumn('msg')
+          ? firstRow['Msg']?.toString()
+          : null;
+
+      // Lấy nội dung message để hiển thị
+      String message = firstRow['note'].toString();
+
+      // ✅ Nếu có Msg = "Y" và isShowMsg = true => luôn hiển thị message
+      if (msgValue == 'Y' && isShowMsg) {
+        message.V_MsgBox(contex, type: CyberMsgBoxType.warning);
+      }
+
+      // ✅ Kiểm tra Status = "N"
+      if (statusValue == 'N') {
+        // Hiển thị message nếu isShowMsg = true
+        if (isShowMsg && msgValue != 'Y') {
+          // Tránh hiển thị 2 lần
+          message.V_MsgBox(contex, type: CyberMsgBoxType.error);
+        }
+        return false; // ❌ Return false ngay khi tìm thấy Status = "N"
+      }
+    }
+
+    // ✅ Tất cả Status hợp lệ (khác "N")
+    return true;
   }
 
   /// ✅ FIXED: Clear with proper disposal
