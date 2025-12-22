@@ -18,26 +18,125 @@ class UserInfo {
     String _password,
     String _ma_Dvcs,
   ) async {
+    // ✅ Get certificate và token
     String? cetificate = await DeviceInfo.cetificate;
     cetificate = cetificate ?? "";
 
+    String? _strTokenId = await CyberStorage.get("strTokenId");
+    _strTokenId = _strTokenId ?? ""; // ✅ Handle null
+
+    String _pass = MD5(_password);
+
+    // ✅ Debug log
+    if (kDebugMode) {
+      print("🔐 Login params: $_strTokenId#$cetificate#$_userName#***#$_pass");
+    }
+
+    // ✅ Call API
     ReturnData returnDatalogin = await contex.callApi(
       functionName: "CP_APPNBSysLogin",
-      parameter:
-          "$strTokenId#$cetificate#$_userName#$_password#$MD5($_password)",
+      parameter: "$_strTokenId#$cetificate#$_userName#$_password#$_pass",
       showError: true,
       showLoading: true,
     );
-    if (!returnDatalogin.isValid()) return false;
+
+    // ✅ Check response validity
+    if (!returnDatalogin.isValid()) {
+      if (kDebugMode) {
+        print("❌ Login failed: ${returnDatalogin.message}");
+      }
+      return false;
+    }
+
+    // ✅ Safe null checks
     CyberDataset? dslogin = returnDatalogin.toCyberDataset();
-    CyberDataTable dtlogin = dslogin![0]!;
-    await setstrTokenId(dtlogin[0]["tokenkey"]);
-    user_name = dtlogin[0]["User_name"];
-    comment = dtlogin[0]["Comment"];
-    ma_dvcs = dtlogin[0]["ma_dvcs"];
-    isOTP = dtlogin.containerColumn("isotp") ? dtlogin[0]["isOTP"] : false;
-    id_otp = dtlogin.containerColumn("id_otp") ? dtlogin[0]["id_otp"] : "";
+    if (dslogin == null) {
+      if (kDebugMode) {
+        print("❌ Cannot parse dataset");
+      }
+      return false;
+    }
+
+    CyberDataTable? dtlogin = dslogin[0];
+    if (dtlogin == null || dtlogin.rowCount == 0) {
+      if (kDebugMode) {
+        print("❌ No data returned from login");
+      }
+      return false;
+    }
+
+    // ✅ Get first row safely
+    final loginRow = dtlogin[0];
+
+    // ✅ Save token
+    final tokenKey = loginRow["tokenkey"]?.toString();
+    if (tokenKey != null && tokenKey.isNotEmpty) {
+      await setstrTokenId(tokenKey);
+    }
+
+    // ✅ Safe field extraction với null handling
+    user_name = loginRow["User_name"]?.toString() ?? "";
+    comment = loginRow["Comment"]?.toString() ?? "";
+    ma_dvcs = loginRow["ma_dvcs"]?.toString() ?? "";
+
+    // ✅ Handle isOTP với nhiều format khác nhau
+    if (dtlogin.containerColumn("isOTP")) {
+      final otpValue = loginRow["isOTP"];
+      if (otpValue is bool) {
+        isOTP = otpValue ? "1" : "0";
+      } else if (otpValue is String) {
+        isOTP = otpValue;
+      } else if (otpValue is int) {
+        isOTP = otpValue.toString();
+      } else {
+        isOTP = "0";
+      }
+    } else if (dtlogin.containerColumn("isotp")) {
+      // ✅ Fallback cho lowercase field
+      final otpValue = loginRow["isotp"];
+      if (otpValue is bool) {
+        isOTP = otpValue ? "1" : "0";
+      } else if (otpValue is String) {
+        isOTP = otpValue;
+      } else if (otpValue is int) {
+        isOTP = otpValue.toString();
+      } else {
+        isOTP = "0";
+      }
+    } else {
+      isOTP = "0";
+    }
+
+    // ✅ Handle id_otp
+    if (dtlogin.containerColumn("id_otp")) {
+      id_otp = loginRow["id_otp"]?.toString() ?? "";
+    } else if (dtlogin.containerColumn("idotp")) {
+      // ✅ Fallback cho lowercase
+      id_otp = loginRow["idotp"]?.toString() ?? "";
+    } else {
+      id_otp = "";
+    }
+
+    if (kDebugMode) {
+      print("✅ Login success: $user_name ($ma_dvcs), OTP: $isOTP");
+    }
 
     return true;
+  }
+
+  /// ✅ Helper method: Clear session
+  static Future<void> logout() async {
+    await setstrTokenId("");
+    user_name = "";
+    ma_dvcs = "";
+    comment = "";
+    isOTP = "";
+    id_otp = "";
+  }
+
+  /// ✅ Helper method: Check if logged in
+  static Future<bool> isLoggedIn() async {
+    final token = await strTokenId;
+    return token != null && token.isNotEmpty;
   }
 }
