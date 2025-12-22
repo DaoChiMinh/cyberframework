@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:crypto/crypto.dart';
 import 'package:cyberframework/Module/CallData/ReturnData.dart';
 import 'package:flutter/material.dart';
 
@@ -80,4 +81,8 @@ ReturnData parseResponse(String responseStr) {
       isConnect: true,
     );
   }
+}
+
+String MD5(String input) {
+  return md5.convert(utf8.encode(input)).toString();
 }
