@@ -77,6 +77,19 @@ class CyberDataTable extends ChangeNotifier {
 
   void loadData(List<Map<String, dynamic>> data) {
     clear();
+
+    if (data.isNotEmpty) {
+      var firstItem = data.first;
+      for (var entry in firstItem.entries) {
+        var columnName = entry.key;
+        var value = entry.value;
+
+        // Detect type từ giá trị (lowercase key để match với containsColumn)
+        Type columnType = value?.runtimeType ?? dynamic;
+        _columns[columnName.toLowerCase()] = columnType;
+      }
+    }
+
     for (var item in data) {
       final row = CyberDataRow(item);
       addRow(row);
