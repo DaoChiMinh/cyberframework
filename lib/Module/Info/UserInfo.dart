@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:cyberframework/cyberframework.dart';
 
 class UserInfo {
@@ -25,9 +23,7 @@ class UserInfo {
     // ignore: unused_local_variable
     String _certificate = await DeviceInfo.cetificate;
     String _strTokenId = await strTokenId;
-
     String _pass = MD5(_password);
-    print("$_strTokenId#$_certificate#$_userName#$_password#$_pass");
     // ✅ Call API
     ReturnData returnDatalogin = await contex.callApi(
       functionName: "CP_APPNBSysLogin",
@@ -115,11 +111,5 @@ class UserInfo {
     comment = "";
     isOTP = "";
     id_otp = "";
-  }
-
-  /// ✅ Helper method: Check if logged in
-  static Future<bool> isLoggedIn() async {
-    final token = await strTokenId;
-    return token != null && token.isNotEmpty;
   }
 }
