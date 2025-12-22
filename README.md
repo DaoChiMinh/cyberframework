@@ -33,7 +33,7 @@ Thêm dependency vào file `pubspec.yaml`:
 dependencies:
   cyberframework:
     git:
-      url: https://github.com/cybersoftvn/cyberframework.git
+      url: https://github.com/DaoChiMinh/cyberframework.git
   injectable: ^2.7.1+2
   get_it: ^9.2.0
 
