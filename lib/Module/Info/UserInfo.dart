@@ -31,7 +31,7 @@ class UserInfo {
     // ✅ Call API
     ReturnData returnDatalogin = await contex.callApi(
       functionName: "CP_APPNBSysLogin",
-      parameter: "$_strTokenId#$_certificate#$_userName#$_password#$_pass",
+      parameter: "$_strTokenId#$_certificate#$_userName#$_pass#$_ma_Dvcs",
       showError: true,
       showLoading: true,
     );

@@ -83,6 +83,8 @@ ReturnData parseResponse(String responseStr) {
   }
 }
 
-String MD5(String input) {
+String MD5(String? input) {
+  if (input == "") return "";
+  if (input == null) return "";
   return md5.convert(utf8.encode(input)).toString();
 }

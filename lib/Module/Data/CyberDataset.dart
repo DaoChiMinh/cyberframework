@@ -75,7 +75,7 @@ class CyberDataset extends ChangeNotifier {
       var firstRow = table.rows.first;
 
       // Lấy giá trị Status
-      String? statusValue = firstRow['status']?.toString();
+      String? statusValue = firstRow['status']?.toString().trim().toUpperCase();
       String? msgValue = table.containerColumn('msg')
           ? firstRow['Msg']?.toString()
           : null;
