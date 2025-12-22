@@ -35,8 +35,8 @@ class UserInfo {
     user_name = dtlogin[0]["User_name"];
     comment = dtlogin[0]["Comment"];
     ma_dvcs = dtlogin[0]["ma_dvcs"];
-    isOTP = dtlogin[0]["isOTP"];
-    id_otp = dtlogin[0]["id_otp"];
+    isOTP = dtlogin.containerColumn("isotp") ? dtlogin[0]["isOTP"] : false;
+    id_otp = dtlogin.containerColumn("id_otp") ? dtlogin[0]["id_otp"] : "";
 
     return true;
   }
