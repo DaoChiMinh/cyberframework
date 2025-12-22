@@ -432,7 +432,7 @@ class GridRow extends StatelessWidget {
   final double? spacing;
   final Color? backgroundColor;
   final EdgeInsetsGeometry? padding;
-
+  final bool autoScrollOnOverflow;
   const GridRow({
     super.key,
     required this.widthColumn,
@@ -442,6 +442,7 @@ class GridRow extends StatelessWidget {
     this.spacing,
     this.backgroundColor,
     this.padding,
+    this.autoScrollOnOverflow = true,
   });
 
   @override
@@ -453,11 +454,36 @@ class GridRow extends StatelessWidget {
           constraints.maxWidth,
         );
 
+        // ✅ Calculate total width needed
+        double totalWidth = 0;
+        for (var width in columnWidths) {
+          if (width > 0) {
+            totalWidth += width;
+          }
+        }
+
+        // Add spacing
+        if (spacing != null && columns.length > 1) {
+          totalWidth += spacing! * (columns.length - 1);
+        }
+
+        // ✅ Check if need scroll
+        final needsScroll =
+            autoScrollOnOverflow && totalWidth > constraints.maxWidth;
+
         Widget rowContent = Row(
           mainAxisAlignment: mainAxisAlignment ?? MainAxisAlignment.start,
           crossAxisAlignment: crossAxisAlignment ?? CrossAxisAlignment.center,
           children: _buildColumns(columnWidths),
         );
+
+        // ✅ Auto wrap with scroll if needed
+        if (needsScroll) {
+          rowContent = SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: IntrinsicHeight(child: rowContent),
+          );
+        }
 
         // Wrap with DecoratedBox if backgroundColor is provided
         if (backgroundColor != null) {
