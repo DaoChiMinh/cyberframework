@@ -1,10 +1,12 @@
 import 'package:cyberframework/cyberframework.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class UserInfo {
-  static Future<String?> get strTokenId async =>
-      await AppStorage.get("strTokenId");
+  static const _storage = FlutterSecureStorage();
+  static Future<String> get strTokenId async =>
+      await AppStorage.get("strTokenId1");
   static Future<void> setstrTokenId(String value) async =>
-      await AppStorage.set("strTokenId", value);
+      await AppStorage.set("strTokenId1", value);
 
   static String user_name = "";
   static String ma_dvcs = "";
@@ -19,17 +21,17 @@ class UserInfo {
     String _ma_Dvcs,
   ) async {
     // ✅ Get certificate và token
-    String? cetificate = await DeviceInfo.cetificate;
-    cetificate = cetificate ?? "";
 
-    String _strTokenId = await AppStorage.get("strTokenId");
-
+    String? _strTokenId = await _storage.read(key: "strTokenId");
+    if (_strTokenId == null) {
+      _strTokenId = "";
+    }
     String _pass = MD5(_password);
-
+    print("1111111111111$_strTokenId##$_userName#$_password#$_pass");
     // ✅ Call API
     ReturnData returnDatalogin = await contex.callApi(
       functionName: "CP_APPNBSysLogin",
-      parameter: "$_strTokenId#$cetificate#$_userName#$_password#$_pass",
+      parameter: "$_strTokenId##$_userName#$_password#$_pass",
       showError: true,
       showLoading: true,
     );
