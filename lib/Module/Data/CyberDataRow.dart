@@ -48,6 +48,7 @@ class CyberDataRow extends ChangeNotifier {
     for (var listener in listenersCopy) {
       try {
         super.removeListener(listener);
+        // ignore: empty_catches
       } catch (e) {}
     }
 
@@ -65,6 +66,7 @@ class CyberDataRow extends ChangeNotifier {
   // EXISTING METHODS (UNCHANGED)
   // ============================================================================
 
+  // ignore: non_constant_identifier_names
   void V_Call(BuildContext context) {
     if (!hasField("PageName")) return;
     String pageName = this["PageName"];

@@ -12,11 +12,11 @@ export 'package:cyberframework/Module/Data/cyberdatarow.dart';
 export 'package:cyberframework/Module/Data/cyberdatatable.dart';
 export 'package:cyberframework/Module/Data/cyberdataset.dart';
 
-export 'package:cyberframework/Module/Info/DeviceInfo.dart';
-export 'package:cyberframework/Module/Info/UserInfo.dart';
+export 'package:cyberframework/Module/Info/deviceinfo.dart';
+export 'package:cyberframework/Module/Info/userinfo.dart';
 
 export 'package:cyberframework/Controller/cybermessagebox.dart';
-export 'package:cyberframework/Module/Screenmap.dart';
+export 'package:cyberframework/Module/screenmap.dart';
 export 'package:cyberframework/Controller/cybercontentview.dart';
 export 'package:cyberframework/Controller/cybertabview.dart';
 export 'package:cyberframework/Controller/cybergrid.dart';

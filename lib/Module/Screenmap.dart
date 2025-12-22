@@ -1,6 +1,6 @@
 // ignore: file_names
-import 'package:cyberframework/Controller/cybercontentview.dart';
-import 'package:cyberframework/Module/cyber.form.dart';
+
+import 'package:cyberframework/cyberframework.dart';
 import 'package:get_it/get_it.dart';
 
 final _getIt = GetIt.instance;
