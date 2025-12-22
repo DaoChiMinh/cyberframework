@@ -299,8 +299,8 @@ class CyberGrid extends StatelessWidget {
           final rowHeight = rowHeights[i];
 
           if (rowHeight == -1) {
-            // Auto height
-            rows.add(children[i]);
+            // Auto height - wrap in Flexible với flex: 0 để không bị expand
+            rows.add(Flexible(flex: 0, fit: FlexFit.loose, child: children[i]));
           } else if (rowHeight == -2) {
             // Star height in fill parent mode - use Expanded
             rows.add(Expanded(child: children[i]));
