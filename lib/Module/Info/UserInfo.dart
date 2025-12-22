@@ -2,9 +2,9 @@ import 'package:cyberframework/cyberframework.dart';
 
 class UserInfo {
   static Future<String?> get strTokenId async =>
-      await CyberStorage.get("strTokenId");
+      await AppStorage.get("strTokenId");
   static Future<void> setstrTokenId(String value) async =>
-      await CyberStorage.set("strTokenId", value);
+      await AppStorage.set("strTokenId", value);
 
   static String user_name = "";
   static String ma_dvcs = "";
@@ -22,8 +22,7 @@ class UserInfo {
     String? cetificate = await DeviceInfo.cetificate;
     cetificate = cetificate ?? "";
 
-    String _strTokenId = await CyberStorage.get("strTokenId");
-    _strTokenId = _strTokenId ?? ""; // ✅ Handle null
+    String _strTokenId = await AppStorage.get("strTokenId");
 
     String _pass = MD5(_password);
 
