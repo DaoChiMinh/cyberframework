@@ -1,7 +1,9 @@
 name: cyberframework
 description: "CyberSoft Flutter plugin framework"
-version: 0.0.21
-homepage:
+version: 0.0.22
+homepage: https://cybersoft.com.vn/
+repository: https://github.com/DaoChiMinh/cyberframework
+issue_tracker: https://github.com/DaoChiMinh/cyberframework/issues
 
 environment:
   sdk: ^3.10.4
