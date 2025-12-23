@@ -51,8 +51,17 @@ class CyberBox extends StatelessWidget {
   /// Border
   final BoxBorder? border;
 
-  /// Bo góc border
+  /// Bo góc border (ưu tiên dùng nếu có cả radius)
   final BorderRadius? borderRadius;
+
+  /// Bo góc đơn giản (áp dụng đều cho 4 góc)
+  final double? radius;
+
+  /// Bo góc từng góc riêng biệt
+  final double? topLeftRadius;
+  final double? topRightRadius;
+  final double? bottomLeftRadius;
+  final double? bottomRightRadius;
 
   /// Danh sách các widget con
   final List<Widget> children;
@@ -86,6 +95,11 @@ class CyberBox extends StatelessWidget {
     this.padding,
     this.border,
     this.borderRadius,
+    this.radius,
+    this.topLeftRadius,
+    this.topRightRadius,
+    this.bottomLeftRadius,
+    this.bottomRightRadius,
     this.children = const [],
     this.vAlign = CyberAlign.start,
     this.hAlign = CyberAlign.start,
@@ -96,10 +110,37 @@ class CyberBox extends StatelessWidget {
     this.shadows,
   });
 
+  /// Tính toán BorderRadius cuối cùng
+  BorderRadius? _getEffectiveBorderRadius() {
+    // Ưu tiên dùng borderRadius nếu có
+    if (borderRadius != null) return borderRadius;
+
+    // Nếu có radius đơn giản, dùng cho cả 4 góc
+    if (radius != null) {
+      return BorderRadius.circular(radius!);
+    }
+
+    // Nếu có radius cho từng góc riêng biệt
+    if (topLeftRadius != null ||
+        topRightRadius != null ||
+        bottomLeftRadius != null ||
+        bottomRightRadius != null) {
+      return BorderRadius.only(
+        topLeft: Radius.circular(topLeftRadius ?? 0),
+        topRight: Radius.circular(topRightRadius ?? 0),
+        bottomLeft: Radius.circular(bottomLeftRadius ?? 0),
+        bottomRight: Radius.circular(bottomRightRadius ?? 0),
+      );
+    }
+
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final parsedWidth = CyberSize.parse(width);
     final parsedHeight = CyberSize.parse(height);
+    final effectiveBorderRadius = _getEffectiveBorderRadius();
 
     final mainAxisAlignment = _convertToMainAxisAlignment(vAlign);
     final crossAxisAlignment = _convertToCrossAxisAlignment(hAlign);
@@ -130,7 +171,7 @@ class CyberBox extends StatelessWidget {
       decoration: BoxDecoration(
         color: backgroundColor,
         border: border,
-        borderRadius: borderRadius,
+        borderRadius: effectiveBorderRadius,
         boxShadow: shadows,
       ),
       child: content,
@@ -144,7 +185,7 @@ class CyberBox extends StatelessWidget {
           color: Colors.transparent,
           child: InkWell(
             onTap: onClick,
-            borderRadius: borderRadius,
+            borderRadius: effectiveBorderRadius,
             child: Container(
               width: containerWidth,
               height: containerHeight,
@@ -153,7 +194,7 @@ class CyberBox extends StatelessWidget {
               decoration: BoxDecoration(
                 color: backgroundColor,
                 border: border,
-                borderRadius: borderRadius,
+                borderRadius: effectiveBorderRadius,
                 boxShadow: shadows,
               ),
               child: Column(
@@ -238,6 +279,61 @@ extension CyberBoxBorder on CyberBox {
       right: right ? BorderSide(color: color, width: width) : BorderSide.none,
       bottom: bottom ? BorderSide(color: color, width: width) : BorderSide.none,
       left: left ? BorderSide(color: color, width: width) : BorderSide.none,
+    );
+  }
+}
+
+/// Extension để tạo border radius dễ dàng hơn
+extension CyberBoxRadius on CyberBox {
+  /// Tạo border radius đều cho 4 góc
+  static BorderRadius circular(double radius) {
+    return BorderRadius.circular(radius);
+  }
+
+  /// Tạo border radius chỉ cho góc trên
+  static BorderRadius onlyTop(double radius) {
+    return BorderRadius.only(
+      topLeft: Radius.circular(radius),
+      topRight: Radius.circular(radius),
+    );
+  }
+
+  /// Tạo border radius chỉ cho góc dưới
+  static BorderRadius onlyBottom(double radius) {
+    return BorderRadius.only(
+      bottomLeft: Radius.circular(radius),
+      bottomRight: Radius.circular(radius),
+    );
+  }
+
+  /// Tạo border radius chỉ cho góc trái
+  static BorderRadius onlyLeft(double radius) {
+    return BorderRadius.only(
+      topLeft: Radius.circular(radius),
+      bottomLeft: Radius.circular(radius),
+    );
+  }
+
+  /// Tạo border radius chỉ cho góc phải
+  static BorderRadius onlyRight(double radius) {
+    return BorderRadius.only(
+      topRight: Radius.circular(radius),
+      bottomRight: Radius.circular(radius),
+    );
+  }
+
+  /// Tạo border radius tùy chỉnh cho từng góc
+  static BorderRadius custom({
+    double topLeft = 0,
+    double topRight = 0,
+    double bottomLeft = 0,
+    double bottomRight = 0,
+  }) {
+    return BorderRadius.only(
+      topLeft: Radius.circular(topLeft),
+      topRight: Radius.circular(topRight),
+      bottomLeft: Radius.circular(bottomLeft),
+      bottomRight: Radius.circular(bottomRight),
     );
   }
 }
