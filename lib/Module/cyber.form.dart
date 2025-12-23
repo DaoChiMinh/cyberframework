@@ -92,6 +92,7 @@ class _CyberFormViewState extends State<CyberFormView> {
                 backgroundColor: Theme.of(context).colorScheme.inversePrimary,
                 title: Text(widget.title),
               ),
+        backgroundColor: Colors.white,
         body: _buildBody(),
       ),
     );

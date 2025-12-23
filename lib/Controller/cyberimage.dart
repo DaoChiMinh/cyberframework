@@ -662,6 +662,19 @@ class _CyberImageState extends State<CyberImage> {
     final boxFit = _parseFit();
 
     try {
+      if (imageValue.startsWith('assets/') ||
+          imageValue.startsWith('asset/') ||
+          imageValue.contains('assets/')) {
+        return Image.asset(
+          imageValue,
+          fit: boxFit,
+          width: double.infinity,
+          height: double.infinity,
+          errorBuilder: (context, error, stackTrace) {
+            return widget.errorWidget ?? _buildErrorWidget();
+          },
+        );
+      }
       // Check if base64
       if (imageValue.startsWith('data:image')) {
         final base64String = imageValue.split(',').last;
