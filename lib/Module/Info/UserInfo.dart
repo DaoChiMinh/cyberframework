@@ -18,11 +18,12 @@ class UserInfo {
 
   // ignore: non_constant_identifier_names
   static Future<bool> V_Login(
-    BuildContext contex,
-    String userName,
-    String password,
-    String maDvcs, {
+    BuildContext contex, {
+    String userName = "",
+    String password = "",
+    String maDvcs = "",
     bool isShowMsg = true,
+    bool isShowloading = true,
   }) async {
     // ✅ Get certificate và token
     // ignore: unused_local_variable, no_leading_underscores_for_local_identifiers
@@ -36,8 +37,8 @@ class UserInfo {
     ReturnData returnDatalogin = await contex.callApi(
       functionName: "CP_APPNBSysLogin",
       parameter: "$_strTokenId#$_certificate#$userName#$_pass#$maDvcs",
-      showError: true,
-      showLoading: true,
+      showError: isShowMsg,
+      showLoading: isShowloading,
     );
 
     // ✅ Check response validity
