@@ -44,7 +44,7 @@ class LoadingOverlay extends StatelessWidget {
             ),
           ] else ...[
             const SizedBox(height: 16),
-            const Text('Đang xử lý...', style: TextStyle(fontSize: 16)),
+            //const Text('Đang xử lý...', style: TextStyle(fontSize: 16)),
           ],
         ],
       ),
