@@ -31,19 +31,6 @@ class LoadingOverlay extends StatelessWidget {
         children: [
           // ✅ Loading indicator màu trắng
           const CircularProgressIndicator(color: Colors.white, strokeWidth: 4),
-          //   if (message != null) ...[
-          //     const SizedBox(height: 16),
-          //     Text(
-          //       message!,
-          //       style: const TextStyle(
-          //         fontSize: 16,
-          //         color: Colors.white, // ✅ Text màu trắng
-          //         fontWeight: FontWeight.w500,
-          //       ),
-          //       textAlign: TextAlign.center,
-          //     ),
-          //   ],
-          //
         ],
       ),
     );
