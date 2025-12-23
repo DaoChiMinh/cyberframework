@@ -211,11 +211,11 @@ abstract class CyberForm {
   /// Navigate đến form khác
   // ignore: non_constant_identifier_names
   void V_Call(
-    String strfrm,
-    String title,
-    String cpName,
-    String strparameter, {
+    String strfrm, {
     bool hideAppBar = true,
+    String title = "",
+    String cpName = "",
+    String strparameter = "",
   }) {
     var frm = V_getScreen(
       strfrm,
