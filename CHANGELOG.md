@@ -1,3 +1,7 @@
+## 0.0.26
+
+update cybertabview
+
 ## 0.0.25
 
 update and fix data
