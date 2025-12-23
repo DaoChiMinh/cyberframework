@@ -221,7 +221,7 @@ class _MessageBoxContent extends StatelessWidget {
 extension CyberDynamicExtension on dynamic {
   /// Kiểm tra null hoặc empty - Main method
   bool checkEmptyIsNull(
-    BuildContext context,
+    BuildContext? context,
     String fieldName, {
     bool isShowMsg = true,
   }) {
@@ -274,7 +274,7 @@ extension CyberDynamicExtension on dynamic {
 
   /// Alias 1: checkEmptyorIsNull (với "or")
   bool checkEmptyorIsNull(
-    BuildContext context,
+    BuildContext? context,
     String fieldName, {
     bool isShowMsg = true,
   }) {
