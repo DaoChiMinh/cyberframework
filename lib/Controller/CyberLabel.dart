@@ -19,6 +19,10 @@ class CyberLabel extends StatelessWidget {
   final BorderRadius? rippleBorderRadius;
   final EdgeInsets? tapPadding;
 
+  // ✅ Thêm maxLines và overflow
+  final int? maxLines;
+  final TextOverflow? overflow;
+
   const CyberLabel({
     super.key,
     this.text,
@@ -36,6 +40,8 @@ class CyberLabel extends StatelessWidget {
     this.rippleColor,
     this.rippleBorderRadius,
     this.tapPadding,
+    this.maxLines,
+    this.overflow,
   });
 
   /// Convert dynamic value sang bool
@@ -55,32 +61,6 @@ class CyberLabel extends StatelessWidget {
 
     return true; // Default visible
   }
-
-  // IconData? _parseIconCodePoint(String codePointStr) {
-  //   try {
-  //     codePointStr = codePointStr.trim();
-
-  //     int codePoint;
-
-  //     // Format: 0xe047 hoặc 0xE047
-  //     if (codePointStr.toLowerCase().startsWith('0x')) {
-  //       codePoint = int.parse(codePointStr.substring(2), radix: 16);
-  //     }
-  //     // Format: e047 (hex không prefix)
-  //     else if (RegExp(r'^[a-fA-F0-9]+$').hasMatch(codePointStr)) {
-  //       codePoint = int.parse(codePointStr, radix: 16);
-  //     }
-  //     // Format: 57415 (decimal)
-  //     else {
-  //       codePoint = int.parse(codePointStr);
-  //     }
-
-  //     return IconData(codePoint, fontFamily: 'MaterialIcons');
-  //   } catch (e) {
-  //     debugPrint('Error parsing icon code point "$codePointStr": $e');
-  //     return null;
-  //   }
-  // }
 
   /// Check có event nào không
   bool get _hasEvents => onLeaver != null;
@@ -220,6 +200,12 @@ class CyberLabel extends StatelessWidget {
       displayText,
       style: style?.copyWith(color: textcolor) ?? TextStyle(color: textcolor),
       textAlign: textalign,
+      maxLines: maxLines, // ✅ Áp dụng maxLines
+      overflow:
+          overflow ??
+          (maxLines != null
+              ? TextOverflow.ellipsis
+              : null), // ✅ Default ellipsis khi có maxLines
     );
   }
 
@@ -238,6 +224,8 @@ class CyberLabel extends StatelessWidget {
         valueStr,
         style: style?.copyWith(color: textcolor) ?? TextStyle(color: textcolor),
         textAlign: textalign,
+        maxLines: maxLines, // ✅ Áp dụng maxLines cho fallback text
+        overflow: overflow ?? (maxLines != null ? TextOverflow.ellipsis : null),
       );
     }
 
@@ -263,6 +251,8 @@ extension CyberClickableLabelExtension on String {
     Color? rippleColor,
     bool isIcon = false,
     double? iconSize,
+    int? maxLines, // ✅ Thêm vào extension
+    TextOverflow? overflow,
   }) {
     return CyberLabel(
       text: this,
@@ -274,6 +264,8 @@ extension CyberClickableLabelExtension on String {
       rippleColor: rippleColor,
       isIcon: isIcon,
       iconSize: iconSize,
+      maxLines: maxLines,
+      overflow: overflow,
     );
   }
 
