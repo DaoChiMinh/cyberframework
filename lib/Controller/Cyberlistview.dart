@@ -107,11 +107,14 @@ class CyberListView extends StatefulWidget {
   /// Khoảng cách dọc giữa các hàng (chỉ dùng khi columnCount > 1)
   final double mainAxisSpacing;
 
-  /// Tỷ lệ width/height của item (chỉ dùng khi columnCount > 1)
+  /// Tỷ lệ width/height của item (chỉ dùng khi columnCount > 1 và autoItemHeight = false)
   final double childAspectRatio;
 
   /// Cuộn theo chiều ngang (horizontal = true thì columnCount không có hiệu lực)
   final bool horizontal;
+
+  /// Tự động điều chỉnh chiều cao item theo nội dung (chỉ dùng khi columnCount > 1 và horizontal = false)
+  final bool autoItemHeight;
 
   const CyberListView({
     super.key,
@@ -143,6 +146,7 @@ class CyberListView extends StatefulWidget {
     this.mainAxisSpacing = 8.0,
     this.childAspectRatio = 1.0,
     this.horizontal = false,
+    this.autoItemHeight = false,
   }) : assert(columnCount >= 1, 'columnCount phải >= 1');
 
   @override
@@ -541,6 +545,13 @@ class _CyberListViewState extends State<CyberListView> {
         animation: _dataTable,
         builder: (context, child) {
           final rows = _dataTable.rows;
+
+          // ✅ Dùng auto height layout nếu enabled
+          if (widget.autoItemHeight) {
+            return _buildAutoHeightGrid(rows);
+          }
+
+          // ✅ Dùng GridView chuẩn với childAspectRatio
           final totalItems = rows.length + (_isLoadingMore ? 1 : 0);
 
           return GridView.builder(
@@ -567,6 +578,58 @@ class _CyberListViewState extends State<CyberListView> {
           );
         },
       ),
+    );
+  }
+
+  /// ✅ Build Grid với Auto Height - Dùng ListView + Row
+  Widget _buildAutoHeightGrid(List<CyberDataRow> rows) {
+    final rowCount = (rows.length / widget.columnCount).ceil();
+
+    return ListView.separated(
+      controller: _scrollController,
+      padding: widget.padding ?? const EdgeInsets.all(8),
+      itemCount: rowCount + (_isLoadingMore ? 1 : 0),
+      separatorBuilder: (context, index) =>
+          SizedBox(height: widget.mainAxisSpacing),
+      itemBuilder: (context, rowIndex) {
+        if (rowIndex >= rowCount) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+
+        final startIndex = rowIndex * widget.columnCount;
+        final endIndex = (startIndex + widget.columnCount).clamp(
+          0,
+          rows.length,
+        );
+        final rowItems = rows.sublist(startIndex, endIndex);
+
+        return _buildAutoHeightGridRow(rowItems, startIndex);
+      },
+    );
+  }
+
+  /// ✅ Build một row trong auto height grid
+  Widget _buildAutoHeightGridRow(List<CyberDataRow> rowItems, int startIndex) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Render các items có data
+        for (int i = 0; i < rowItems.length; i++) ...[
+          Expanded(child: _buildItem(rowItems[i], startIndex + i)),
+          if (i < rowItems.length - 1) SizedBox(width: widget.crossAxisSpacing),
+        ],
+
+        // Thêm empty space nếu row không đủ items
+        for (int i = rowItems.length; i < widget.columnCount; i++) ...[
+          if (i > 0) SizedBox(width: widget.crossAxisSpacing),
+          const Expanded(child: SizedBox()),
+        ],
+      ],
     );
   }
 
