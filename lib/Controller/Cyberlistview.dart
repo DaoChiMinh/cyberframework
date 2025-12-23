@@ -116,6 +116,12 @@ class CyberListView extends StatefulWidget {
   /// Tự động điều chỉnh chiều cao item theo nội dung (chỉ dùng khi columnCount > 1 và horizontal = false)
   final bool autoItemHeight;
 
+  /// Chiều cao của ListView - Có thể là double hoặc "*" để tự động theo nội dung
+  /// - null: Dùng Expanded (chiếm hết không gian còn lại)
+  /// - "*": Tự động theo chiều cao nội dung (shrinkWrap)
+  /// - double: Chiều cao cố định
+  final dynamic height;
+
   const CyberListView({
     super.key,
     this.dataSource,
@@ -147,6 +153,7 @@ class CyberListView extends StatefulWidget {
     this.childAspectRatio = 1.0,
     this.horizontal = false,
     this.autoItemHeight = false,
+    this.height,
   }) : assert(columnCount >= 1, 'columnCount phải >= 1');
 
   @override
@@ -168,11 +175,26 @@ class _CyberListViewState extends State<CyberListView> {
     return widget.dataSource ?? CyberDataTable(tableName: 'Empty');
   }
 
+  /// ✅ Check xem có dùng shrinkWrap không (khi height = "*")
+  bool get _useShrinkWrap => widget.height == "*";
+
+  /// ✅ Get physics phù hợp
+  ScrollPhysics? get _scrollPhysics {
+    if (_useShrinkWrap) {
+      return const NeverScrollableScrollPhysics();
+    }
+    return null; // Dùng default physics
+  }
+
   @override
   void initState() {
     super.initState();
     _scrollController = widget.scrollController ?? ScrollController();
-    _scrollController.addListener(_onScroll);
+
+    // Chỉ add listener khi không dùng shrinkWrap
+    if (!_useShrinkWrap) {
+      _scrollController.addListener(_onScroll);
+    }
 
     // ✅ Load initial data nếu có onLoadData
     if (widget.onLoadData != null && widget.dataSource == null) {
@@ -189,6 +211,15 @@ class _CyberListViewState extends State<CyberListView> {
     // ✅ Rebuild khi dataSource thay đổi reference
     if (widget.dataSource != oldWidget.dataSource) {
       setState(() {});
+    }
+
+    // ✅ Update scroll listener nếu height thay đổi
+    if (widget.height != oldWidget.height) {
+      if (oldWidget.height == "*" && widget.height != "*") {
+        _scrollController.addListener(_onScroll);
+      } else if (oldWidget.height != "*" && widget.height == "*") {
+        _scrollController.removeListener(_onScroll);
+      }
     }
   }
 
@@ -316,19 +347,35 @@ class _CyberListViewState extends State<CyberListView> {
     return Column(
       children: [
         if (widget.showSearchBox) _buildSearchBar(),
-        Expanded(
-          child: _isLoading
-              ? _buildLoading()
-              : _dataTable.rowCount == 0
-              ? _buildEmpty()
-              : widget.horizontal
-              ? _buildHorizontalList()
-              : widget.columnCount > 1
-              ? _buildGridList()
-              : _buildList(),
-        ),
+        _buildListViewContainer(),
       ],
     );
+  }
+
+  /// ✅ Build container cho ListView với height phù hợp
+  Widget _buildListViewContainer() {
+    final listViewContent = _isLoading
+        ? _buildLoading()
+        : _dataTable.rowCount == 0
+        ? _buildEmpty()
+        : widget.horizontal
+        ? _buildHorizontalList()
+        : widget.columnCount > 1
+        ? _buildGridList()
+        : _buildList();
+
+    // Case 1: height = "*" -> Tự động theo nội dung
+    if (widget.height == "*") {
+      return listViewContent;
+    }
+
+    // Case 2: height = số cụ thể -> SizedBox với height cố định
+    if (widget.height is double) {
+      return SizedBox(height: widget.height as double, child: listViewContent);
+    }
+
+    // Case 3: height = null -> Expanded (default)
+    return Expanded(child: listViewContent);
   }
 
   /// Build search bar với toolbar actions
@@ -467,41 +514,47 @@ class _CyberListViewState extends State<CyberListView> {
 
   /// Build ListView (columnCount = 1, vertical)
   Widget _buildList() {
-    return RefreshIndicator(
-      onRefresh: _refresh,
-      child: AnimatedBuilder(
-        animation: _dataTable,
-        builder: (context, child) {
-          final rows = _dataTable.rows;
+    final listView = AnimatedBuilder(
+      animation: _dataTable,
+      builder: (context, child) {
+        final rows = _dataTable.rows;
 
-          return ListView.separated(
-            controller: _scrollController,
-            padding: widget.padding ?? const EdgeInsets.all(8),
-            itemCount: rows.length + (_isLoadingMore ? 1 : 0),
-            separatorBuilder: (context, index) =>
-                widget.separator ??
-                Divider(height: 1, thickness: 1, color: Colors.grey[200]),
-            itemBuilder: (context, index) {
-              if (index >= rows.length) {
-                return const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Center(child: CircularProgressIndicator()),
-                );
-              }
+        return ListView.separated(
+          controller: _scrollController,
+          padding: widget.padding ?? const EdgeInsets.all(8),
+          itemCount: rows.length + (_isLoadingMore ? 1 : 0),
+          shrinkWrap: _useShrinkWrap,
+          physics: _scrollPhysics,
+          separatorBuilder: (context, index) =>
+              widget.separator ??
+              Divider(height: 1, thickness: 1, color: Colors.grey[200]),
+          itemBuilder: (context, index) {
+            if (index >= rows.length) {
+              return const Padding(
+                padding: EdgeInsets.all(16),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
 
-              final row = rows[index];
+            final row = rows[index];
 
-              if (widget.dtSwipeActions != null &&
-                  widget.dtSwipeActions!.rowCount > 0) {
-                return _buildSlidableItem(row, index);
-              }
+            if (widget.dtSwipeActions != null &&
+                widget.dtSwipeActions!.rowCount > 0) {
+              return _buildSlidableItem(row, index);
+            }
 
-              return _buildItem(row, index);
-            },
-          );
-        },
-      ),
+            return _buildItem(row, index);
+          },
+        );
+      },
     );
+
+    // Chỉ wrap RefreshIndicator khi không dùng shrinkWrap
+    if (_useShrinkWrap) {
+      return listView;
+    }
+
+    return RefreshIndicator(onRefresh: _refresh, child: listView);
   }
 
   /// Build Horizontal ListView
@@ -516,6 +569,8 @@ class _CyberListViewState extends State<CyberListView> {
           scrollDirection: Axis.horizontal,
           padding: widget.padding ?? const EdgeInsets.all(8),
           itemCount: rows.length + (_isLoadingMore ? 1 : 0),
+          shrinkWrap: _useShrinkWrap,
+          physics: _scrollPhysics,
           separatorBuilder: (context, index) =>
               widget.separator ?? const SizedBox(width: 8),
           itemBuilder: (context, index) {
@@ -539,46 +594,52 @@ class _CyberListViewState extends State<CyberListView> {
 
   /// Build GridView (columnCount > 1, vertical)
   Widget _buildGridList() {
-    return RefreshIndicator(
-      onRefresh: _refresh,
-      child: AnimatedBuilder(
-        animation: _dataTable,
-        builder: (context, child) {
-          final rows = _dataTable.rows;
+    final gridView = AnimatedBuilder(
+      animation: _dataTable,
+      builder: (context, child) {
+        final rows = _dataTable.rows;
 
-          // ✅ Dùng auto height layout nếu enabled
-          if (widget.autoItemHeight) {
-            return _buildAutoHeightGrid(rows);
-          }
+        // ✅ Dùng auto height layout nếu enabled
+        if (widget.autoItemHeight) {
+          return _buildAutoHeightGrid(rows);
+        }
 
-          // ✅ Dùng GridView chuẩn với childAspectRatio
-          final totalItems = rows.length + (_isLoadingMore ? 1 : 0);
+        // ✅ Dùng GridView chuẩn với childAspectRatio
+        final totalItems = rows.length + (_isLoadingMore ? 1 : 0);
 
-          return GridView.builder(
-            controller: _scrollController,
-            padding: widget.padding ?? const EdgeInsets.all(8),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: widget.columnCount,
-              crossAxisSpacing: widget.crossAxisSpacing,
-              mainAxisSpacing: widget.mainAxisSpacing,
-              childAspectRatio: widget.childAspectRatio,
-            ),
-            itemCount: totalItems,
-            itemBuilder: (context, index) {
-              if (index >= rows.length) {
-                return const Center(child: CircularProgressIndicator());
-              }
+        return GridView.builder(
+          controller: _scrollController,
+          padding: widget.padding ?? const EdgeInsets.all(8),
+          shrinkWrap: _useShrinkWrap,
+          physics: _scrollPhysics,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: widget.columnCount,
+            crossAxisSpacing: widget.crossAxisSpacing,
+            mainAxisSpacing: widget.mainAxisSpacing,
+            childAspectRatio: widget.childAspectRatio,
+          ),
+          itemCount: totalItems,
+          itemBuilder: (context, index) {
+            if (index >= rows.length) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-              final row = rows[index];
+            final row = rows[index];
 
-              // Note: Swipe actions không hoạt động tốt trong GridView
-              // Nên chỉ dùng tap/long press
-              return _buildItem(row, index);
-            },
-          );
-        },
-      ),
+            // Note: Swipe actions không hoạt động tốt trong GridView
+            // Nên chỉ dùng tap/long press
+            return _buildItem(row, index);
+          },
+        );
+      },
     );
+
+    // Chỉ wrap RefreshIndicator khi không dùng shrinkWrap
+    if (_useShrinkWrap) {
+      return gridView;
+    }
+
+    return RefreshIndicator(onRefresh: _refresh, child: gridView);
   }
 
   /// ✅ Build Grid với Auto Height - Dùng ListView + Row
@@ -589,6 +650,8 @@ class _CyberListViewState extends State<CyberListView> {
       controller: _scrollController,
       padding: widget.padding ?? const EdgeInsets.all(8),
       itemCount: rowCount + (_isLoadingMore ? 1 : 0),
+      shrinkWrap: _useShrinkWrap,
+      physics: _scrollPhysics,
       separatorBuilder: (context, index) =>
           SizedBox(height: widget.mainAxisSpacing),
       itemBuilder: (context, rowIndex) {
