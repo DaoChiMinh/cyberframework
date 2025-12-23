@@ -115,7 +115,10 @@ Future<bool> V_callform(
       break;
     default:
       final screen = V_getScreen(strfrm, title, cpName, strparameter);
-      if (screen == null) return false;
+      if (screen == null) {
+        print("$strfrm không tìm thấy");
+        return false;
+      }
       if (clearAllStack) {
         Navigator.of(context).pushAndRemoveUntil(
           _buildPageRoute(screen, useHeroAnimation),
@@ -125,24 +128,7 @@ Future<bool> V_callform(
         // Navigate bình thường
         Navigator.push(context, _buildPageRoute(screen, useHeroAnimation));
       }
-      // if (useHeroAnimation) {
-      //   Navigator.push(
-      //     context,
-      //     PageRouteBuilder(
-      //       pageBuilder: (context, animation, secondaryAnimation) => screen,
-      //       transitionsBuilder:
-      //           (context, animation, secondaryAnimation, child) {
-      //             return FadeTransition(opacity: animation, child: child);
-      //           },
-      //       transitionDuration: const Duration(milliseconds: 200),
-      //     ),
-      //   );
-      // } else {
-      //   Navigator.push(
-      //     context,
-      //     MaterialPageRoute(builder: (context) => screen),
-      //   );
-      // }
+
       break;
   }
   return true;

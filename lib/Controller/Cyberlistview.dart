@@ -635,14 +635,18 @@ class _CyberListViewState extends State<CyberListView> {
 
   Widget _buildItem(CyberDataRow row, int index) {
     return InkWell(
-      onTap: widget.onItemTap != null ? () => _handleItemTap(row, index) : null,
+      onTap: (widget.onItemTap != null || widget.isClickToScreen)
+          ? () => _handleItemTap(row, index)
+          : null,
       onLongPress: () => _handleItemLongPress(row, index),
       child: widget.itemBuilder(context, row, index),
     );
   }
 
   void _handleItemTap(CyberDataRow row, int index) {
-    widget.onItemTap?.call(row, index);
+    if (widget.onItemTap != null) {
+      widget.onItemTap?.call(row, index);
+    }
 
     if (widget.isClickToScreen) {
       row.V_Call(context);
