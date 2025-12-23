@@ -95,6 +95,26 @@ class CyberDataTable extends ChangeNotifier {
     }
   }
 
+  void loadDataFromRows(List<CyberDataRow> rows) {
+    clear();
+
+    if (rows.isNotEmpty) {
+      _columns.clear();
+      // Lấy field names và detect type từ row đầu tiên
+      var firstRow = rows.first;
+      for (var fieldName in firstRow.fieldNames) {
+        var value = firstRow[fieldName];
+        Type columnType = value?.runtimeType ?? dynamic;
+        _columns[fieldName.toLowerCase()] = columnType;
+      }
+    }
+
+    // Copy và add từng row
+    for (var row in rows) {
+      addRow(row.copy());
+    }
+  }
+
   void loadDatafromTb(CyberDataTable data) {
     clear();
     for (var row in data.rows) {
