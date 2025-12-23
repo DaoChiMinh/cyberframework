@@ -344,12 +344,19 @@ class _CyberListViewState extends State<CyberListView> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    Widget columnContent = Column(
       children: [
         if (widget.showSearchBox) _buildSearchBar(),
         _buildListViewContainer(),
       ],
     );
+
+    // ✅ Khi height là số cụ thể, wrap toàn bộ Column (bao gồm search bar)
+    if (widget.height is double) {
+      return SizedBox(height: widget.height as double, child: columnContent);
+    }
+
+    return columnContent;
   }
 
   /// ✅ Build container cho ListView với height phù hợp
@@ -369,11 +376,7 @@ class _CyberListViewState extends State<CyberListView> {
       return listViewContent;
     }
 
-    // Case 2: height = số cụ thể -> SizedBox với height cố định
-    if (widget.height is double) {
-      return SizedBox(height: widget.height as double, child: listViewContent);
-    }
-
+    // Case 2: height = số cụ thể -> Expanded để chiếm space còn lại (sau search bar)
     // Case 3: height = null -> Expanded (default)
     return Expanded(child: listViewContent);
   }

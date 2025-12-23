@@ -238,6 +238,20 @@ extension CyberValidationContext on BuildContext {
 
 /// Extension method cho String - giống MAUI
 extension CyberMessageBoxExtension on String {
+  Color parseColor(Color defaultColor) {
+    if (isEmpty) return defaultColor;
+
+    try {
+      String hex = replaceAll('#', '');
+      if (hex.length == 6) {
+        hex = 'FF$hex';
+      }
+      return Color(int.parse(hex, radix: 16));
+    } catch (e) {
+      return defaultColor;
+    }
+  }
+
   /// Show MessageBox từ String
   ///
   /// Usage:
