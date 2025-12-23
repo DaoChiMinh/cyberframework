@@ -7,6 +7,9 @@ class UserInfo {
   static Future<void> setstrTokenId(String value) async =>
       await AppStorage.set("strTokenId", value);
 
+  static CyberDataTable? dtCommand;
+  static CyberDataTable? dtPhanHe;
+
   // ignore: non_constant_identifier_names
   static String user_name = "";
   // ignore: non_constant_identifier_names
@@ -109,6 +112,9 @@ class UserInfo {
     } else {
       id_otp = "";
     }
+
+    dtPhanHe = dslogin[2];
+    dtCommand = dslogin[3];
 
     return true;
   }

@@ -98,7 +98,7 @@ class CyberListView extends StatefulWidget {
   /// Debounce time cho search (milliseconds)
   final int searchDebounceTime;
 
-  /// Số cột hiển thị (1 = ListView, >1 = GridView)
+  /// Số cột hiển thị (1 = ListView, >1 = GridView) - Không có hiệu lực khi horizontal = true
   final int columnCount;
 
   /// Khoảng cách ngang giữa các cột (chỉ dùng khi columnCount > 1)
@@ -109,6 +109,9 @@ class CyberListView extends StatefulWidget {
 
   /// Tỷ lệ width/height của item (chỉ dùng khi columnCount > 1)
   final double childAspectRatio;
+
+  /// Cuộn theo chiều ngang (horizontal = true thì columnCount không có hiệu lực)
+  final bool horizontal;
 
   const CyberListView({
     super.key,
@@ -139,6 +142,7 @@ class CyberListView extends StatefulWidget {
     this.crossAxisSpacing = 8.0,
     this.mainAxisSpacing = 8.0,
     this.childAspectRatio = 1.0,
+    this.horizontal = false,
   }) : assert(columnCount >= 1, 'columnCount phải >= 1');
 
   @override
@@ -279,8 +283,12 @@ class _CyberListViewState extends State<CyberListView> {
 
   /// Scroll listener - Trigger load more
   void _onScroll() {
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent * 0.9) {
+    final position = _scrollController.position;
+    final threshold = widget.horizontal
+        ? position.maxScrollExtent * 0.9
+        : position.maxScrollExtent * 0.9;
+
+    if (position.pixels >= threshold) {
       _loadMore();
     }
   }
@@ -309,6 +317,8 @@ class _CyberListViewState extends State<CyberListView> {
               ? _buildLoading()
               : _dataTable.rowCount == 0
               ? _buildEmpty()
+              : widget.horizontal
+              ? _buildHorizontalList()
               : widget.columnCount > 1
               ? _buildGridList()
               : _buildList(),
@@ -451,7 +461,7 @@ class _CyberListViewState extends State<CyberListView> {
         );
   }
 
-  /// Build ListView (columnCount = 1)
+  /// Build ListView (columnCount = 1, vertical)
   Widget _buildList() {
     return RefreshIndicator(
       onRefresh: _refresh,
@@ -490,7 +500,40 @@ class _CyberListViewState extends State<CyberListView> {
     );
   }
 
-  /// Build GridView (columnCount > 1)
+  /// Build Horizontal ListView
+  Widget _buildHorizontalList() {
+    return AnimatedBuilder(
+      animation: _dataTable,
+      builder: (context, child) {
+        final rows = _dataTable.rows;
+
+        return ListView.separated(
+          controller: _scrollController,
+          scrollDirection: Axis.horizontal,
+          padding: widget.padding ?? const EdgeInsets.all(8),
+          itemCount: rows.length + (_isLoadingMore ? 1 : 0),
+          separatorBuilder: (context, index) =>
+              widget.separator ?? const SizedBox(width: 8),
+          itemBuilder: (context, index) {
+            if (index >= rows.length) {
+              return const Padding(
+                padding: EdgeInsets.all(16),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+
+            final row = rows[index];
+
+            // Note: Swipe actions không hoạt động tốt trong horizontal scroll
+            // Nên chỉ dùng tap/long press
+            return _buildItem(row, index);
+          },
+        );
+      },
+    );
+  }
+
+  /// Build GridView (columnCount > 1, vertical)
   Widget _buildGridList() {
     return RefreshIndicator(
       onRefresh: _refresh,
