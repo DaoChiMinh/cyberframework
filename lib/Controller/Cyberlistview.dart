@@ -86,10 +86,10 @@ class CyberListView extends StatefulWidget {
   /// Loading indicator
   final Widget? loadingWidget;
 
-  /// Separator giữa các item
+  /// Separator giữa các item (chỉ dùng khi columnCount = 1)
   final Widget? separator;
 
-  /// Padding cho ListView
+  /// Padding cho ListView/GridView
   final EdgeInsets? padding;
 
   /// ScrollController tùy chỉnh
@@ -98,10 +98,22 @@ class CyberListView extends StatefulWidget {
   /// Debounce time cho search (milliseconds)
   final int searchDebounceTime;
 
+  /// Số cột hiển thị (1 = ListView, >1 = GridView)
+  final int columnCount;
+
+  /// Khoảng cách ngang giữa các cột (chỉ dùng khi columnCount > 1)
+  final double crossAxisSpacing;
+
+  /// Khoảng cách dọc giữa các hàng (chỉ dùng khi columnCount > 1)
+  final double mainAxisSpacing;
+
+  /// Tỷ lệ width/height của item (chỉ dùng khi columnCount > 1)
+  final double childAspectRatio;
+
   const CyberListView({
     super.key,
-    this.dataSource, // ✅ NEW: External datasource
-    this.onLoadData, // ✅ Optional khi có dataSource
+    this.dataSource,
+    this.onLoadData,
     required this.itemBuilder,
     this.isClickToScreen = false,
     this.onItemTap,
@@ -123,7 +135,11 @@ class CyberListView extends StatefulWidget {
     this.padding,
     this.scrollController,
     this.searchDebounceTime = 500,
-  });
+    this.columnCount = 1,
+    this.crossAxisSpacing = 8.0,
+    this.mainAxisSpacing = 8.0,
+    this.childAspectRatio = 1.0,
+  }) : assert(columnCount >= 1, 'columnCount phải >= 1');
 
   @override
   State<CyberListView> createState() => _CyberListViewState();
@@ -293,6 +309,8 @@ class _CyberListViewState extends State<CyberListView> {
               ? _buildLoading()
               : _dataTable.rowCount == 0
               ? _buildEmpty()
+              : widget.columnCount > 1
+              ? _buildGridList()
               : _buildList(),
         ),
       ],
@@ -433,11 +451,11 @@ class _CyberListViewState extends State<CyberListView> {
         );
   }
 
+  /// Build ListView (columnCount = 1)
   Widget _buildList() {
     return RefreshIndicator(
       onRefresh: _refresh,
       child: AnimatedBuilder(
-        // ✅ Listen to external dataSource changes
         animation: _dataTable,
         builder: (context, child) {
           final rows = _dataTable.rows;
@@ -447,6 +465,7 @@ class _CyberListViewState extends State<CyberListView> {
             padding: widget.padding ?? const EdgeInsets.all(8),
             itemCount: rows.length + (_isLoadingMore ? 1 : 0),
             separatorBuilder: (context, index) =>
+                widget.separator ??
                 Divider(height: 1, thickness: 1, color: Colors.grey[200]),
             itemBuilder: (context, index) {
               if (index >= rows.length) {
@@ -463,6 +482,43 @@ class _CyberListViewState extends State<CyberListView> {
                 return _buildSlidableItem(row, index);
               }
 
+              return _buildItem(row, index);
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  /// Build GridView (columnCount > 1)
+  Widget _buildGridList() {
+    return RefreshIndicator(
+      onRefresh: _refresh,
+      child: AnimatedBuilder(
+        animation: _dataTable,
+        builder: (context, child) {
+          final rows = _dataTable.rows;
+          final totalItems = rows.length + (_isLoadingMore ? 1 : 0);
+
+          return GridView.builder(
+            controller: _scrollController,
+            padding: widget.padding ?? const EdgeInsets.all(8),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: widget.columnCount,
+              crossAxisSpacing: widget.crossAxisSpacing,
+              mainAxisSpacing: widget.mainAxisSpacing,
+              childAspectRatio: widget.childAspectRatio,
+            ),
+            itemCount: totalItems,
+            itemBuilder: (context, index) {
+              if (index >= rows.length) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              final row = rows[index];
+
+              // Note: Swipe actions không hoạt động tốt trong GridView
+              // Nên chỉ dùng tap/long press
               return _buildItem(row, index);
             },
           );
@@ -600,104 +656,6 @@ class _CyberListViewState extends State<CyberListView> {
       return defaultColor;
     }
   }
-
-  // IconData? _parseIcon(String codePointStr) {
-  //   try {
-  //     codePointStr = codePointStr.trim();
-
-  //     int codePoint;
-
-  //     // Format: 0xe047 hoặc 0xE047
-  //     if (codePointStr.toLowerCase().startsWith('0x')) {
-  //       codePoint = int.parse(codePointStr.substring(2), radix: 16);
-  //     }
-  //     // Format: e047 (hex không prefix)
-  //     else if (RegExp(r'^[a-fA-F0-9]+$').hasMatch(codePointStr)) {
-  //       codePoint = int.parse(codePointStr, radix: 16);
-  //     }
-  //     // Format: 57415 (decimal)
-  //     else {
-  //       codePoint = int.parse(codePointStr);
-  //     }
-
-  //     return IconData(codePoint, fontFamily: 'MaterialIcons');
-  //   } catch (e) {
-  //     debugPrint('Error parsing icon code point "$codePointStr": $e');
-  //     return null;
-  //   }
-  // }
-  // IconData? _parseIcon(String iconName) {
-  //   if (iconName.isEmpty) return null;
-
-  //   final iconMap = {
-  //     'edit': Icons.edit,
-  //     'delete': Icons.delete,
-  //     'info': Icons.info,
-  //     'settings': Icons.settings,
-  //     'person': Icons.person,
-  //     'home': Icons.home,
-  //     'add': Icons.add,
-  //     'remove': Icons.remove,
-  //     'share': Icons.share,
-  //     'save': Icons.save,
-  //     'search': Icons.search,
-  //     'list': Icons.list,
-  //     'grid': Icons.grid_view,
-  //     'calendar': Icons.calendar_today,
-  //     'clock': Icons.access_time,
-  //     'location': Icons.location_on,
-  //     'phone': Icons.phone,
-  //     'email': Icons.email,
-  //     'attach': Icons.attach_file,
-  //     'image': Icons.image,
-  //     'camera': Icons.camera_alt,
-  //     'video': Icons.videocam,
-  //     'mic': Icons.mic,
-  //     'star': Icons.star,
-  //     'favorite': Icons.favorite,
-  //     'bookmark': Icons.bookmark,
-  //     'shopping': Icons.shopping_cart,
-  //     'payment': Icons.payment,
-  //     'download': Icons.download,
-  //     'upload': Icons.upload,
-  //     'cloud': Icons.cloud,
-  //     'lock': Icons.lock,
-  //     'unlock': Icons.lock_open,
-  //     'key': Icons.key,
-  //     'visibility': Icons.visibility,
-  //     'visibility_off': Icons.visibility_off,
-  //     'check': Icons.check,
-  //     'close': Icons.close,
-  //     'arrow_back': Icons.arrow_back,
-  //     'arrow_forward': Icons.arrow_forward,
-  //     'arrow_up': Icons.arrow_upward,
-  //     'arrow_down': Icons.arrow_downward,
-  //     'menu': Icons.menu,
-  //     'more': Icons.more_vert,
-  //     'filter': Icons.filter_list,
-  //     'sort': Icons.sort,
-  //     'refresh': Icons.refresh,
-  //     'sync': Icons.sync,
-  //     'print': Icons.print,
-  //     'qr': Icons.qr_code,
-  //     'barcode': Icons.barcode_reader,
-  //     'notification': Icons.notifications,
-  //     'message': Icons.message,
-  //     'chat': Icons.chat,
-  //     'call': Icons.call,
-  //     'folder': Icons.folder,
-  //     'file': Icons.insert_drive_file,
-  //     'document': Icons.description,
-  //     'dashboard': Icons.dashboard,
-  //     'analytics': Icons.analytics,
-  //     'chart': Icons.bar_chart,
-  //     'pie_chart': Icons.pie_chart,
-  //     'trending_up': Icons.trending_up,
-  //     'trending_down': Icons.trending_down,
-  //   };
-
-  //   return iconMap[iconName.toLowerCase()];
-  // }
 }
 
 class _MenuBottomSheet extends StatelessWidget {
