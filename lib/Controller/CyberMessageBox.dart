@@ -229,7 +229,7 @@ extension CyberDynamicExtension on dynamic {
     if (this == null) {
       if (isShowMsg) {
         "$fieldName không được để trống".V_MsgBox(
-          context,
+          context!,
           type: CyberMsgBoxType.error,
         );
       }
@@ -240,7 +240,7 @@ extension CyberDynamicExtension on dynamic {
     if (this is String && (this as String).trim().isEmpty) {
       if (isShowMsg) {
         "$fieldName không được để trống".V_MsgBox(
-          context,
+          context!,
           type: CyberMsgBoxType.error,
         );
       }
@@ -251,7 +251,7 @@ extension CyberDynamicExtension on dynamic {
     if (this is List && (this as List).isEmpty) {
       if (isShowMsg) {
         "$fieldName không được để trống".V_MsgBox(
-          context,
+          context!,
           type: CyberMsgBoxType.error,
         );
       }
@@ -262,7 +262,7 @@ extension CyberDynamicExtension on dynamic {
     if (this is Map && (this as Map).isEmpty) {
       if (isShowMsg) {
         "$fieldName không được để trống".V_MsgBox(
-          context,
+          context!,
           type: CyberMsgBoxType.error,
         );
       }

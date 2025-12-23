@@ -1,7 +1,7 @@
 import 'package:cyberframework/cyberframework.dart';
 
 /// CyberRadioGroup - Radio button group đơn giản với values và displays
-/// 
+///
 /// Usage:
 /// ```dart
 /// CyberRadioGroup(
@@ -107,7 +107,7 @@ class _CyberRadioGroupState extends State<CyberRadioGroup> {
     super.initState();
     _parseBindings();
     _parseVisibilityBinding();
-    
+
     // Listen to all bound rows
     if (_boundTextRow != null) {
       _boundTextRow!.addListener(_onBindingChanged);
@@ -115,12 +115,12 @@ class _CyberRadioGroupState extends State<CyberRadioGroup> {
     if (_boundValuesRow != null && _boundValuesRow != _boundTextRow) {
       _boundValuesRow!.addListener(_onBindingChanged);
     }
-    if (_boundDisplaysRow != null && 
-        _boundDisplaysRow != _boundTextRow && 
+    if (_boundDisplaysRow != null &&
+        _boundDisplaysRow != _boundTextRow &&
         _boundDisplaysRow != _boundValuesRow) {
       _boundDisplaysRow!.addListener(_onBindingChanged);
     }
-    if (_visibilityBoundRow != null && 
+    if (_visibilityBoundRow != null &&
         _visibilityBoundRow != _boundTextRow &&
         _visibilityBoundRow != _boundValuesRow &&
         _visibilityBoundRow != _boundDisplaysRow) {
@@ -136,12 +136,12 @@ class _CyberRadioGroupState extends State<CyberRadioGroup> {
     if (_boundValuesRow != null && _boundValuesRow != _boundTextRow) {
       _boundValuesRow!.removeListener(_onBindingChanged);
     }
-    if (_boundDisplaysRow != null && 
-        _boundDisplaysRow != _boundTextRow && 
+    if (_boundDisplaysRow != null &&
+        _boundDisplaysRow != _boundTextRow &&
         _boundDisplaysRow != _boundValuesRow) {
       _boundDisplaysRow!.removeListener(_onBindingChanged);
     }
-    if (_visibilityBoundRow != null && 
+    if (_visibilityBoundRow != null &&
         _visibilityBoundRow != _boundTextRow &&
         _visibilityBoundRow != _boundValuesRow &&
         _visibilityBoundRow != _boundDisplaysRow) {
@@ -254,7 +254,8 @@ class _CyberRadioGroupState extends State<CyberRadioGroup> {
       } catch (e) {
         return [];
       }
-    } else if (widget.values != null && widget.values is! CyberBindingExpression) {
+    } else if (widget.values != null &&
+        widget.values is! CyberBindingExpression) {
       valuesStr = widget.values.toString();
     } else {
       return [];
@@ -262,7 +263,11 @@ class _CyberRadioGroupState extends State<CyberRadioGroup> {
 
     if (valuesStr.isEmpty) return [];
 
-    return valuesStr.split(';').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+    return valuesStr
+        .split(';')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
   }
 
   /// Get displays list
@@ -271,11 +276,13 @@ class _CyberRadioGroupState extends State<CyberRadioGroup> {
 
     if (_boundDisplaysRow != null && _boundDisplaysField != null) {
       try {
-        displaysStr = _boundDisplaysRow![_boundDisplaysField!]?.toString() ?? '';
+        displaysStr =
+            _boundDisplaysRow![_boundDisplaysField!]?.toString() ?? '';
       } catch (e) {
         return [];
       }
-    } else if (widget.displays != null && widget.displays is! CyberBindingExpression) {
+    } else if (widget.displays != null &&
+        widget.displays is! CyberBindingExpression) {
       displaysStr = widget.displays.toString();
     } else {
       return [];
@@ -283,7 +290,11 @@ class _CyberRadioGroupState extends State<CyberRadioGroup> {
 
     if (displaysStr.isEmpty) return [];
 
-    return displaysStr.split(';').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+    return displaysStr
+        .split(';')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
   }
 
   /// Update selected value
@@ -366,17 +377,21 @@ class _CyberRadioGroupState extends State<CyberRadioGroup> {
         radioGroup = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
-          children: radioWidgets.map((radio) {
-            return Padding(
-              padding: EdgeInsets.only(bottom: widget.spacing),
-              child: radio,
-            );
-          }).toList(),
+          children: radioWidgets
+              .map(
+                (radio) => Padding(
+                  padding: EdgeInsets.only(bottom: widget.spacing),
+                  child: radio,
+                ),
+              )
+              .toList(),
         );
       }
 
       // Add label if needed
-      if (widget.isShowLabel && widget.label != null && widget.label!.isNotEmpty) {
+      if (widget.isShowLabel &&
+          widget.label != null &&
+          widget.label!.isNotEmpty) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -385,11 +400,13 @@ class _CyberRadioGroupState extends State<CyberRadioGroup> {
               padding: const EdgeInsets.only(left: 4.0, bottom: 8.0),
               child: Text(
                 widget.label!,
-                style: widget.labelStyle ?? const TextStyle(
-                  fontSize: 14,
-                  color: Color(0xFF555555),
-                  fontWeight: FontWeight.w500,
-                ),
+                style:
+                    widget.labelStyle ??
+                    const TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF555555),
+                      fontWeight: FontWeight.w500,
+                    ),
               ),
             ),
             radioGroup,
@@ -406,8 +423,8 @@ class _CyberRadioGroupState extends State<CyberRadioGroup> {
     if (_boundValuesRow != null && _boundValuesRow != _boundTextRow) {
       listeners.add(_boundValuesRow!);
     }
-    if (_boundDisplaysRow != null && 
-        _boundDisplaysRow != _boundTextRow && 
+    if (_boundDisplaysRow != null &&
+        _boundDisplaysRow != _boundTextRow &&
         _boundDisplaysRow != _boundValuesRow) {
       listeners.add(_boundDisplaysRow!);
     }
@@ -446,10 +463,12 @@ class _CyberRadioGroupState extends State<CyberRadioGroup> {
             Flexible(
               child: Text(
                 display,
-                style: widget.itemLabelStyle ?? TextStyle(
-                  fontSize: 16,
-                  color: widget.enabled ? Colors.black87 : Colors.grey,
-                ),
+                style:
+                    widget.itemLabelStyle ??
+                    TextStyle(
+                      fontSize: 16,
+                      color: widget.enabled ? Colors.black87 : Colors.grey,
+                    ),
               ),
             ),
           ],

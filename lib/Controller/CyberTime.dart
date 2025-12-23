@@ -5,7 +5,7 @@ class CyberTime extends StatefulWidget {
   final dynamic text;
   final String? label;
   final String? hint;
-  final String format; // Time format: "HH:mm" or "HH:mm:ss"
+  final String format;
   final IconData? icon;
   final bool enabled;
   final TextStyle? style;
@@ -17,7 +17,7 @@ class CyberTime extends StatefulWidget {
   final Color? focusColor;
   final TextStyle? labelStyle;
   final dynamic isVisible;
-  final bool showSeconds; // Hiển thị giây trong picker
+  final bool showSeconds;
 
   const CyberTime({
     super.key,
@@ -162,7 +162,6 @@ class _CyberTimeState extends State<CyberTime> {
     }
   }
 
-  /// Get current value as TimeOfDay
   TimeOfDay? _getCurrentValue() {
     dynamic rawValue;
 
@@ -177,23 +176,20 @@ class _CyberTimeState extends State<CyberTime> {
     return _parseTimeOfDay(rawValue);
   }
 
-  /// Parse dynamic value to TimeOfDay
   TimeOfDay? _parseTimeOfDay(dynamic value) {
     if (value == null) return null;
 
-    // ✅ DateTime → lấy phần time
     if (value is DateTime) {
       return TimeOfDay(hour: value.hour, minute: value.minute);
     }
 
-    // ✅ String → parse theo format
     if (value is String) {
       try {
         final parts = value.trim().split(':');
         if (parts.length >= 2) {
           final hour = int.parse(parts[0]);
           final minute = int.parse(parts[1]);
-          
+
           if (hour >= 0 && hour < 24 && minute >= 0 && minute < 60) {
             return TimeOfDay(hour: hour, minute: minute);
           }
@@ -206,70 +202,53 @@ class _CyberTimeState extends State<CyberTime> {
     return null;
   }
 
-  /// Format TimeOfDay to string
   String _formatTime(TimeOfDay time) {
     final hour = time.hour.toString().padLeft(2, '0');
     final minute = time.minute.toString().padLeft(2, '0');
-    
+
     if (widget.format.contains('ss') || widget.showSeconds) {
       return '$hour:$minute:00';
     }
-    
+
     return '$hour:$minute';
   }
 
-  /// Update value with proper type preservation
   void _updateValue(TimeOfDay newTime) {
     _isUpdating = true;
 
     if (_boundRow != null && _boundField != null) {
       final originalValue = _boundRow![_boundField!];
 
-      // ✅ Preserve original type
       if (originalValue is DateTime) {
-        // Update DateTime with new time, keep same date
         final newDateTime = DateTime(
           originalValue.year,
           originalValue.month,
           originalValue.day,
           newTime.hour,
           newTime.minute,
-          0, // seconds
+          0,
         );
         _boundRow![_boundField!] = newDateTime;
-        
-        // Callback with DateTime
         widget.onChanged?.call(newDateTime);
       } else if (originalValue is String) {
-        // Update as String with proper format
         final timeString = _formatTime(newTime);
         _boundRow![_boundField!] = timeString;
-        
-        // Callback with String
         widget.onChanged?.call(timeString);
       } else {
-        // Default: save as String
         final timeString = _formatTime(newTime);
         _boundRow![_boundField!] = timeString;
-        
-        // Callback with String
         widget.onChanged?.call(timeString);
       }
     } else {
-      // No binding, just callback
       final timeString = _formatTime(newTime);
       widget.onChanged?.call(timeString);
     }
 
-    // Update display
     _textController.text = _formatTime(newTime);
-
     _isUpdating = false;
   }
 
-  /// Show iOS-style time picker
   Future<void> _showTimePicker() async {
-    // Unfocus để tránh keyboard hiện lên
     _focusNode.unfocus();
 
     final currentValue = _getCurrentValue() ?? TimeOfDay.now();
@@ -286,8 +265,7 @@ class _CyberTimeState extends State<CyberTime> {
 
     if (result != null) {
       _updateValue(result);
-      
-      // ✅ Call onLeaver với đúng type
+
       if (widget.onLeaver != null) {
         if (_boundRow != null && _boundField != null) {
           final originalValue = _boundRow![_boundField!];
@@ -320,7 +298,7 @@ class _CyberTimeState extends State<CyberTime> {
     Widget textField = TextField(
       controller: _textController,
       focusNode: _focusNode,
-      readOnly: true, // ✅ Read-only, chỉ mở picker
+      readOnly: true,
       enabled: widget.enabled,
       style: widget.style,
       decoration: widget.decoration ?? _buildDecoration(),
@@ -377,25 +355,22 @@ class _CyberTimeState extends State<CyberTime> {
               onPressed: _showTimePicker,
             )
           : null,
-
-      // ✅ Bỏ border
       border: InputBorder.none,
       enabledBorder: InputBorder.none,
       focusedBorder: InputBorder.none,
       errorBorder: InputBorder.none,
       disabledBorder: InputBorder.none,
       focusedErrorBorder: InputBorder.none,
-
-      // ✅ Background đồng bộ
       filled: true,
       fillColor: widget.enabled
           ? (widget.backgroundColor ?? const Color(0xFFF5F5F5))
           : const Color(0xFFE0E0E0),
-
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
     );
   }
 }
+
+// (phần _IOSTimePickerSheet giữ nguyên như cũ, chỉ format lại)
 
 /// iOS-style Time Picker Bottom Sheet
 class _IOSTimePickerSheet extends StatefulWidget {
@@ -432,9 +407,7 @@ class _IOSTimePickerSheetState extends State<_IOSTimePickerSheet> {
     _selectedMinute = widget.initialTime.minute;
     _selectedSecond = 0;
 
-    _hourController = FixedExtentScrollController(
-      initialItem: _selectedHour,
-    );
+    _hourController = FixedExtentScrollController(initialItem: _selectedHour);
     _minuteController = FixedExtentScrollController(
       initialItem: _selectedMinute,
     );
@@ -476,12 +449,12 @@ class _IOSTimePickerSheetState extends State<_IOSTimePickerSheet> {
   String _formatDisplay() {
     final hour = _selectedHour.toString().padLeft(2, '0');
     final minute = _selectedMinute.toString().padLeft(2, '0');
-    
+
     if (widget.showSeconds) {
       final second = _selectedSecond.toString().padLeft(2, '0');
       return '$hour:$minute:$second';
     }
-    
+
     return '$hour:$minute';
   }
 
