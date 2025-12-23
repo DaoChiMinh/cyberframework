@@ -33,24 +33,6 @@ void buildFactoryMap() {
     // ignore: empty_catches
   } catch (e) {}
 }
-// void buildFactoryMap() {
-//   _factoryMap_form.clear();
-//   _factoryMap_contentView.clear();
-
-//   // Build Form factory map
-//   final forms = _getIt.getAll<CyberForm>();
-//   for (var form in forms) {
-//     final lowerName = form.runtimeType.toString().toLowerCase();
-//     _factoryMap_form[lowerName] = () => form;
-//   }
-
-//   // Build ContentView factory map
-//   final contentViews = _getIt.getAll<CyberContentViewForm>();
-//   for (var view in contentViews) {
-//     final lowerName = view.runtimeType.toString().toLowerCase();
-//     _factoryMap_contentView[lowerName] = () => view;
-//   }
-// }
 
 /// Get CyberFormView từ tên form
 // ignore: non_constant_identifier_names
