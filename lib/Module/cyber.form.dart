@@ -210,8 +210,20 @@ abstract class CyberForm {
 
   /// Navigate đến form khác
   // ignore: non_constant_identifier_names
-  void V_Call(String strfrm, String title, String cpName, String strparameter) {
-    var frm = V_getScreen(strfrm, title, cpName, strparameter);
+  void V_Call(
+    String strfrm,
+    String title,
+    String cpName,
+    String strparameter, {
+    bool hideAppBar = true,
+  }) {
+    var frm = V_getScreen(
+      strfrm,
+      title,
+      cpName,
+      strparameter,
+      hideAppBar: hideAppBar,
+    =);
     if (frm == null) return;
     Navigator.push(_context, MaterialPageRoute(builder: (context) => frm));
   }
