@@ -238,7 +238,7 @@ extension CyberValidationContext on BuildContext {
 
 /// Extension method cho String - giống MAUI
 extension CyberMessageBoxExtension on String {
-  Color parseColor(Color defaultColor) {
+  Color parseColor({Color defaultColor = Colors.black}) {
     if (isEmpty) return defaultColor;
 
     try {
