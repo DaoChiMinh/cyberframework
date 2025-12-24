@@ -133,6 +133,33 @@ Future<bool> V_callform(
     case "aw":
       await strfrm.V_MsgBox(context, title: title, type: CyberMsgBoxType.error);
       break;
+    case "p":
+    case "popup":
+      await V_callViewPopup(
+        context,
+        strfrm,
+        cpName: cpName,
+        strParameter: strparameter,
+      );
+      break;
+    case "pb":
+    case "popupbottom":
+      await V_callViewBottom(
+        context,
+        strfrm,
+        cpName: cpName,
+        strParameter: strparameter,
+      );
+      break;
+    case "pd":
+    case "popupdialog":
+      await V_callViewDialog(
+        context,
+        strfrm,
+        cpName: cpName,
+        strParameter: strparameter,
+      );
+      break;
     default:
       final screen = V_getScreen(strfrm, title, cpName, strparameter);
       if (screen == null) {
