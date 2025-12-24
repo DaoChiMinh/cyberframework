@@ -1,5 +1,3 @@
-import 'package:cyberframework/Page/frmpdfview.dart';
-import 'package:cyberframework/Page/frmwebview.dart';
 import 'package:cyberframework/cyberframework.dart';
 
 // ignore: non_constant_identifier_names
@@ -150,6 +148,100 @@ Future<bool> V_callform(
           CyberFormView(
             title: title.isEmpty ? ngonngu('Xem PDF', 'PDF Viewer') : title,
             formBuilder: () => pdfViewer,
+            cp_name: cpName,
+            strparameter: strparameter,
+          ),
+          useHeroAnimation,
+        ),
+      );
+      break;
+    case "img":
+    case "image":
+      FrmImageView imageViewer = FrmImageView();
+      imageViewer.text = strfrm; // base64, path, or URL
+      imageViewer.showToolbar = false;
+
+      Navigator.push(
+        context,
+        _buildPageRoute(
+          CyberFormView(
+            title: title.isEmpty ? ngonngu('Xem ảnh', 'Image Viewer') : title,
+            formBuilder: () => imageViewer,
+            cp_name: cpName,
+            strparameter: strparameter,
+          ),
+          useHeroAnimation,
+        ),
+      );
+      break;
+
+    // ============================================================================
+    // TEXT VIEWER
+    // ============================================================================
+    case "txt":
+    case "text":
+      FrmTextView textViewer = FrmTextView();
+      textViewer.text = strfrm;
+      textViewer.showToolbar = false;
+
+      Navigator.push(
+        context,
+        _buildPageRoute(
+          CyberFormView(
+            title: title.isEmpty
+                ? ngonngu('Xem văn bản', 'Text Viewer')
+                : title,
+            formBuilder: () => textViewer,
+            cp_name: cpName,
+            strparameter: strparameter,
+          ),
+          useHeroAnimation,
+        ),
+      );
+      break;
+
+    // ============================================================================
+    // WORD DOCUMENT VIEWER
+    // ============================================================================
+    case "doc":
+    case "docx":
+    case "word":
+      FrmDocView docViewer = FrmDocView();
+      docViewer.text = strfrm;
+      docViewer.showToolbar = false;
+
+      Navigator.push(
+        context,
+        _buildPageRoute(
+          CyberFormView(
+            title: title.isEmpty
+                ? ngonngu('Xem tài liệu', 'Document Viewer')
+                : title,
+            formBuilder: () => docViewer,
+            cp_name: cpName,
+            strparameter: strparameter,
+          ),
+          useHeroAnimation,
+        ),
+      );
+      break;
+
+    // ============================================================================
+    // EXCEL VIEWER
+    // ============================================================================
+    case "xls":
+    case "xlsx":
+    case "excel":
+      FrmExcelView excelViewer = FrmExcelView();
+      excelViewer.text = strfrm;
+      excelViewer.showToolbar = false;
+
+      Navigator.push(
+        context,
+        _buildPageRoute(
+          CyberFormView(
+            title: title.isEmpty ? ngonngu('Xem Excel', 'Excel Viewer') : title,
+            formBuilder: () => excelViewer,
             cp_name: cpName,
             strparameter: strparameter,
           ),

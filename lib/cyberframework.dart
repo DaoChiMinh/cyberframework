@@ -40,6 +40,11 @@ export 'package:cyberframework/Controller/cyberimage.dart';
 export 'package:cyberframework/Controller/cybercamera.dart';
 export 'package:cyberframework/Controller/cyberscanbarcode.dart';
 export 'package:cyberframework/Page/frmwebview.dart';
+export 'package:cyberframework/Page/frmdocview.dart';
+export 'package:cyberframework/Page/frmexcelview.dart';
+export 'package:cyberframework/Page/frmimageview.dart';
+export 'package:cyberframework/Page/frmpdfview.dart';
+export 'package:cyberframework/Page/frmtextview.dart';
 // Thêm vào cuối file, trước các export khác
 export 'package:cyberframework/Module/Language/cyberlanguageservice.dart';
 export 'package:cyberframework/Module/Language/cyberlanguageextension.dart';
@@ -51,3 +56,6 @@ export 'package:cached_network_image/cached_network_image.dart';
 export 'package:image_picker/image_picker.dart';
 export 'dart:convert';
 export 'dart:io';
+export 'package:path_provider/path_provider.dart';
+export 'package:share_plus/share_plus.dart';
+export 'package:printing/printing.dart';
