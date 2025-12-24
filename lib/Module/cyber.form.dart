@@ -86,7 +86,8 @@ class _CyberFormViewState extends State<CyberFormView> {
       behavior: HitTestBehavior.translucent,
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
-        appBar: widget.hideAppBar
+        // Ưu tiên hideAppBar từ form, nếu null thì dùng từ widget
+        appBar: (_form.hideAppBar ?? widget.hideAppBar)
             ? null
             : AppBar(
                 backgroundColor: Theme.of(context).colorScheme.inversePrimary,
@@ -166,6 +167,10 @@ abstract class CyberForm {
   /// Background color của form - Override để đổi màu nền
   /// Nếu null sẽ dùng Colors.white
   Color? get backgroundColor => null;
+
+  /// Ẩn/hiện AppBar - Override để điều khiển
+  /// Nếu null sẽ dùng giá trị từ CyberFormView
+  bool? get hideAppBar => null;
 
   // ============================================================================
   // LIFECYCLE METHODS - Theo thứ tự thực thi
