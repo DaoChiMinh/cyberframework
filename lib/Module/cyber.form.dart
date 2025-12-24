@@ -90,9 +90,11 @@ class _CyberFormViewState extends State<CyberFormView> {
             ? null
             : AppBar(
                 backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-                title: Text(widget.title),
+                // Ưu tiên title từ form, nếu không có thì dùng title từ widget
+                title: Text(_form.title ?? widget.title),
               ),
-        backgroundColor: Colors.white,
+        // Ưu tiên backgroundColor từ form, nếu không có thì dùng Colors.white
+        backgroundColor: _form.backgroundColor ?? Colors.white,
         body: _buildBody(),
       ),
     );
@@ -154,6 +156,18 @@ abstract class CyberForm {
   CyberFormView get widget => _widget;
 
   // ============================================================================
+  // PROPERTIES - Có thể override trong form con
+  // ============================================================================
+
+  /// Title của form - Override để đổi title
+  /// Nếu null sẽ dùng title từ CyberFormView
+  String? get title => null;
+
+  /// Background color của form - Override để đổi màu nền
+  /// Nếu null sẽ dùng Colors.white
+  Color? get backgroundColor => null;
+
+  // ============================================================================
   // LIFECYCLE METHODS - Theo thứ tự thực thi
   // ============================================================================
 
@@ -212,7 +226,7 @@ abstract class CyberForm {
   // ignore: non_constant_identifier_names
   void V_Call(
     String strfrm, {
-    bool hideAppBar = true,
+    bool hideAppBar = false,
     String title = "",
     String cpName = "",
     String strparameter = "",
