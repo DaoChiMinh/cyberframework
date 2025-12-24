@@ -25,7 +25,7 @@ export 'package:cyberframework/Module/callobject.dart';
 export 'package:cyberframework/Controller/cyberlistview.dart';
 export 'package:cyberframework/Module/Data/cyberdatarowbinding.dart';
 export 'package:cyberframework/Controller/cybergrid.dart';
-
+export 'package:cyberframework/Controller/cyberwebview.dart';
 export 'package:cyberframework/Controller/cyberlabel.dart';
 export 'package:cyberframework/Controller/cybertext.dart';
 export 'package:cyberframework/Controller/cybernumeric.dart';
@@ -39,7 +39,7 @@ export 'package:cyberframework/Controller/cyberbutton.dart';
 export 'package:cyberframework/Controller/cyberimage.dart';
 export 'package:cyberframework/Controller/cybercamera.dart';
 export 'package:cyberframework/Controller/cyberscanbarcode.dart';
-
+export 'package:cyberframework/Page/frmwebview.dart';
 export 'package:flutter/material.dart';
 export 'package:injectable/injectable.dart';
 export 'package:flutter/services.dart';

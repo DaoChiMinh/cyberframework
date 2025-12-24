@@ -1,3 +1,4 @@
+import 'package:cyberframework/Page/frmwebview.dart';
 import 'package:cyberframework/cyberframework.dart';
 
 // ignore: non_constant_identifier_names
@@ -109,6 +110,25 @@ Future<bool> V_callform(
       break;
     case "ae":
       await strfrm.V_MsgBox(context, title: title, type: CyberMsgBoxType.error);
+      break;
+    case "w":
+    case "wb":
+    case "web":
+      Frmwebview wb = Frmwebview();
+      wb.Url = strfrm;
+
+      Navigator.push(
+        context,
+        _buildPageRoute(
+          CyberFormView(
+            title: title,
+            formBuilder: () => wb,
+            cp_name: "cp_name",
+            strparameter: strparameter,
+          ),
+          useHeroAnimation,
+        ),
+      );
       break;
     case "aw":
       await strfrm.V_MsgBox(context, title: title, type: CyberMsgBoxType.error);
