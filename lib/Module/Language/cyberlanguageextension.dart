@@ -1,43 +1,47 @@
-import 'package:cyberframework/cyberframework.dart';
+import 'package:flutter/material.dart';
+import 'CyberLanguageService.dart';
 
-/// Extension cho String để dễ dàng tạo multilingual text
+/// Extension on String for multilingual text
 extension CyberLanguageStringExtension on String {
-  /// Lấy text theo ngôn ngữ hiện tại
+  /// Translate with English text
   /// Usage: "Xin chào".tr("Hello")
-  /// hoặc: "Xin chào" >> "Hello"
   String tr(String english) {
-    return cyberLanguage.getText(this, english);
+    return ngonngu(this, english);
   }
 
-  /// Operator >> để viết ngắn gọn hơn
+  /// Operator >> for translation
   /// Usage: "Xin chào" >> "Hello"
   String operator >>(String english) {
-    return cyberLanguage.getText(this, english);
+    return ngonngu(this, english);
   }
 }
 
-/// Extension cho BuildContext để dễ dùng
-extension CyberLanguageContextExtension on BuildContext {
-  /// Lấy service ngôn ngữ
-  CyberLanguageService get language => cyberLanguage;
+/// Extension on BuildContext for easy access to language service
+extension CyberLanguageBuildContext on BuildContext {
+  /// Get current language
+  CyberLanguage get language => cyberLanguage.currentLanguage;
 
-  /// Lấy text theo ngôn ngữ
+  /// Translate text based on current language
   String tr(String vietnamese, String english) {
-    return cyberLanguage.getText(vietnamese, english);
+    return ngonngu(vietnamese, english);
   }
 
-  /// Check ngôn ngữ hiện tại
+  /// Check if current language is Vietnamese
   bool get isVietnamese => cyberLanguage.isVietnamese;
+
+  /// Check if current language is English
   bool get isEnglish => cyberLanguage.isEnglish;
 }
 
-/// Helper function để dùng ở bất kỳ đâu
-/// Usage: ngonngu("Tiếng Việt", "English")
+/// Global function to get text based on current language
+/// This is the main API for multilingual text
+/// Usage: Text(ngonngu("Xin chào", "Hello"))
 String ngonngu(String vietnamese, String english) {
   return cyberLanguage.getText(vietnamese, english);
 }
 
-/// Widget để tự động rebuild khi ngôn ngữ thay đổi
+/// CyberLanguageBuilder - Auto-rebuild widget when language changes
+/// Wrap your widgets that need to update when language changes
 class CyberLanguageBuilder extends StatelessWidget {
   final Widget Function(BuildContext context, CyberLanguage language) builder;
 
@@ -47,51 +51,95 @@ class CyberLanguageBuilder extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: cyberLanguage,
-      builder: (context, child) {
-        return builder(context, cyberLanguage.currentLanguage);
-      },
+      builder: (context, _) => builder(context, cyberLanguage.currentLanguage),
     );
   }
 }
 
-/// Widget để chuyển đổi ngôn ngữ dễ dàng
-class CyberLanguageSwitch extends StatelessWidget {
-  final ValueChanged<CyberLanguage>? onChanged;
-  final bool showLabel;
+/// CyberLangText widget with automatic language switching
+/// Use this widget for text that needs to change based on current language
+/// Note: Renamed from CyberText to avoid conflict with existing CyberText control
+class CyberLangText extends StatelessWidget {
+  final String vietnamese;
+  final String english;
+  final TextStyle? style;
+  final TextAlign? textAlign;
+  final int? maxLines;
+  final TextOverflow? overflow;
 
-  const CyberLanguageSwitch({super.key, this.onChanged, this.showLabel = true});
+  const CyberLangText(
+    this.vietnamese,
+    this.english, {
+    super.key,
+    this.style,
+    this.textAlign,
+    this.maxLines,
+    this.overflow,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return CyberLanguageBuilder(
+      builder: (context, language) => Text(
+        ngonngu(vietnamese, english),
+        style: style,
+        textAlign: textAlign,
+        maxLines: maxLines,
+        overflow: overflow,
+      ),
+    );
+  }
+}
+
+/// CyberLanguageSwitch - Toggle button to switch between Vietnamese and English
+class CyberLanguageSwitch extends StatelessWidget {
+  final double? width;
+  final double? height;
+  final EdgeInsetsGeometry? padding;
+  final Color? activeColor;
+  final Color? inactiveColor;
+  final TextStyle? textStyle;
+
+  const CyberLanguageSwitch({
+    super.key,
+    this.width,
+    this.height,
+    this.padding,
+    this.activeColor,
+    this.inactiveColor,
+    this.textStyle,
+  });
 
   @override
   Widget build(BuildContext context) {
     return CyberLanguageBuilder(
       builder: (context, language) {
+        final isVi = language == CyberLanguage.vietnamese;
         return InkWell(
-          onTap: () async {
-            await cyberLanguage.toggleLanguage();
-            onChanged?.call(cyberLanguage.currentLanguage);
-          },
-          borderRadius: BorderRadius.circular(8),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          onTap: () => cyberLanguage.toggleLanguage(),
+          child: Container(
+            width: width ?? 80,
+            height: height ?? 36,
+            padding: padding ?? const EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+              color: activeColor ?? Theme.of(context).primaryColor,
+              borderRadius: BorderRadius.circular(18),
+            ),
             child: Row(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  language == CyberLanguage.vietnamese
-                      ? Icons.language
-                      : Icons.translate,
-                  size: 20,
+                Icon(Icons.language, size: 18, color: Colors.white),
+                const SizedBox(width: 6),
+                Text(
+                  isVi ? 'VI' : 'EN',
+                  style:
+                      textStyle ??
+                      const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
                 ),
-                if (showLabel) ...[
-                  const SizedBox(width: 8),
-                  Text(
-                    language == CyberLanguage.vietnamese ? 'VI' : 'EN',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
@@ -101,173 +149,117 @@ class CyberLanguageSwitch extends StatelessWidget {
   }
 }
 
-/// Widget để chọn ngôn ngữ với bottom sheet
+/// CyberLanguageSelector - Bottom sheet to select language
 class CyberLanguageSelector extends StatelessWidget {
-  final ValueChanged<CyberLanguage>? onChanged;
+  final String? title;
+  final TextStyle? titleStyle;
+  final TextStyle? optionStyle;
 
-  const CyberLanguageSelector({super.key, this.onChanged});
+  const CyberLanguageSelector({
+    super.key,
+    this.title,
+    this.titleStyle,
+    this.optionStyle,
+  });
+
+  void show(BuildContext context) {
+    showModalBottomSheet(context: context, builder: (context) => this);
+  }
 
   @override
   Widget build(BuildContext context) {
     return CyberLanguageBuilder(
-      builder: (context, currentLanguage) {
-        return InkWell(
-          onTap: () => _showLanguageSheet(context),
-          borderRadius: BorderRadius.circular(8),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.language, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  currentLanguage.name,
-                  style: const TextStyle(fontSize: 14),
-                ),
-                const SizedBox(width: 4),
-                const Icon(Icons.arrow_drop_down, size: 20),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _showLanguageSheet(BuildContext context) async {
-    await showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _LanguageSheet(onChanged: onChanged),
-    );
-  }
-}
-
-class _LanguageSheet extends StatelessWidget {
-  final ValueChanged<CyberLanguage>? onChanged;
-
-  const _LanguageSheet({this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: SafeArea(
+      builder: (context, language) => Container(
+        padding: const EdgeInsets.all(20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Handle bar
-            Container(
-              margin: const EdgeInsets.symmetric(vertical: 12),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
-              ),
+            Text(
+              title ?? ngonngu('Chọn ngôn ngữ', 'Select Language'),
+              style:
+                  titleStyle ??
+                  const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-
-            // Title
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  Text(
-                    ngonngu('Chọn ngôn ngữ', 'Select Language'),
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
+            const SizedBox(height: 20),
+            _LanguageOption(
+              language: CyberLanguage.vietnamese,
+              icon: '🇻🇳',
+              label: 'Tiếng Việt',
+              isSelected: language == CyberLanguage.vietnamese,
+              textStyle: optionStyle,
             ),
-
-            const Divider(height: 1),
-
-            // Language options
-            _buildLanguageOption(
-              context,
-              CyberLanguage.vietnamese,
-              Icons.flag,
-              Colors.red,
+            const Divider(),
+            _LanguageOption(
+              language: CyberLanguage.english,
+              icon: '🇬🇧',
+              label: 'English',
+              isSelected: language == CyberLanguage.english,
+              textStyle: optionStyle,
             ),
-            _buildLanguageOption(
-              context,
-              CyberLanguage.english,
-              Icons.flag,
-              Colors.blue,
-            ),
-
-            const SizedBox(height: 16),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildLanguageOption(
-    BuildContext context,
-    CyberLanguage language,
-    IconData icon,
-    Color iconColor,
-  ) {
-    return CyberLanguageBuilder(
-      builder: (context, currentLanguage) {
-        final isSelected = currentLanguage == language;
+class _LanguageOption extends StatelessWidget {
+  final CyberLanguage language;
+  final String icon;
+  final String label;
+  final bool isSelected;
+  final TextStyle? textStyle;
 
-        return InkWell(
-          onTap: () async {
-            await cyberLanguage.setLanguage(language);
-            onChanged?.call(language);
-            if (context.mounted) {
-              Navigator.pop(context);
-            }
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            decoration: BoxDecoration(
-              color: isSelected ? Colors.blue[50] : Colors.transparent,
+  const _LanguageOption({
+    required this.language,
+    required this.icon,
+    required this.label,
+    required this.isSelected,
+    this.textStyle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Text(icon, style: const TextStyle(fontSize: 32)),
+      title: Text(
+        label,
+        style:
+            textStyle ??
+            TextStyle(
+              fontSize: 16,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             ),
-            child: Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: iconColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(icon, color: iconColor),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Text(
-                    language.name,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: isSelected
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                    ),
-                  ),
-                ),
-                if (isSelected)
-                  const Icon(Icons.check_circle, color: Colors.blue),
-              ],
-            ),
-          ),
-        );
+      ),
+      trailing: isSelected
+          ? const Icon(Icons.check, color: Colors.green)
+          : null,
+      onTap: () {
+        cyberLanguage.setLanguage(language);
+        Navigator.pop(context);
       },
     );
   }
+}
+
+/// Optional: Common language constants
+class CyberLanguageConstants {
+  static String get ok => ngonngu('Đồng ý', 'OK');
+  static String get cancel => ngonngu('Hủy', 'Cancel');
+  static String get save => ngonngu('Lưu', 'Save');
+  static String get delete => ngonngu('Xóa', 'Delete');
+  static String get edit => ngonngu('Sửa', 'Edit');
+  static String get add => ngonngu('Thêm', 'Add');
+  static String get search => ngonngu('Tìm kiếm', 'Search');
+  static String get error => ngonngu('Lỗi', 'Error');
+  static String get success => ngonngu('Thành công', 'Success');
+  static String get warning => ngonngu('Cảnh báo', 'Warning');
+  static String get info => ngonngu('Thông tin', 'Information');
+  static String get confirm => ngonngu('Xác nhận', 'Confirm');
+  static String get confirmDelete =>
+      ngonngu('Bạn có chắc muốn xóa?', 'Are you sure you want to delete?');
+  static String get saveSuccess =>
+      ngonngu('Lưu thành công', 'Saved successfully');
+  static String get deleteSuccess =>
+      ngonngu('Xóa thành công', 'Deleted successfully');
 }

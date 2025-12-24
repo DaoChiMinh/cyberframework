@@ -82,21 +82,29 @@ class _CyberFormViewState extends State<CyberFormView> {
   Widget build(BuildContext context) {
     _form._context = context;
 
-    return GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onTap: () => FocusScope.of(context).unfocus(),
-      child: Scaffold(
-        // Ưu tiên hideAppBar từ form, nếu null thì dùng từ widget
-        appBar: (_form.hideAppBar ?? widget.hideAppBar)
-            ? null
-            : AppBar(
-                backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-                // Ưu tiên title từ form, nếu không có thì dùng title từ widget
-                title: Text(_form.title ?? widget.title),
-              ),
-        // Ưu tiên backgroundColor từ form, nếu không có thì dùng Colors.white
-        backgroundColor: _form.backgroundColor ?? Colors.white,
-        body: _buildBody(),
+    // ============================================================================
+    // TÍCH HỢP CyberLanguageBuilder - TỰ ĐỘNG REBUILD KHI ĐỔI NGÔN NGỮ
+    // ============================================================================
+    // Wrap toàn bộ UI với CyberLanguageBuilder
+    // Khi cyberLanguage.setLanguage() được gọi, toàn bộ form sẽ rebuild
+    // Tất cả ngonngu() sẽ được gọi lại với language mới
+    return CyberLanguageBuilder(
+      builder: (context, language) => GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: Scaffold(
+          // Ưu tiên hideAppBar từ form, nếu null thì dùng từ widget
+          appBar: (_form.hideAppBar ?? widget.hideAppBar)
+              ? null
+              : AppBar(
+                  backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+                  // Ưu tiên title từ form, nếu không có thì dùng title từ widget
+                  title: Text(_form.title ?? widget.title),
+                ),
+          // Ưu tiên backgroundColor từ form, nếu không có thì dùng Colors.white
+          backgroundColor: _form.backgroundColor ?? Colors.white,
+          body: _buildBody(),
+        ),
       ),
     );
   }
@@ -105,13 +113,13 @@ class _CyberFormViewState extends State<CyberFormView> {
     // Show loading
     if (_isLoading) {
       return _form.buildLoadingWidget() ??
-          const Center(
+          Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('Đang tải dữ liệu...'),
+                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                Text(ngonngu('Đang tải dữ liệu...', 'Loading data...')),
               ],
             ),
           );
@@ -126,7 +134,7 @@ class _CyberFormViewState extends State<CyberFormView> {
               children: [
                 const Icon(Icons.error, size: 64, color: Colors.red),
                 const SizedBox(height: 16),
-                Text('Lỗi: $_errorMessage'),
+                Text('${ngonngu("Lỗi", "Error")}: $_errorMessage'),
                 const SizedBox(height: 16),
                 ElevatedButton(
                   onPressed: () {
@@ -136,7 +144,7 @@ class _CyberFormViewState extends State<CyberFormView> {
                     });
                     _initializeForm();
                   },
-                  child: const Text('Thử lại'),
+                  child: Text(ngonngu('Thử lại', 'Retry')),
                 ),
               ],
             ),
