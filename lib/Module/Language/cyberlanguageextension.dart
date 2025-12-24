@@ -114,6 +114,7 @@ class CyberLanguageSwitch extends StatelessWidget {
   Widget build(BuildContext context) {
     return CyberLanguageBuilder(
       builder: (context, language) {
+        print("minhhhhhhhhhhhhhhhhhhhhhhhhh$language");
         final isVi = language == CyberLanguage.vietnamese;
         return InkWell(
           onTap: () => cyberLanguage.toggleLanguage(),

@@ -81,6 +81,9 @@ class CyberLanguageService extends ChangeNotifier {
         );
       }
       _isInitialized = true;
+
+      // ✅ THÊM DÒNG NÀY - Notify để rebuild UI với language đã load
+      notifyListeners();
     } catch (e) {
       debugPrint('❌ Error loading language: $e');
       _currentLanguage = CyberLanguage.vietnamese;
