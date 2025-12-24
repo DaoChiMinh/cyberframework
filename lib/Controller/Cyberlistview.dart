@@ -122,6 +122,11 @@ class CyberListView extends StatefulWidget {
   /// - double: Chiều cao cố định
   final dynamic height;
 
+  /// Danh sách tên cột để tìm kiếm (chỉ dùng khi không có onLoadData)
+  /// Khi có onLoadData, tìm kiếm sẽ gọi hàm onLoadData
+  /// Khi không có onLoadData, tìm kiếm sẽ filter local data theo các cột này
+  final List<String>? columnsFilter;
+
   const CyberListView({
     super.key,
     this.dataSource,
@@ -154,6 +159,7 @@ class CyberListView extends StatefulWidget {
     this.horizontal = false,
     this.autoItemHeight = false,
     this.height,
+    this.columnsFilter,
   }) : assert(columnCount >= 1, 'columnCount phải >= 1');
 
   @override
@@ -170,9 +176,20 @@ class _CyberListViewState extends State<CyberListView> {
   int _currentPage = 0;
   String _currentSearchText = '';
 
-  /// ✅ Working DataTable - Luôn point đến external dataSource nếu có
+  /// ✅ Filtered data cho local search (khi không có onLoadData)
+  CyberDataTable? _filteredDataTable;
+
+  /// ✅ Working DataTable - Point đến filtered hoặc external dataSource
   CyberDataTable get _dataTable {
-    return widget.dataSource ?? CyberDataTable(tableName: 'Empty');
+    // Nếu có onLoadData, luôn dùng external dataSource
+    if (widget.onLoadData != null) {
+      return widget.dataSource ?? CyberDataTable(tableName: 'Empty');
+    }
+
+    // Nếu không có onLoadData, dùng filtered data (nếu có) hoặc original data
+    return _filteredDataTable ??
+        widget.dataSource ??
+        CyberDataTable(tableName: 'Empty');
   }
 
   /// ✅ Check xem có dùng shrinkWrap không (khi height = "*")
@@ -210,6 +227,10 @@ class _CyberListViewState extends State<CyberListView> {
 
     // ✅ Rebuild khi dataSource thay đổi reference
     if (widget.dataSource != oldWidget.dataSource) {
+      // Reset filtered data khi dataSource mới
+      _filteredDataTable = null;
+      _currentSearchText = '';
+      _searchController.clear();
       setState(() {});
     }
 
@@ -305,15 +326,77 @@ class _CyberListViewState extends State<CyberListView> {
     if (_currentSearchText.isNotEmpty) {
       _searchController.clear();
       _currentSearchText = '';
+
+      // Reset filtered data nếu dùng local search
+      if (widget.onLoadData == null) {
+        setState(() {
+          _filteredDataTable = null;
+        });
+        return;
+      }
     }
 
     await _loadInitialData();
   }
 
-  /// Search - Reset về page 0, gọi lại onLoadData với strSearch mới
+  /// Search - Reset về page 0 hoặc filter local data
   void _onSearchChanged(String searchText) {
     _currentSearchText = searchText;
-    _loadInitialData();
+
+    // ✅ Nếu có onLoadData, gọi API
+    if (widget.onLoadData != null) {
+      _loadInitialData();
+      return;
+    }
+
+    // ✅ Nếu không có onLoadData, filter local data
+    _filterLocalData(searchText);
+  }
+
+  /// ✅ Filter dữ liệu local theo columnsFilter
+  void _filterLocalData(String searchText) {
+    // Nếu không có dataSource hoặc không có columnsFilter, skip
+    if (widget.dataSource == null ||
+        widget.columnsFilter == null ||
+        widget.columnsFilter!.isEmpty) {
+      setState(() {
+        _filteredDataTable = null;
+      });
+      return;
+    }
+
+    // Nếu search text rỗng, reset về data gốc
+    if (searchText.trim().isEmpty) {
+      setState(() {
+        _filteredDataTable = null;
+      });
+      return;
+    }
+
+    // Filter data
+    final filtered = CyberDataTable(tableName: widget.dataSource!.tableName);
+    final lowerSearch = searchText.toLowerCase().trim();
+
+    for (var row in widget.dataSource!.rows) {
+      bool matches = false;
+
+      // Check từng cột trong columnsFilter
+      for (var columnName in widget.columnsFilter!) {
+        final value = row[columnName]?.toString().toLowerCase() ?? '';
+        if (value.contains(lowerSearch)) {
+          matches = true;
+          break;
+        }
+      }
+
+      if (matches) {
+        filtered.addRow(row.copy());
+      }
+    }
+
+    setState(() {
+      _filteredDataTable = filtered;
+    });
   }
 
   /// Scroll listener - Trigger load more
@@ -344,19 +427,26 @@ class _CyberListViewState extends State<CyberListView> {
 
   @override
   Widget build(BuildContext context) {
-    Widget columnContent = Column(
+    // ✅ Build nội dung chính
+    Widget content = Column(
+      mainAxisSize: widget.height == "*" ? MainAxisSize.min : MainAxisSize.max,
       children: [
         if (widget.showSearchBox) _buildSearchBar(),
         _buildListViewContainer(),
       ],
     );
 
-    // ✅ Khi height là số cụ thể, wrap toàn bộ Column (bao gồm search bar)
+    // ✅ Xử lý height
     if (widget.height is double) {
-      return SizedBox(height: widget.height as double, child: columnContent);
+      // Height cố định - wrap bằng SizedBox
+      return SizedBox(height: widget.height as double, child: content);
+    } else if (widget.height == "*") {
+      // Auto height - trả về content trực tiếp (đã có MainAxisSize.min)
+      return content;
+    } else {
+      // height = null - cần Expanded từ parent, nhưng trả về content để flexible
+      return content;
     }
-
-    return columnContent;
   }
 
   /// ✅ Build container cho ListView với height phù hợp
@@ -371,13 +461,12 @@ class _CyberListViewState extends State<CyberListView> {
         ? _buildGridList()
         : _buildList();
 
-    // Case 1: height = "*" -> Tự động theo nội dung
+    // Case 1: height = "*" -> Tự động theo nội dung (không dùng Expanded)
     if (widget.height == "*") {
       return listViewContent;
     }
 
-    // Case 2: height = số cụ thể -> Expanded để chiếm space còn lại (sau search bar)
-    // Case 3: height = null -> Expanded (default)
+    // Case 2: height = số cụ thể hoặc null -> Expanded để chiếm space còn lại
     return Expanded(child: listViewContent);
   }
 
@@ -518,7 +607,7 @@ class _CyberListViewState extends State<CyberListView> {
   /// Build ListView (columnCount = 1, vertical)
   Widget _buildList() {
     final listView = AnimatedBuilder(
-      animation: _dataTable,
+      animation: widget.dataSource ?? ChangeNotifier(),
       builder: (context, child) {
         final rows = _dataTable.rows;
 
@@ -563,7 +652,7 @@ class _CyberListViewState extends State<CyberListView> {
   /// Build Horizontal ListView
   Widget _buildHorizontalList() {
     return AnimatedBuilder(
-      animation: _dataTable,
+      animation: widget.dataSource ?? ChangeNotifier(),
       builder: (context, child) {
         final rows = _dataTable.rows;
 
@@ -598,7 +687,7 @@ class _CyberListViewState extends State<CyberListView> {
   /// Build GridView (columnCount > 1, vertical)
   Widget _buildGridList() {
     final gridView = AnimatedBuilder(
-      animation: _dataTable,
+      animation: widget.dataSource ?? ChangeNotifier(),
       builder: (context, child) {
         final rows = _dataTable.rows;
 
