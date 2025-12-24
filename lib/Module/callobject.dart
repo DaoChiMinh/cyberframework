@@ -249,6 +249,140 @@ Future<bool> V_callform(
         ),
       );
       break;
+
+    case "share":
+      await FileHandler.shareFile(
+        source: strfrm,
+        fileExtension: cpName,
+        fileName: title,
+        subject: title,
+        context: context,
+      );
+      break;
+    case "download":
+      await FileHandler.downloadFile(
+        source: strfrm,
+        fileExtension: cpName,
+        customFileName: strparameter,
+        context: context,
+      );
+      break;
+    case "print":
+      await FileHandler.printFile(
+        source: strfrm,
+        fileType: cpName == "pdf"
+            ? "pdf"
+            : (cpName == "text" ? "text" : "image"),
+        documentName: title,
+        context: context,
+      );
+      break;
+    case "callconfirm":
+      // Gọi điện thoại với dialog xác nhận
+      await PhoneHandler.makePhoneCall(
+        strfrm,
+        context: context,
+        showConfirmation: true,
+      );
+      break;
+
+    case "sms":
+    case "message":
+      // Gửi SMS
+      // strfrm = số điện thoại
+      // strparameter = nội dung tin nhắn (optional)
+      await PhoneHandler.sendSMS(
+        strfrm,
+        message: strparameter,
+        context: context,
+      );
+      break;
+
+    case "whatsapp":
+    case "wa":
+      // Mở WhatsApp chat
+      // strfrm = số điện thoại
+      // strparameter = tin nhắn mặc định (optional)
+      await PhoneHandler.openWhatsApp(
+        strfrm,
+        message: strparameter,
+        context: context,
+      );
+      break;
+
+    case "telegram":
+    case "tg":
+      // Mở Telegram chat
+      await PhoneHandler.openTelegram(strfrm, context: context);
+      break;
+
+    case "viber":
+      // Mở Viber chat
+      await PhoneHandler.openViber(strfrm, context: context);
+      break;
+
+    case "contacts":
+    case "phonebook":
+      // Mở ứng dụng Danh bạ
+      await PhoneHandler.openContacts(context: context);
+      break;
+
+    case "savecontact":
+      // Lưu số vào danh bạ
+      // strfrm = số điện thoại
+      // title = tên người (optional)
+      // strparameter = email (optional)
+      await PhoneHandler.saveToContacts(
+        strfrm,
+        name: title,
+        email: strparameter,
+        context: context,
+      );
+      break;
+    case "zalo":
+    case "zalochat":
+      // Mở Zalo chat
+      // strfrm = số điện thoại
+      await PhoneHandler.openZaloChat(strfrm, context: context);
+      break;
+
+    case "zalocall":
+      // Gọi điện qua Zalo
+      // strfrm = số điện thoại
+      await PhoneHandler.makeZaloCall(
+        strfrm,
+        context: context,
+        showConfirmation: true,
+      );
+      break;
+
+    case "zalocallconfirm":
+      // Gọi Zalo với xác nhận
+      await PhoneHandler.makeZaloCall(
+        strfrm,
+        context: context,
+        showConfirmation: true,
+      );
+      break;
+
+    case "zalomessage":
+    case "zalomsg":
+      // Gửi tin nhắn Zalo (thực chất là mở chat)
+      // strfrm = số điện thoại
+      // strparameter = tin nhắn gợi ý (chỉ hiện thông báo)
+      await PhoneHandler.sendZaloMessage(
+        strfrm,
+        message: strparameter,
+        context: context,
+      );
+      break;
+
+    case "zalooa":
+      // Mở Zalo Official Account
+      // strfrm = OA ID
+      await PhoneHandler.openZaloOA(strfrm, context: context);
+      break;
+
     case "aw":
       await strfrm.V_MsgBox(context, title: title, type: CyberMsgBoxType.error);
       break;

@@ -48,6 +48,10 @@ export 'package:cyberframework/Page/frmtextview.dart';
 // Thêm vào cuối file, trước các export khác
 export 'package:cyberframework/Module/Language/cyberlanguageservice.dart';
 export 'package:cyberframework/Module/Language/cyberlanguageextension.dart';
+export 'package:cyberframework/Module/phone_handler.dart';
+
+export 'package:cyberframework/Module/file_handler.dart';
+export 'package:url_launcher/url_launcher.dart';
 export 'package:flutter/material.dart';
 export 'package:injectable/injectable.dart';
 export 'package:flutter/services.dart';
