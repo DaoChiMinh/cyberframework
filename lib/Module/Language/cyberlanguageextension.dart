@@ -1,5 +1,4 @@
-import 'package:flutter/material.dart';
-import 'CyberLanguageService.dart';
+import 'package:cyberframework/cyberframework.dart';
 
 /// Extension on String for multilingual text
 extension CyberLanguageStringExtension on String {

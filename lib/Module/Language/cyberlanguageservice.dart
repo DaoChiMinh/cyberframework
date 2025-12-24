@@ -37,35 +37,31 @@ enum CyberLanguage {
   }
 }
 
-/// Service quản lý ngôn ngữ với ChangeNotifier để auto-rebuild
 class CyberLanguageService extends ChangeNotifier {
   static final CyberLanguageService _instance =
       CyberLanguageService._internal();
   factory CyberLanguageService() => _instance;
-  CyberLanguageService._internal();
+
+  CyberLanguageService._internal() {
+    debugPrint('🏗️ Creating CyberLanguageService instance: ${hashCode}');
+  }
 
   static const String _storageKey = 'cyber_language';
   CyberLanguage _currentLanguage = CyberLanguage.vietnamese;
-  bool _isInitialized = false;
 
-  /// Lấy ngôn ngữ hiện tại
-  CyberLanguage get currentLanguage => _currentLanguage;
+  CyberLanguage get currentLanguage {
+    debugPrint(
+      '📖 Reading currentLanguage from instance ${hashCode}: $_currentLanguage',
+    );
+    return _currentLanguage;
+  }
 
-  /// Lấy language code hiện tại (vi/en)
   String get currentLanguageCode => _currentLanguage.code;
-
-  /// Check xem có phải tiếng Việt không
   bool get isVietnamese => _currentLanguage == CyberLanguage.vietnamese;
-
-  /// Check xem có phải tiếng Anh không
   bool get isEnglish => _currentLanguage == CyberLanguage.english;
 
-  /// Khởi tạo và load ngôn ngữ đã lưu
   Future<void> initialize() async {
-    if (_isInitialized) {
-      debugPrint('⚠️ Language already initialized: ${_currentLanguage.name}');
-      return;
-    }
+    debugPrint('🔧 Initialize called on instance: ${hashCode}');
 
     try {
       debugPrint('🔄 Loading saved language...');
@@ -74,38 +70,34 @@ class CyberLanguageService extends ChangeNotifier {
 
       if (savedLanguage.isNotEmpty) {
         _currentLanguage = CyberLanguage.fromCode(savedLanguage);
-        debugPrint('✅ Loaded language: ${_currentLanguage.name}');
+        debugPrint(
+          '✅ Instance ${hashCode} - Loaded language: ${_currentLanguage.name}',
+        );
       } else {
         debugPrint(
           '⚠️ No saved language, using default: ${_currentLanguage.name}',
         );
       }
-      _isInitialized = true;
 
-      // ✅ THÊM DÒNG NÀY - Notify để rebuild UI với language đã load
       notifyListeners();
     } catch (e) {
       debugPrint('❌ Error loading language: $e');
       _currentLanguage = CyberLanguage.vietnamese;
+      notifyListeners();
     }
   }
 
-  /// Thay đổi ngôn ngữ và lưu vào storage
   Future<void> setLanguage(CyberLanguage language) async {
+    debugPrint('🔧 setLanguage called on instance ${hashCode}: $language');
     if (_currentLanguage == language) return;
 
     _currentLanguage = language;
-
-    // Lưu vào storage
     await AppStorage.set(_storageKey, language.code);
-
-    // Notify tất cả listeners để rebuild
     notifyListeners();
 
     debugPrint('✅ Language changed to: ${language.name}');
   }
 
-  /// Toggle giữa 2 ngôn ngữ
   Future<void> toggleLanguage() async {
     final newLanguage = _currentLanguage == CyberLanguage.vietnamese
         ? CyberLanguage.english
@@ -113,14 +105,11 @@ class CyberLanguageService extends ChangeNotifier {
     await setLanguage(newLanguage);
   }
 
-  /// Lấy text theo ngôn ngữ hiện tại
-  /// Usage: getText('Xin chào', 'Hello')
   String getText(String vietnamese, String english) {
-    print(_currentLanguage);
+    debugPrint('🌐 getText on instance ${hashCode}: $_currentLanguage');
     return _currentLanguage == CyberLanguage.vietnamese ? vietnamese : english;
   }
 
-  /// Lấy text với fallback
   String getTextOrDefault(
     String? vietnamese,
     String? english,
@@ -131,5 +120,4 @@ class CyberLanguageService extends ChangeNotifier {
   }
 }
 
-/// Global instance để dễ truy cập
 final cyberLanguage = CyberLanguageService();
