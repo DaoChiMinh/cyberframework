@@ -114,12 +114,17 @@ class FileHandler {
   }) async {
     try {
       final fileData = await loadFile(source, fileExtension);
-
-      await Share.shareXFiles(
-        [XFile(fileData.path)],
-        subject: subject,
-        text: fileName,
+      final params = ShareParams(
+        text: 'Great picture',
+        files: [XFile(fileData.path)],
       );
+
+      await SharePlus.instance.share(params);
+      // await Share.shareXFiles(
+      //   [XFile(fileData.path)],
+      //   subject: subject,
+      //   text: fileName,
+      // );
     } catch (e) {
       if (context != null && context.mounted) {
         _showError(context, 'Share error: $e');

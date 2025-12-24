@@ -1,9 +1,7 @@
 import 'package:cyberframework/cyberframework.dart';
-import 'package:cyberframework/Page/base_file_viewer.dart';
-import 'package:path_provider/path_provider.dart';
+
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
-import 'package:printing/printing.dart';
 import 'package:docx_to_text/docx_to_text.dart';
 
 class FrmDocView extends BaseFileViewer {

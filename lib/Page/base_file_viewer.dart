@@ -222,9 +222,16 @@ abstract class BaseFileViewer extends CyberForm {
   Future<void> _handleShare() async {
     try {
       if (_localFilePath != null) {
-        await Share.shareXFiles([
-          XFile(_localFilePath!),
-        ], text: title ?? ngonngu('Chia sẻ file', 'Share file'));
+        final params = ShareParams(
+          text: title ?? ngonngu('Chia sẻ file', 'Share file'),
+          files: [XFile(_localFilePath!)],
+        );
+
+        await SharePlus.instance.share(params);
+
+        // await Share.shareXFiles([
+        //   XFile(_localFilePath!),
+        // ], text: title ?? ngonngu('Chia sẻ file', 'Share file'));
       }
     } catch (e) {
       if (context.mounted) {

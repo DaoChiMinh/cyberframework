@@ -118,15 +118,8 @@ class PhoneHandler {
       final cleanNumber = _cleanPhoneNumber(phoneNumber);
 
       // Create vCard format
-      String vcardData = 'BEGIN:VCARD\nVERSION:3.0\n';
-      if (name != null && name.isNotEmpty) {
-        vcardData += 'FN:$name\n';
-      }
-      vcardData += 'TEL:$cleanNumber\n';
-      if (email != null && email.isNotEmpty) {
-        vcardData += 'EMAIL:$email\n';
-      }
-      vcardData += 'END:VCARD';
+      if (name != null && name.isNotEmpty) {}
+      if (email != null && email.isNotEmpty) {}
 
       // Try to open contacts with intent (Android specific)
       // This may not work on all devices/platforms
@@ -159,7 +152,7 @@ class PhoneHandler {
       String whatsappNumber = cleanNumber;
       if (whatsappNumber.startsWith('0')) {
         whatsappNumber =
-            '84' + whatsappNumber.substring(1); // Vietnam country code
+            '84${whatsappNumber.substring(1)}'; // Vietnam country code
       }
 
       String whatsappUri = 'https://wa.me/$whatsappNumber';
@@ -196,7 +189,7 @@ class PhoneHandler {
 
       String telegramNumber = cleanNumber;
       if (telegramNumber.startsWith('0')) {
-        telegramNumber = '84' + telegramNumber.substring(1);
+        telegramNumber = '84${telegramNumber.substring(1)}';
       }
 
       final uri = Uri.parse('https://t.me/+$telegramNumber');
@@ -228,7 +221,7 @@ class PhoneHandler {
 
       String viberNumber = cleanNumber;
       if (viberNumber.startsWith('0')) {
-        viberNumber = '84' + viberNumber.substring(1);
+        viberNumber = '84${viberNumber.substring(1)}';
       }
 
       final uri = Uri.parse('viber://chat?number=$viberNumber');
@@ -332,7 +325,7 @@ class PhoneHandler {
       // Convert to international format for Zalo
       String zaloNumber = cleanNumber;
       if (zaloNumber.startsWith('0')) {
-        zaloNumber = '84' + zaloNumber.substring(1); // Vietnam country code
+        zaloNumber = '84${zaloNumber.substring(1)}'; // Vietnam country code
       } else if (!zaloNumber.startsWith('84') && !zaloNumber.startsWith('+')) {
         zaloNumber = '84$zaloNumber';
       }
@@ -391,7 +384,7 @@ class PhoneHandler {
       // Convert to international format
       String zaloNumber = cleanNumber;
       if (zaloNumber.startsWith('0')) {
-        zaloNumber = '84' + zaloNumber.substring(1);
+        zaloNumber = '84${zaloNumber.substring(1)}';
       } else if (!zaloNumber.startsWith('84') && !zaloNumber.startsWith('+')) {
         zaloNumber = '84$zaloNumber';
       }
@@ -408,6 +401,7 @@ class PhoneHandler {
         if (context != null && context.mounted) {
           _showInfo(context, 'Không thể gọi trực tiếp. Đang mở Zalo chat...');
         }
+        // ignore: use_build_context_synchronously
         return await openZaloChat(phoneNumber, context: context);
       }
     } catch (e) {

@@ -1,7 +1,7 @@
 export 'package:cyberframework/Module/cyber.form.dart';
 export 'package:cyberframework/Module/save_storage.dart';
 export 'package:cyberframework/Module/exten.dart';
-
+export 'package:cyberframework/Page/base_file_viewer.dart';
 export 'package:cyberframework/Module/CallData/cyberapiextension.dart';
 export 'package:cyberframework/Module/CallData/cyberapiservice.dart';
 export 'package:cyberframework/Module/CallData/cyberdatapost.dart';
@@ -50,7 +50,6 @@ export 'package:cyberframework/Module/Language/cyberlanguageservice.dart';
 export 'package:cyberframework/Module/Language/cyberlanguageextension.dart';
 export 'package:cyberframework/Module/phone_handler.dart';
 
-export 'package:cyberframework/Module/file_handler.dart';
 export 'package:url_launcher/url_launcher.dart';
 export 'package:flutter/material.dart';
 export 'package:injectable/injectable.dart';

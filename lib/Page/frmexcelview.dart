@@ -1,5 +1,4 @@
 import 'package:cyberframework/cyberframework.dart';
-import 'package:cyberframework/Page/base_file_viewer.dart';
 import 'package:excel/excel.dart' hide Border;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -138,10 +137,7 @@ class FrmExcelView extends BaseFileViewer {
 
   @override
   List<Widget> buildAdditionalToolbarButtons() {
-    return [
-      Text(ngonngu('Sheet', 'Sheet') + ': $_currentSheet'),
-      const SizedBox(width: 8),
-    ];
+    return [Text('Sheet: $_currentSheet'), const SizedBox(width: 8)];
   }
 
   @override
