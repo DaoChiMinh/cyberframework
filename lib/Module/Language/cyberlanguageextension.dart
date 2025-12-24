@@ -54,41 +54,6 @@ class CyberLanguageBuilder extends StatelessWidget {
   }
 }
 
-/// Widget Text tự động chuyển đổi ngôn ngữ
-class CyberText extends StatelessWidget {
-  final String vietnamese;
-  final String english;
-  final TextStyle? style;
-  final TextAlign? textAlign;
-  final int? maxLines;
-  final TextOverflow? overflow;
-
-  const CyberText(
-    this.vietnamese,
-    this.english, {
-    super.key,
-    this.style,
-    this.textAlign,
-    this.maxLines,
-    this.overflow,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return CyberLanguageBuilder(
-      builder: (context, language) {
-        return Text(
-          ngonngu(vietnamese, english),
-          style: style,
-          textAlign: textAlign,
-          maxLines: maxLines,
-          overflow: overflow,
-        );
-      },
-    );
-  }
-}
-
 /// Widget để chuyển đổi ngôn ngữ dễ dàng
 class CyberLanguageSwitch extends StatelessWidget {
   final ValueChanged<CyberLanguage>? onChanged;

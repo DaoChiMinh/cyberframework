@@ -42,7 +42,7 @@ export 'package:cyberframework/Controller/cyberscanbarcode.dart';
 export 'package:cyberframework/Page/frmwebview.dart';
 // Thêm vào cuối file, trước các export khác
 export 'package:cyberframework/Module/Language/cyberlanguageservice.dart';
-
+export 'package:cyberframework/Module/Language/cyberlanguageextension.dart';
 export 'package:flutter/material.dart';
 export 'package:injectable/injectable.dart';
 export 'package:flutter/services.dart';
