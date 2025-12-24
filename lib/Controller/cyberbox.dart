@@ -8,7 +8,7 @@ class CyberSize {
   final double? _value;
   final bool _isFill;
 
-  const CyberSize._(this._value, this._isFill);
+  const CyberSize(this._value, this._isFill);
 
   /// Tạo size với giá trị cụ thể
   const CyberSize.fixed(double value) : _value = value, _isFill = false;
