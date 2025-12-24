@@ -1,3 +1,4 @@
+import 'package:cyberframework/Page/frmpdfview.dart';
 import 'package:cyberframework/Page/frmwebview.dart';
 import 'package:cyberframework/cyberframework.dart';
 
@@ -124,6 +125,32 @@ Future<bool> V_callform(
             title: title,
             formBuilder: () => wb,
             cp_name: "cp_name",
+            strparameter: strparameter,
+          ),
+          useHeroAnimation,
+        ),
+      );
+      break;
+    case "pdf":
+    case "pdfview":
+      FrmPdfView pdfViewer = FrmPdfView();
+
+      // strfrm có thể là URL hoặc đường dẫn file local
+      if (strfrm.startsWith('http://') || strfrm.startsWith('https://')) {
+        pdfViewer.pdfUrl = strfrm; // URL
+      } else {
+        pdfViewer.pdfPath = strfrm; // Local path
+      }
+
+      pdfViewer.showToolbar = false;
+
+      Navigator.push(
+        context,
+        _buildPageRoute(
+          CyberFormView(
+            title: title.isEmpty ? ngonngu('Xem PDF', 'PDF Viewer') : title,
+            formBuilder: () => pdfViewer,
+            cp_name: cpName,
             strparameter: strparameter,
           ),
           useHeroAnimation,
