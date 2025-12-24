@@ -62,16 +62,27 @@ class CyberLanguageService extends ChangeNotifier {
 
   /// Khởi tạo và load ngôn ngữ đã lưu
   Future<void> initialize() async {
-    if (_isInitialized) return;
+    if (_isInitialized) {
+      debugPrint('⚠️ Language already initialized: ${_currentLanguage.name}');
+      return;
+    }
 
     try {
+      debugPrint('🔄 Loading saved language...');
       final savedLanguage = await AppStorage.get(_storageKey);
+      debugPrint('📦 Saved language value: "$savedLanguage"');
+
       if (savedLanguage.isNotEmpty) {
         _currentLanguage = CyberLanguage.fromCode(savedLanguage);
+        debugPrint('✅ Loaded language: ${_currentLanguage.name}');
+      } else {
+        debugPrint(
+          '⚠️ No saved language, using default: ${_currentLanguage.name}',
+        );
       }
       _isInitialized = true;
     } catch (e) {
-      debugPrint('Error loading language: $e');
+      debugPrint('❌ Error loading language: $e');
       _currentLanguage = CyberLanguage.vietnamese;
     }
   }
@@ -102,6 +113,7 @@ class CyberLanguageService extends ChangeNotifier {
   /// Lấy text theo ngôn ngữ hiện tại
   /// Usage: getText('Xin chào', 'Hello')
   String getText(String vietnamese, String english) {
+    print(_currentLanguage);
     return _currentLanguage == CyberLanguage.vietnamese ? vietnamese : english;
   }
 
