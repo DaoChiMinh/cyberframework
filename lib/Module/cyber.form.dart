@@ -219,7 +219,6 @@ abstract class CyberForm {
       cpName,
       strparameter,
       hideAppBar: hideAppBar,
-      objectdata: objectdata, // ✅ Truyền objectdata
     );
     if (frm == null) return;
     Navigator.push(_context, MaterialPageRoute(builder: (context) => frm));
