@@ -97,7 +97,7 @@ class _CyberDateState extends State<CyberDate> {
     try {
       _dateFormat = DateFormat(widget.format);
     } catch (e) {
-      debugPrint('Invalid date format: ${widget.format}, using default');
+      //debugPrint('Invalid date format: ${widget.format}, using default');
       _dateFormat = DateFormat('dd/MM/yyyy');
     }
   }

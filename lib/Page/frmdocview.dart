@@ -29,7 +29,7 @@ class FrmDocView extends BaseFileViewer {
       try {
         _extractedText = docxToText(fileBytes!);
       } catch (e) {
-        debugPrint('Error extracting text: $e');
+        //debugPrint('Error extracting text: $e');
       }
     }
   }

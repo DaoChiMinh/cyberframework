@@ -43,14 +43,14 @@ class CyberLanguageService extends ChangeNotifier {
   factory CyberLanguageService() => _instance;
 
   CyberLanguageService._internal() {
-    debugPrint('🏗️ Creating CyberLanguageService instance: ${hashCode}');
+    //debugPrint('🏗️ Creating CyberLanguageService instance: ${hashCode}');
   }
 
   static const String _storageKey = 'cyber_language';
   CyberLanguage _currentLanguage = CyberLanguage.vietnamese;
 
   CyberLanguage get currentLanguage {
-    debugPrint(
+    //debugPrint(
       '📖 Reading currentLanguage from instance ${hashCode}: $_currentLanguage',
     );
     return _currentLanguage;
@@ -61,41 +61,41 @@ class CyberLanguageService extends ChangeNotifier {
   bool get isEnglish => _currentLanguage == CyberLanguage.english;
 
   Future<void> initialize() async {
-    debugPrint('🔧 Initialize called on instance: ${hashCode}');
+    //debugPrint('🔧 Initialize called on instance: ${hashCode}');
 
     try {
-      debugPrint('🔄 Loading saved language...');
+      //debugPrint('🔄 Loading saved language...');
       final savedLanguage = await AppStorage.get(_storageKey);
-      debugPrint('📦 Saved language value: "$savedLanguage"');
+      //debugPrint('📦 Saved language value: "$savedLanguage"');
 
       if (savedLanguage.isNotEmpty) {
         _currentLanguage = CyberLanguage.fromCode(savedLanguage);
-        debugPrint(
+        //debugPrint(
           '✅ Instance ${hashCode} - Loaded language: ${_currentLanguage.name}',
         );
       } else {
-        debugPrint(
+        //debugPrint(
           '⚠️ No saved language, using default: ${_currentLanguage.name}',
         );
       }
 
       notifyListeners();
     } catch (e) {
-      debugPrint('❌ Error loading language: $e');
+      //debugPrint('❌ Error loading language: $e');
       _currentLanguage = CyberLanguage.vietnamese;
       notifyListeners();
     }
   }
 
   Future<void> setLanguage(CyberLanguage language) async {
-    debugPrint('🔧 setLanguage called on instance ${hashCode}: $language');
+    //debugPrint('🔧 setLanguage called on instance ${hashCode}: $language');
     if (_currentLanguage == language) return;
 
     _currentLanguage = language;
     await AppStorage.set(_storageKey, language.code);
     notifyListeners();
 
-    debugPrint('✅ Language changed to: ${language.name}');
+    //debugPrint('✅ Language changed to: ${language.name}');
   }
 
   Future<void> toggleLanguage() async {
@@ -106,7 +106,7 @@ class CyberLanguageService extends ChangeNotifier {
   }
 
   String getText(String vietnamese, String english) {
-    debugPrint('🌐 getText on instance ${hashCode}: $_currentLanguage');
+    //debugPrint('🌐 getText on instance ${hashCode}: $_currentLanguage');
     return _currentLanguage == CyberLanguage.vietnamese ? vietnamese : english;
   }
 

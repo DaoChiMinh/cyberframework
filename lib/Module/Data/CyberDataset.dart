@@ -181,7 +181,7 @@ class CyberDataset extends ChangeNotifier {
 
         // Bỏ qua nếu table không tồn tại
         if (table == null) {
-          debugPrint('⚠️ WARNING: Table "$tableName" not found in dataset');
+          //debugPrint('⚠️ WARNING: Table "$tableName" not found in dataset');
           continue;
         }
 
@@ -268,11 +268,11 @@ class CyberDataset extends ChangeNotifier {
   @override
   void dispose() {
     if (_isDisposed) {
-      debugPrint('⚠️ WARNING: Double dispose detected on dataset!');
+      //debugPrint('⚠️ WARNING: Double dispose detected on dataset!');
       return;
     }
 
-    debugPrint('🗑️ Disposing CyberDataset with ${_tables.length} tables');
+    //debugPrint('🗑️ Disposing CyberDataset with ${_tables.length} tables');
 
     for (var table in _tables.values) {
       table.removeListener(_onTableChanged);

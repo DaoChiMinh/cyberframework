@@ -309,14 +309,14 @@ class CyberFilePicker extends StatelessWidget {
 
       return File(result.path);
     } catch (e) {
-      debugPrint('Error compressing image: $e');
+      //debugPrint('Error compressing image: $e');
       return null;
     }
   }
 
   /// Handle error
   void _handleError(String error) {
-    debugPrint('CyberFilePicker Error: $error');
+    //debugPrint('CyberFilePicker Error: $error');
     onError?.call(error);
   }
 }
@@ -783,7 +783,7 @@ class _CyberFilePickerFieldState extends State<CyberFilePickerField> {
 
       return File(result.path);
     } catch (e) {
-      debugPrint('Error compressing image: $e');
+      //debugPrint('Error compressing image: $e');
       return null;
     }
   }

@@ -248,13 +248,13 @@ class _CyberCameraState extends State<CyberCamera> {
 
       return File(result.path);
     } catch (e) {
-      debugPrint('Error compressing image: $e');
+      //debugPrint('Error compressing image: $e');
       return null;
     }
   }
 
   void _handleError(String error) {
-    debugPrint('CyberCamera Error: $error');
+    //debugPrint('CyberCamera Error: $error');
     widget.onError?.call(error);
   }
 
@@ -605,13 +605,13 @@ class _CyberCameraScreenState extends State<_CyberCameraScreen> {
 
       return File(result.path);
     } catch (e) {
-      debugPrint('Error compressing image: $e');
+      //debugPrint('Error compressing image: $e');
       return null;
     }
   }
 
   void _handleError(String error) {
-    debugPrint('CyberCameraView Error: $error');
+    //debugPrint('CyberCameraView Error: $error');
     widget.onError?.call(error);
   }
 

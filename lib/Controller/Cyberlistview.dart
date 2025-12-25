@@ -1043,7 +1043,7 @@ class _MenuBottomSheet extends StatelessWidget {
         final pageName = menuRow['pagename'] as String?;
 
         if (pageName == null || pageName.isEmpty) {
-          debugPrint('Warning: pageName is empty');
+          //debugPrint('Warning: pageName is empty');
         } else {
           menuRow.V_Call(context);
         }
@@ -1052,7 +1052,7 @@ class _MenuBottomSheet extends StatelessWidget {
       // Callback
       onMenuItemTap?.call(menuRow, sourceRow, sourceIndex);
     } catch (e) {
-      debugPrint('Error handling menu item tap: $e');
+      //debugPrint('Error handling menu item tap: $e');
     }
   }
 }

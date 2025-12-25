@@ -23,7 +23,7 @@ IconData? v_parseIcon(String codePointStr) {
 
     return IconData(codePoint, fontFamily: 'MaterialIconsOutlined');
   } catch (e) {
-    debugPrint('Error parsing icon code point "$codePointStr": $e');
+    //debugPrint('Error parsing icon code point "$codePointStr": $e');
     return null;
   }
 }
@@ -52,7 +52,7 @@ String V_GiaiMa(String encryptedData) {
     ).convert(compressedBytes);
     return utf8.decode(decompressedBytes);
   } catch (e) {
-    debugPrint('Decrypt error: $e');
+    //debugPrint('Decrypt error: $e');
     return encryptedData;
   }
 }
@@ -73,7 +73,7 @@ ReturnData parseResponse(String responseStr) {
 
     return ReturnData.fromJson(json);
   } catch (e) {
-    debugPrint('Parse response error: $e');
+    //debugPrint('Parse response error: $e');
     return ReturnData(
       status: false,
       message: 'Lỗi parse response: $e',

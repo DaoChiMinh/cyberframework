@@ -27,7 +27,7 @@ class CyberDataTable extends ChangeNotifier {
 
   void addRow(CyberDataRow row) {
     if (_isDisposed) {
-      debugPrint('⚠️ WARNING: Trying to add row to disposed table!');
+      //debugPrint('⚠️ WARNING: Trying to add row to disposed table!');
       return;
     }
 
