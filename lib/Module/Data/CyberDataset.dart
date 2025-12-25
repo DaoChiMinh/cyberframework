@@ -142,6 +142,82 @@ class CyberDataset extends ChangeNotifier {
     table.loadData(data);
   }
 
+  // String toXml({
+  //   Map<String, List<String>>? tableIncludeColumns,
+  //   Map<String, List<String>>? tableExcludeColumns,
+  // }) {
+  //   final StringBuffer xml = StringBuffer();
+
+  //   for (var entry in tables.entries) {
+  //     final tableName = entry.key;
+  //     final table = entry.value;
+
+  //     // Lấy include/exclude columns cho table này
+  //     List<String>? includeColumns = tableIncludeColumns?[tableName];
+  //     List<String>? excludeColumns = tableExcludeColumns?[tableName];
+
+  //     xml.write(
+  //       table.toXml(
+  //         includeColumns: includeColumns,
+  //         excludeColumns: excludeColumns,
+  //       ),
+  //     );
+  //   }
+
+  //   return xml.toString();
+  // }
+
+  String toXml({
+    List<String>? tableNames,
+    Map<String, List<String>>? tableIncludeColumns,
+    Map<String, List<String>>? tableExcludeColumns,
+  }) {
+    final StringBuffer xml = StringBuffer();
+
+    // Nếu có danh sách tableNames, duyệt theo thứ tự đó
+    if (tableNames != null && tableNames.isNotEmpty) {
+      for (var tableName in tableNames) {
+        final table = this[tableName];
+
+        // Bỏ qua nếu table không tồn tại
+        if (table == null) {
+          debugPrint('⚠️ WARNING: Table "$tableName" not found in dataset');
+          continue;
+        }
+
+        // Lấy include/exclude columns cho table này
+        List<String>? includeColumns = tableIncludeColumns?[tableName];
+        List<String>? excludeColumns = tableExcludeColumns?[tableName];
+
+        xml.write(
+          table.toXml(
+            includeColumns: includeColumns,
+            excludeColumns: excludeColumns,
+          ),
+        );
+      }
+    } else {
+      // Nếu không có tableNames, duyệt tất cả tables
+      for (var entry in tables.entries) {
+        final tableName = entry.key;
+        final table = entry.value;
+
+        // Lấy include/exclude columns cho table này
+        List<String>? includeColumns = tableIncludeColumns?[tableName];
+        List<String>? excludeColumns = tableExcludeColumns?[tableName];
+
+        xml.write(
+          table.toXml(
+            includeColumns: includeColumns,
+            excludeColumns: excludeColumns,
+          ),
+        );
+      }
+    }
+
+    return xml.toString();
+  }
+
   void acceptChanges() {
     for (var table in _tables.values) {
       table.acceptChanges();

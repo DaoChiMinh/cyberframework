@@ -1,6 +1,7 @@
 // ignore: file_names
 
 import 'package:cyberframework/cyberframework.dart';
+import 'package:intl/intl.dart';
 
 /// CyberDataRow - đại diện cho một row dữ liệu với memory leak protection
 class CyberDataRow extends ChangeNotifier {
@@ -160,6 +161,95 @@ class CyberDataRow extends ChangeNotifier {
     return changed;
   }
 
+  String toXml(
+    String tableName, {
+    List<String>? includeColumns,
+    List<String>? excludeColumns,
+  }) {
+    final StringBuffer xml = StringBuffer();
+    final tableTag = tableName.toUpperCase();
+
+    // Lấy danh sách fields cần xử lý
+    List<String> fieldsToProcess = _getFieldsToProcess(
+      includeColumns,
+      excludeColumns,
+    );
+
+    if (fieldsToProcess.isEmpty) {
+      return '';
+    }
+
+    xml.write('<$tableTag>');
+
+    for (var fieldName in fieldsToProcess) {
+      final columnTag = fieldName.toUpperCase();
+      final value = this[fieldName];
+
+      xml.write('<$columnTag>');
+      xml.write(_formatValue(value));
+      xml.write('</$columnTag>');
+    }
+
+    xml.write('</$tableTag>');
+
+    return xml.toString();
+  }
+
+  /// Lấy danh sách fields cần process
+  List<String> _getFieldsToProcess(
+    List<String>? includeColumns,
+    List<String>? excludeColumns,
+  ) {
+    List<String> fields = fieldNames;
+
+    if (includeColumns != null && includeColumns.isNotEmpty) {
+      // Nếu có includeColumns, chỉ lấy những columns trong list
+      final includeLower = includeColumns.map((e) => e.toLowerCase()).toSet();
+      fields = fields
+          .where((f) => includeLower.contains(f.toLowerCase()))
+          .toList();
+    } else if (excludeColumns != null && excludeColumns.isNotEmpty) {
+      // Nếu có excludeColumns, loại bỏ những columns trong list
+      final excludeLower = excludeColumns.map((e) => e.toLowerCase()).toSet();
+      fields = fields
+          .where((f) => !excludeLower.contains(f.toLowerCase()))
+          .toList();
+    }
+
+    return fields;
+  }
+
+  /// Format giá trị theo type (tương tự C#)
+  String _formatValue(dynamic value) {
+    if (value == null) {
+      return '';
+    }
+
+    // DateTime
+    if (value is DateTime) {
+      // Format: yyyyMMdd HH:mm:ss (giống V_CyberToStringDatetimeSQL)
+      return DateFormat('yyyyMMdd HH:mm:ss').format(value);
+    }
+
+    // Int
+    if (value is int) {
+      return value.toString();
+    }
+
+    // Double, Float
+    if (value is double) {
+      return value.toStringAsFixed(4).replaceAll(',', '.');
+    }
+
+    // Bool
+    if (value is bool) {
+      return value ? '1' : '0';
+    }
+
+    // String và các type khác => CDATA
+    String strValue = value.toString().replaceAll('#', '!~!\$!~!');
+    return '<![CDATA[$strValue]]>';
+  }
   // ============================================================================
   // ENHANCED DISPOSE
   // ============================================================================

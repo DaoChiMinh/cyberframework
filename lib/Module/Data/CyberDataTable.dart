@@ -122,6 +122,27 @@ class CyberDataTable extends ChangeNotifier {
     }
   }
 
+  String toXml({
+    String? tableNameOverride,
+    List<String>? includeColumns,
+    List<String>? excludeColumns,
+  }) {
+    final StringBuffer xml = StringBuffer();
+    final String tableTag = tableNameOverride ?? tableName;
+
+    for (var row in rows) {
+      xml.write(
+        row.toXml(
+          tableTag,
+          includeColumns: includeColumns,
+          excludeColumns: excludeColumns,
+        ),
+      );
+    }
+
+    return xml.toString();
+  }
+
   void acceptChanges() {
     for (var row in _rows) {
       row.acceptChanges();
