@@ -6,7 +6,9 @@ class CyberFormView extends StatefulWidget {
   // ignore: non_constant_identifier_names
   final String cp_name;
   final String strparameter;
+  final dynamic objectdata; // ✅ THÊM objectdata
   final bool hideAppBar;
+
   const CyberFormView({
     super.key,
     required this.title,
@@ -14,6 +16,7 @@ class CyberFormView extends StatefulWidget {
     // ignore: non_constant_identifier_names
     required this.cp_name,
     required this.strparameter,
+    this.objectdata, // ✅ THÊM objectdata (optional)
     this.hideAppBar = false,
   });
 
@@ -82,26 +85,17 @@ class _CyberFormViewState extends State<CyberFormView> {
   Widget build(BuildContext context) {
     _form._context = context;
 
-    // ============================================================================
-    // TÍCH HỢP CyberLanguageBuilder - TỰ ĐỘNG REBUILD KHI ĐỔI NGÔN NGỮ
-    // ============================================================================
-    // Wrap toàn bộ UI với CyberLanguageBuilder
-    // Khi cyberLanguage.setLanguage() được gọi, toàn bộ form sẽ rebuild
-    // Tất cả ngonngu() sẽ được gọi lại với language mới
     return CyberLanguageBuilder(
       builder: (context, language) => GestureDetector(
         behavior: HitTestBehavior.translucent,
         onTap: () => FocusScope.of(context).unfocus(),
         child: Scaffold(
-          // Ưu tiên hideAppBar từ form, nếu null thì dùng từ widget
           appBar: (_form.hideAppBar ?? widget.hideAppBar)
               ? null
               : AppBar(
                   backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-                  // Ưu tiên title từ form, nếu không có thì dùng title từ widget
                   title: Text(_form.title ?? widget.title),
                 ),
-          // Ưu tiên backgroundColor từ form, nếu không có thì dùng Colors.white
           backgroundColor: _form.backgroundColor ?? Colors.white,
           body: _buildBody(),
         ),
@@ -110,7 +104,6 @@ class _CyberFormViewState extends State<CyberFormView> {
   }
 
   Widget _buildBody() {
-    // Show loading
     if (_isLoading) {
       return _form.buildLoadingWidget() ??
           Center(
@@ -125,7 +118,6 @@ class _CyberFormViewState extends State<CyberFormView> {
           );
     }
 
-    // Show error
     if (_errorMessage != null) {
       return _form.buildErrorWidget(_errorMessage!) ??
           Center(
@@ -151,7 +143,6 @@ class _CyberFormViewState extends State<CyberFormView> {
           );
     }
 
-    // Show content
     return _form.buildBody(context);
   }
 }
@@ -165,71 +156,48 @@ abstract class CyberForm {
   CyberFormView get widget => _widget;
 
   // ============================================================================
+  // ✅ THÊM GETTERS ĐỂ TRUY CẬP CÁC THAM SỐ
+  // ============================================================================
+
+  /// Lấy cp_name từ CyberFormView
+  // ignore: non_constant_identifier_names
+  String get cp_name => _widget.cp_name;
+
+  /// Lấy strparameter từ CyberFormView
+  String get strparameter => _widget.strparameter;
+
+  /// Lấy objectdata từ CyberFormView
+  dynamic get objectdata => _widget.objectdata;
+
+  // ============================================================================
   // PROPERTIES - Có thể override trong form con
   // ============================================================================
 
-  /// Title của form - Override để đổi title
-  /// Nếu null sẽ dùng title từ CyberFormView
   String? get title => null;
-
-  /// Background color của form - Override để đổi màu nền
-  /// Nếu null sẽ dùng Colors.white
   Color? get backgroundColor => null;
-
-  /// Ẩn/hiện AppBar - Override để điều khiển
-  /// Nếu null sẽ dùng giá trị từ CyberFormView
   bool? get hideAppBar => null;
 
   // ============================================================================
-  // LIFECYCLE METHODS - Theo thứ tự thực thi
+  // LIFECYCLE METHODS
   // ============================================================================
 
-  /// 1. onInit - Khởi tạo cơ bản (sync)
-  /// Được gọi đầu tiên, dùng để khởi tạo biến, controller...
-  /// Không nên call API ở đây
   void onInit() {}
-
-  /// 2. onBeforeLoad - Chuẩn bị trước khi load (async)
-  /// Dùng để validate, check permission, prepare data...
   Future<void> onBeforeLoad() async {}
-
-  /// 3. onLoadData - Load data từ API (async)
-  /// **ĐÂY LÀ NƠI CALL API ĐỂ LOAD DATA**
-  /// Màn hình sẽ chờ method này chạy xong mới hiển thị
   Future<void> onLoadData() async {}
-
-  /// 4. onAfterLoad - Xử lý sau khi load xong (async)
-  /// Dùng để process data, set default values...
   Future<void> onAfterLoad() async {}
-
-  /// 5. onLoadError - Xử lý lỗi khi load (sync)
-  /// Được gọi khi có exception trong quá trình load
   void onLoadError(dynamic error) {
     debugPrint('Load error: $error');
   }
 
-  /// 6. onDispose - Cleanup (sync)
-  /// Được gọi khi form bị dispose
   void onDispose() {}
 
   // ============================================================================
   // BUILD METHODS
   // ============================================================================
 
-  /// Build nội dung chính của form (REQUIRED)
   Widget buildBody(BuildContext context);
-
-  /// Build loading widget (OPTIONAL)
-  /// Override để custom loading UI
-  Widget? buildLoadingWidget() {
-    return null; // Sẽ dùng default loading
-  }
-
-  /// Build error widget (OPTIONAL)
-  /// Override để custom error UI
-  Widget? buildErrorWidget(String error) {
-    return null; // Sẽ dùng default error
-  }
+  Widget? buildLoadingWidget() => null;
+  Widget? buildErrorWidget(String error) => null;
 
   // ============================================================================
   // HELPER METHODS
@@ -243,6 +211,7 @@ abstract class CyberForm {
     String title = "",
     String cpName = "",
     String strparameter = "",
+    dynamic objectdata, // ✅ THÊM objectdata parameter
   }) {
     var frm = V_getScreen(
       strfrm,
@@ -250,17 +219,16 @@ abstract class CyberForm {
       cpName,
       strparameter,
       hideAppBar: hideAppBar,
+      objectdata: objectdata, // ✅ Truyền objectdata
     );
     if (frm == null) return;
     Navigator.push(_context, MaterialPageRoute(builder: (context) => frm));
   }
 
-  /// Rebuild form
   void rebuild() {
     _setState();
   }
 
-  /// Show loading dialog
   void showLoading([String? message]) {
     showDialog(
       context: _context,
@@ -290,7 +258,6 @@ abstract class CyberForm {
     );
   }
 
-  /// Hide loading dialog
   void hideLoading() {
     if (_context.mounted) {
       Navigator.of(_context).pop();
