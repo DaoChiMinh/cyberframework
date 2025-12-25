@@ -51,8 +51,8 @@ class CyberLanguageService extends ChangeNotifier {
 
   CyberLanguage get currentLanguage {
     //debugPrint(
-      '📖 Reading currentLanguage from instance ${hashCode}: $_currentLanguage',
-    );
+    // '📖 Reading currentLanguage from instance ${hashCode}: $_currentLanguage',
+    // );
     return _currentLanguage;
   }
 
@@ -71,12 +71,12 @@ class CyberLanguageService extends ChangeNotifier {
       if (savedLanguage.isNotEmpty) {
         _currentLanguage = CyberLanguage.fromCode(savedLanguage);
         //debugPrint(
-          '✅ Instance ${hashCode} - Loaded language: ${_currentLanguage.name}',
-        );
+        //  '✅ Instance ${hashCode} - Loaded language: ${_currentLanguage.name}',
+        // );
       } else {
         //debugPrint(
-          '⚠️ No saved language, using default: ${_currentLanguage.name}',
-        );
+        // '⚠️ No saved language, using default: ${_currentLanguage.name}',
+        // );
       }
 
       notifyListeners();
