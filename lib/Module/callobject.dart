@@ -397,7 +397,8 @@ Future<bool> V_callform(
       );
       break;
     case "pb":
-    case "popupbottom":
+    case "popupbotton":
+    case "popup_botton":
       await V_callViewBottom(
         context,
         strfrm,
