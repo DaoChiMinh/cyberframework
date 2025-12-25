@@ -1075,7 +1075,7 @@ class _MenuItemTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bar = menuRow['bar'] as String? ?? '';
-    final iconName = menuRow['icon'] as String? ?? '';
+    final iconName = menuRow['iconname'] as String? ?? '';
     final backColorHex = menuRow['backcolor'] as String? ?? '';
     final textColorHex = menuRow['textcolor'] as String? ?? '';
 
