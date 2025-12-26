@@ -7,6 +7,8 @@ export 'package:cyberframework/Module/CallData/cyberapiservice.dart';
 export 'package:cyberframework/Module/CallData/cyberdatapost.dart';
 export 'package:cyberframework/Module/CallData/loadingoverlay.dart';
 export 'package:cyberframework/Module/CallData/returndata.dart';
+//cyberconnectivityservice
+export 'package:cyberframework/Module/CallData/cyberconnectivityservice.dart';
 
 export 'package:cyberframework/Module/Data/cyberdatarow.dart';
 export 'package:cyberframework/Module/Data/cyberdatatable.dart';
