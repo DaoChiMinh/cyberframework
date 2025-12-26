@@ -6,7 +6,7 @@ class CyberFormView extends StatefulWidget {
   // ignore: non_constant_identifier_names
   final String cp_name;
   final String strparameter;
-  final dynamic objectdata; // ✅ THÊM objectdata
+  final dynamic objectdata;
   final bool hideAppBar;
 
   const CyberFormView({
@@ -16,7 +16,7 @@ class CyberFormView extends StatefulWidget {
     // ignore: non_constant_identifier_names
     required this.cp_name,
     required this.strparameter,
-    this.objectdata, // ✅ THÊM objectdata (optional)
+    this.objectdata,
     this.hideAppBar = false,
   });
 
@@ -77,6 +77,7 @@ class _CyberFormViewState extends State<CyberFormView> {
 
   @override
   void dispose() {
+    // Gọi onDispose của form để cleanup resources
     _form.onDispose();
     super.dispose();
   }
@@ -152,11 +153,14 @@ abstract class CyberForm {
   late CyberFormView _widget;
   late VoidCallback _setState;
 
+  // Danh sách resources cần dispose (controllers, streams, listeners...)
+  final List<dynamic> _disposables = [];
+
   BuildContext get context => _context;
   CyberFormView get widget => _widget;
 
   // ============================================================================
-  // ✅ THÊM GETTERS ĐỂ TRUY CẬP CÁC THAM SỐ
+  // ✅ GETTERS ĐỂ TRUY CẬP CÁC THAM SỐ
   // ============================================================================
 
   /// Lấy cp_name từ CyberFormView
@@ -189,7 +193,60 @@ abstract class CyberForm {
     //debugPrint('Load error: $error');
   }
 
-  void onDispose() {}
+  /// Override method này để cleanup resources khi form bị dispose
+  /// Ví dụ: dispose controllers, cancel timers, close streams...
+  void onDispose() {
+    // Tự động dispose tất cả resources đã register
+    _disposeAllResources();
+  }
+
+  // ============================================================================
+  // RESOURCE MANAGEMENT HELPERS
+  // ============================================================================
+
+  /// Register một resource để tự động dispose
+  /// Hỗ trợ: TextEditingController, StreamController, Timer, etc
+  void registerDisposable(dynamic resource) {
+    _disposables.add(resource);
+  }
+
+  /// Dispose tất cả resources đã register
+  void _disposeAllResources() {
+    for (var resource in _disposables) {
+      try {
+        if (resource is TextEditingController) {
+          resource.dispose();
+        } else if (resource is StreamController) {
+          resource.close();
+        } else if (resource is AnimationController) {
+          resource.dispose();
+        } else if (resource is FocusNode) {
+          resource.dispose();
+        } else if (resource is ScrollController) {
+          resource.dispose();
+        } else if (resource is TabController) {
+          resource.dispose();
+        } else if (resource is PageController) {
+          resource.dispose();
+        } else if (resource is dynamic) {
+          // Nếu có method dispose() hoặc close()
+          if (resource.runtimeType.toString().contains('Controller') ||
+              resource.runtimeType.toString().contains('Stream')) {
+            try {
+              resource.dispose?.call();
+            } catch (_) {
+              try {
+                resource.close?.call();
+              } catch (_) {}
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('Error disposing resource: $e');
+      }
+    }
+    _disposables.clear();
+  }
 
   // ============================================================================
   // BUILD METHODS
@@ -211,7 +268,7 @@ abstract class CyberForm {
     String title = "",
     String cpName = "",
     String strparameter = "",
-    dynamic objectdata, // ✅ THÊM objectdata parameter
+    dynamic objectdata,
   }) {
     var frm = V_getScreen(
       strfrm,
