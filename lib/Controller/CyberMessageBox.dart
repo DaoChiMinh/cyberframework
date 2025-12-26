@@ -2,17 +2,17 @@ import 'package:cyberframework/cyberframework.dart';
 
 /// Loại MessageBox
 enum CyberMsgBoxType {
-  /// Default: Icon tích xanh, màu xanh, chỉ có nút OK
+  /// Default: Màu xanh iOS, chỉ có nút OK
   defaultType,
 
-  /// Warning: Icon hỏi vàng, màu vàng, có nút OK và Cancel
+  /// Warning: Có nút OK và Cancel
   warning,
 
-  /// Error: Icon lỗi đỏ, màu đỏ, chỉ có nút OK
+  /// Error: Màu đỏ destructive, chỉ có nút OK
   error,
 }
 
-/// CyberMessageBox - MessageBox với các style khác nhau
+/// CyberMessageBox - MessageBox với iOS style
 class CyberMessageBox {
   final String message;
   final String? title;
@@ -37,17 +37,15 @@ class CyberMessageBox {
       child: _MessageBoxContent(
         message: message,
         title: title ?? config.defaultTitle,
-        icon: config.icon,
-        iconColor: config.iconColor,
-        contentColor: config.contentColor,
         confirmText: confirmText ?? config.defaultConfirmText,
         confirmColor: config.confirmColor,
         cancelText: type == CyberMsgBoxType.warning
             ? (cancelText ?? 'Hủy')
             : null,
         cancelColor: config.cancelColor,
+        isBold: config.isBold,
       ),
-      width: 400,
+      width: 270, // iOS alert width
       animation: PopupAnimation.scale,
       position: PopupPosition.center,
     );
@@ -61,33 +59,27 @@ class CyberMessageBox {
     switch (type) {
       case CyberMsgBoxType.defaultType:
         return _MessageBoxConfig(
-          icon: Icons.check_circle,
-          iconColor: Colors.green,
-          contentColor: Colors.green[700]!,
-          confirmColor: Colors.green,
+          confirmColor: const Color(0xFF007AFF), // iOS Blue
           defaultTitle: 'Thông báo',
-          defaultConfirmText: 'Xác nhận',
+          defaultConfirmText: 'OK',
+          isBold: false,
         );
 
       case CyberMsgBoxType.warning:
         return _MessageBoxConfig(
-          icon: Icons.help_outline,
-          iconColor: Colors.orange[800]!,
-          contentColor: Colors.orange[700]!,
-          confirmColor: Colors.blue,
-          cancelColor: Colors.red,
+          confirmColor: const Color(0xFF007AFF), // iOS Blue
+          cancelColor: const Color(0xFF007AFF), // iOS Blue
           defaultTitle: 'Cảnh báo',
-          defaultConfirmText: 'Xác nhận',
+          defaultConfirmText: 'OK',
+          isBold: true,
         );
 
       case CyberMsgBoxType.error:
         return _MessageBoxConfig(
-          icon: Icons.error_outline,
-          iconColor: Colors.red,
-          contentColor: Colors.red[700]!,
-          confirmColor: Colors.red,
+          confirmColor: const Color(0xFFFF3B30), // iOS Red (Destructive)
           defaultTitle: 'Lỗi',
-          defaultConfirmText: 'Đóng',
+          defaultConfirmText: 'OK',
+          isBold: true,
         );
     }
   }
@@ -95,124 +87,171 @@ class CyberMessageBox {
 
 /// Cấu hình cho MessageBox
 class _MessageBoxConfig {
-  final IconData icon;
-  final Color iconColor;
-  final Color contentColor;
   final Color confirmColor;
   final Color? cancelColor;
   final String defaultTitle;
   final String defaultConfirmText;
+  final bool isBold;
 
   _MessageBoxConfig({
-    required this.icon,
-    required this.iconColor,
-    required this.contentColor,
     required this.confirmColor,
     this.cancelColor,
     required this.defaultTitle,
     required this.defaultConfirmText,
+    required this.isBold,
   });
 }
 
-/// Content của MessageBox
+/// Content của MessageBox - iOS Style
 class _MessageBoxContent extends StatelessWidget {
   final String message;
   final String title;
-  final IconData icon;
-  final Color iconColor;
-  final Color contentColor;
   final String confirmText;
   final Color confirmColor;
   final String? cancelText;
   final Color? cancelColor;
+  final bool isBold;
 
   const _MessageBoxContent({
     required this.message,
     required this.title,
-    required this.icon,
-    required this.iconColor,
-    required this.contentColor,
     required this.confirmText,
     required this.confirmColor,
     this.cancelText,
     this.cancelColor,
+    required this.isBold,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        color: const Color(0xFFF2F2F7), // iOS background
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Icon
-          Icon(icon, size: 64, color: iconColor),
-          const SizedBox(height: 16),
-
-          // Title
-          Text(
-            title,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
-
-          // Message
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 16, color: contentColor),
-          ),
-          const SizedBox(height: 24),
-
-          // Buttons
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Cancel button (chỉ hiện khi có cancelText)
-              if (cancelText != null) ...[
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => CyberPopup.close(context, false),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: cancelColor ?? Colors.grey,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: Text(
-                      cancelText!,
-                      style: const TextStyle(fontSize: 16, color: Colors.white),
-                    ),
+          // Title & Message
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
+            child: Column(
+              children: [
+                // Title
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black,
+                    letterSpacing: -0.41,
                   ),
+                  textAlign: TextAlign.center,
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(height: 8),
+
+                // Message
+                Text(
+                  message,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w400,
+                    color: Colors.black,
+                    letterSpacing: -0.08,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
               ],
+            ),
+          ),
 
-              // Confirm button
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () => CyberPopup.close(context, true),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: confirmColor,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+          // Divider trước buttons
+          Container(height: 0.5, color: const Color(0xFFBBBBC8)),
+
+          // Buttons - iOS Style
+          SizedBox(
+            height: 44, // iOS button height
+            child: Row(
+              children: [
+                // Cancel button (nếu có)
+                if (cancelText != null) ...[
+                  Expanded(
+                    child: _IOSButton(
+                      text: cancelText!,
+                      color: cancelColor ?? const Color(0xFF007AFF),
+                      onPressed: () => CyberPopup.close(context, false),
+                      isBold: false,
                     ),
                   ),
-                  child: Text(
-                    confirmText,
-                    style: const TextStyle(fontSize: 16, color: Colors.white),
+                  // Divider giữa các nút
+                  Container(width: 0.5, color: const Color(0xFFBBBBC8)),
+                ],
+
+                // Confirm button
+                Expanded(
+                  child: _IOSButton(
+                    text: confirmText,
+                    color: confirmColor,
+                    onPressed: () => CyberPopup.close(context, true),
+                    isBold: isBold,
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// iOS Style Button
+class _IOSButton extends StatefulWidget {
+  final String text;
+  final Color color;
+  final VoidCallback onPressed;
+  final bool isBold;
+
+  const _IOSButton({
+    required this.text,
+    required this.color,
+    required this.onPressed,
+    required this.isBold,
+  });
+
+  @override
+  State<_IOSButton> createState() => _IOSButtonState();
+}
+
+class _IOSButtonState extends State<_IOSButton> {
+  bool _isPressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _isPressed = true),
+      onTapUp: (_) {
+        setState(() => _isPressed = false);
+        widget.onPressed();
+      },
+      onTapCancel: () => setState(() => _isPressed = false),
+      child: Container(
+        height: double.infinity,
+        decoration: BoxDecoration(
+          color: _isPressed
+              ? const Color(0xFFE5E5EA) // iOS pressed state
+              : Colors.transparent,
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          widget.text,
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: widget.isBold ? FontWeight.w600 : FontWeight.w400,
+            color: widget.color,
+            letterSpacing: -0.41,
+          ),
+        ),
       ),
     );
   }
