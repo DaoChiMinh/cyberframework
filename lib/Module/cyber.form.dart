@@ -228,17 +228,15 @@ abstract class CyberForm {
           resource.dispose();
         } else if (resource is PageController) {
           resource.dispose();
-        } else if (resource is dynamic) {
-          // Nếu có method dispose() hoặc close()
-          if (resource.runtimeType.toString().contains('Controller') ||
-              resource.runtimeType.toString().contains('Stream')) {
+        } else // Nếu có method dispose() hoặc close()
+        if (resource.runtimeType.toString().contains('Controller') ||
+            resource.runtimeType.toString().contains('Stream')) {
+          try {
+            resource.dispose?.call();
+          } catch (_) {
             try {
-              resource.dispose?.call();
-            } catch (_) {
-              try {
-                resource.close?.call();
-              } catch (_) {}
-            }
+              resource.close?.call();
+            } catch (_) {}
           }
         }
       } catch (e) {
