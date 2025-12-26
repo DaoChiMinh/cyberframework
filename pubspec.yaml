@@ -1,7 +1,7 @@
 name: cyberframework
 description: "A Flutter framework providing base UI components, form lifecycle,
   API integration helpers, storage utilities, and enterprise-ready"
-version: 0.0.42
+version: 0.0.43
 
 homepage: https://cybersoft.com.vn/
 repository: https://github.com/DaoChiMinh/cyberframework
