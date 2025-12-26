@@ -23,7 +23,7 @@ class CyberText extends StatefulWidget {
   final TextStyle? labelStyle;
   final dynamic isVisible;
   final dynamic isCheckEmpty;
-  
+
   const CyberText({
     super.key,
     this.text,
@@ -160,7 +160,7 @@ class _CyberTextState extends State<CyberText> {
   /// Kiểm tra giá trị có hợp lệ không (nếu isCheckEmpty = true thì không được rỗng)
   bool isValid() {
     if (!_isCheckEmpty()) return true;
-    
+
     final value = _getCurrentValue();
     return value.trim().isNotEmpty;
   }
@@ -234,7 +234,7 @@ class _CyberTextState extends State<CyberText> {
     if (!_isVisible()) {
       return const SizedBox.shrink();
     }
-    
+
     Widget textField = TextField(
       controller: _textController,
       onChanged: _onTextChanged,
