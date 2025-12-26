@@ -18,7 +18,7 @@ class CyberTime extends StatefulWidget {
   final TextStyle? labelStyle;
   final dynamic isVisible;
   final bool showSeconds;
-
+  final dynamic isCheckEmpty;
   const CyberTime({
     super.key,
     this.text,
@@ -37,6 +37,7 @@ class CyberTime extends StatefulWidget {
     this.labelStyle,
     this.isVisible = true,
     this.showSeconds = false,
+    this.isCheckEmpty = false,
   });
 
   @override
@@ -142,6 +143,10 @@ class _CyberTimeState extends State<CyberTime> {
       return _parseBool(_visibilityBoundRow![_visibilityBoundField!]);
     }
     return _parseBool(widget.isVisible);
+  }
+
+  bool _isCheckEmpty() {
+    return _parseBool(widget.isCheckEmpty);
   }
 
   void _updateController() {
@@ -315,15 +320,28 @@ class _CyberTimeState extends State<CyberTime> {
         children: [
           Padding(
             padding: const EdgeInsets.only(left: 4.0, bottom: 6.0),
-            child: Text(
-              widget.label!,
-              style:
-                  widget.labelStyle ??
-                  const TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFF555555),
-                    fontWeight: FontWeight.w500,
+            child: Row(
+              children: [
+                Text(
+                  widget.label!,
+                  style:
+                      widget.labelStyle ??
+                      const TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF555555),
+                        fontWeight: FontWeight.w500,
+                      ),
+                ),
+                if (_isCheckEmpty())
+                  const Text(
+                    ' *',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.red,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
+              ],
             ),
           ),
           textField,

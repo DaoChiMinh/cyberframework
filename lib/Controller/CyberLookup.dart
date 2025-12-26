@@ -19,6 +19,7 @@ class CyberLookup extends StatefulWidget {
   final Color? borderColor;
   final bool isShowLabel;
   final dynamic isVisible;
+  final dynamic isCheckEmpty;
   const CyberLookup({
     super.key,
     this.text,
@@ -39,6 +40,7 @@ class CyberLookup extends StatefulWidget {
     this.borderColor,
     this.isShowLabel = true,
     this.isVisible = true,
+    this.isCheckEmpty = false,
   });
 
   @override
@@ -122,6 +124,10 @@ class _CyberLookupState extends State<CyberLookup> {
       return true;
     }
     return true;
+  }
+
+  bool _isCheckEmpty() {
+    return _parseBool(widget.isCheckEmpty);
   }
 
   bool _isVisible() {
@@ -261,16 +267,29 @@ class _CyberLookupState extends State<CyberLookup> {
               widget.label!.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(left: 4.0, bottom: 6.0),
-              child: Text(
-                widget.label!,
-                maxLines: 1,
-                style:
-                    widget.labelStyle ??
-                    const TextStyle(
-                      fontSize: 14,
-                      color: Color(0xFF555555),
-                      fontWeight: FontWeight.w500,
+              child: Row(
+                children: [
+                  Text(
+                    widget.label!,
+                    maxLines: 1,
+                    style:
+                        widget.labelStyle ??
+                        const TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF555555),
+                          fontWeight: FontWeight.w500,
+                        ),
+                  ),
+                  if (_isCheckEmpty())
+                    const Text(
+                      ' *',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
+                ],
               ),
             ),
           InkWell(

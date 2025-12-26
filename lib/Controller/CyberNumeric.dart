@@ -24,7 +24,7 @@ class CyberNumeric extends StatefulWidget {
   final Color? backgroundColor;
   final Color? focusColor;
   final TextStyle? labelStyle;
-
+  final dynamic isCheckEmpty;
   const CyberNumeric({
     super.key,
     this.text,
@@ -44,6 +44,7 @@ class CyberNumeric extends StatefulWidget {
     this.backgroundColor,
     this.focusColor,
     this.labelStyle,
+    this.isCheckEmpty = false,
   });
 
   @override
@@ -141,6 +142,10 @@ class _CyberNumericState extends State<CyberNumeric> {
       return true;
     }
     return true;
+  }
+
+  bool _isCheckEmpty() {
+    return _parseBool(widget.isCheckEmpty);
   }
 
   bool _isVisible() {
@@ -411,15 +416,28 @@ class _CyberNumericState extends State<CyberNumeric> {
         children: [
           Padding(
             padding: const EdgeInsets.only(left: 4.0, bottom: 6.0),
-            child: Text(
-              widget.label!,
-              style:
-                  widget.labelStyle ??
-                  const TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFF555555),
-                    fontWeight: FontWeight.w500,
+            child: Row(
+              children: [
+                Text(
+                  widget.label!,
+                  style:
+                      widget.labelStyle ??
+                      const TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF555555),
+                        fontWeight: FontWeight.w500,
+                      ),
+                ),
+                if (_isCheckEmpty())
+                  const Text(
+                    ' *',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.red,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
+              ],
             ),
           ),
           textField,

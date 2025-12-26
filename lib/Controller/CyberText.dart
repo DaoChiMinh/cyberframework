@@ -22,6 +22,8 @@ class CyberText extends StatefulWidget {
   final Color? focusColor;
   final TextStyle? labelStyle;
   final dynamic isVisible;
+  final dynamic isCheckEmpty;
+  
   const CyberText({
     super.key,
     this.text,
@@ -45,6 +47,7 @@ class CyberText extends StatefulWidget {
     this.backgroundColor,
     this.focusColor,
     this.labelStyle,
+    this.isCheckEmpty = false,
   });
 
   @override
@@ -65,12 +68,14 @@ class _CyberTextState extends State<CyberText> {
     super.initState();
     _focusNode = FocusNode();
     _parseBinding();
-
     _parseVisibilityBinding();
     _updateController();
 
     if (_boundRow != null) {
       _boundRow!.addListener(_onBindingChanged);
+    }
+    if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
+      _visibilityBoundRow!.addListener(_onBindingChanged);
     }
     _focusNode.addListener(() {
       if (!_focusNode.hasFocus) {
@@ -129,33 +134,49 @@ class _CyberTextState extends State<CyberText> {
   }
 
   bool _parseBool(dynamic value) {
-    if (value == null) return true;
+    if (value == null) return false;
     if (value is bool) return value;
     if (value is int) return value != 0;
     if (value is String) {
       final lower = value.toLowerCase().trim();
       if (lower == "1" || lower == "true") return true;
       if (lower == "0" || lower == "false") return false;
-      return true;
+      return false;
     }
-    return true;
+    return false;
   }
 
   bool _isVisible() {
     if (_visibilityBoundRow != null && _visibilityBoundField != null) {
       return _parseBool(_visibilityBoundRow![_visibilityBoundField!]);
     }
-    return _parseBool(widget.isVisible);
+    return widget.isVisible == null ? true : _parseBool(widget.isVisible);
+  }
+
+  bool _isCheckEmpty() {
+    return _parseBool(widget.isCheckEmpty);
+  }
+
+  /// Kiểm tra giá trị có hợp lệ không (nếu isCheckEmpty = true thì không được rỗng)
+  bool isValid() {
+    if (!_isCheckEmpty()) return true;
+    
+    final value = _getCurrentValue();
+    return value.trim().isNotEmpty;
+  }
+
+  /// Lấy giá trị hiện tại dưới dạng string
+  String _getCurrentValue() {
+    if (_boundRow != null && _boundField != null) {
+      return _boundRow![_boundField!]?.toString() ?? '';
+    } else if (widget.text != null && widget.text is! CyberBindingExpression) {
+      return widget.text.toString();
+    }
+    return '';
   }
 
   void _updateController() {
-    String value = '';
-
-    if (_boundRow != null && _boundField != null) {
-      value = _boundRow![_boundField!]?.toString() ?? '';
-    } else if (widget.text != null) {
-      value = widget.text.toString();
-    }
+    String value = _getCurrentValue();
 
     final displayValue =
         widget.showFormatInField && widget.format != null && value.isNotEmpty
@@ -213,6 +234,7 @@ class _CyberTextState extends State<CyberText> {
     if (!_isVisible()) {
       return const SizedBox.shrink();
     }
+    
     Widget textField = TextField(
       controller: _textController,
       onChanged: _onTextChanged,
@@ -239,15 +261,29 @@ class _CyberTextState extends State<CyberText> {
         children: [
           Padding(
             padding: const EdgeInsets.only(left: 4.0, bottom: 6.0),
-            child: Text(
-              widget.label!,
-              style:
-                  widget.labelStyle ??
-                  const TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFF555555),
-                    fontWeight: FontWeight.w500,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  widget.label!,
+                  style:
+                      widget.labelStyle ??
+                      const TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF555555),
+                        fontWeight: FontWeight.w500,
+                      ),
+                ),
+                if (_isCheckEmpty())
+                  const Text(
+                    ' *',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.red,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
+              ],
             ),
           ),
           textField,
@@ -303,20 +339,16 @@ class _CyberTextState extends State<CyberText> {
                 });
               },
             ),
-      // ✅ Bỏ border
       border: InputBorder.none,
       enabledBorder: InputBorder.none,
       focusedBorder: InputBorder.none,
       errorBorder: InputBorder.none,
       disabledBorder: InputBorder.none,
       focusedErrorBorder: InputBorder.none,
-
-      // ✅ Background đồng bộ
       filled: true,
       fillColor: widget.enabled
           ? (widget.backgroundColor ?? const Color(0xFFF5F5F5))
           : const Color(0xFFE0E0E0),
-
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
     );
   }

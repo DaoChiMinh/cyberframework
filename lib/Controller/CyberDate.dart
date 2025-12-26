@@ -19,6 +19,7 @@ class CyberDate extends StatefulWidget {
   final Color? focusColor;
   final TextStyle? labelStyle;
   final dynamic isVisible;
+  final dynamic isCheckEmpty;
   const CyberDate({
     super.key,
     this.text,
@@ -38,6 +39,7 @@ class CyberDate extends StatefulWidget {
     this.focusColor,
     this.labelStyle,
     this.isVisible = true,
+    this.isCheckEmpty = false,
   });
 
   @override
@@ -155,6 +157,10 @@ class _CyberDateState extends State<CyberDate> {
       return true;
     }
     return true;
+  }
+
+  bool _isCheckEmpty() {
+    return _parseBool(widget.isCheckEmpty);
   }
 
   bool _isVisible() {
@@ -280,15 +286,28 @@ class _CyberDateState extends State<CyberDate> {
         children: [
           Padding(
             padding: const EdgeInsets.only(left: 4.0, bottom: 6.0),
-            child: Text(
-              widget.label!,
-              style:
-                  widget.labelStyle ??
-                  const TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFF555555),
-                    fontWeight: FontWeight.w500,
+            child: Row(
+              children: [
+                Text(
+                  widget.label!,
+                  style:
+                      widget.labelStyle ??
+                      const TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF555555),
+                        fontWeight: FontWeight.w500,
+                      ),
+                ),
+                if (_isCheckEmpty())
+                  const Text(
+                    ' *',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.red,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
+              ],
             ),
           ),
           textField,
