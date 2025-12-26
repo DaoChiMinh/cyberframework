@@ -12,7 +12,6 @@ class CyberConnectivityService {
   final Connectivity _connectivity = Connectivity();
 
   /// ✅ Kiểm tra có kết nối internet không
-  /// Version 7.0.0 trả về List<ConnectivityResult>
   Future<List<ConnectivityResult>> checkConnectivity() async {
     try {
       final result = await _connectivity.checkConnectivity();
