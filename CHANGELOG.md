@@ -1,3 +1,6 @@
+## 0.0.44
+
+fix listview khi có Swipe sự kiện click không hoạt động
 ## 0.0.43
 
 check internet
