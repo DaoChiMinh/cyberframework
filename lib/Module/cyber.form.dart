@@ -1,5 +1,17 @@
 import 'package:cyberframework/cyberframework.dart';
 
+/// Vị trí hiển thị Speed Monitor trong CyberForm
+enum SpeedMonitorPosition {
+  topLeft,
+  topRight,
+  topCenter,
+  bottomLeft,
+  bottomRight,
+  bottomCenter,
+  appBar, // Trong AppBar
+  banner, // Banner ở đầu body
+}
+
 class CyberFormView extends StatefulWidget {
   final CyberForm Function() formBuilder;
   final String title;
@@ -8,6 +20,8 @@ class CyberFormView extends StatefulWidget {
   final String strparameter;
   final dynamic objectdata;
   final bool hideAppBar;
+  final bool showSpeedMonitor;
+  final SpeedMonitorPosition speedMonitorPosition;
 
   const CyberFormView({
     super.key,
@@ -18,6 +32,8 @@ class CyberFormView extends StatefulWidget {
     required this.strparameter,
     this.objectdata,
     this.hideAppBar = false,
+    this.showSpeedMonitor = false,
+    this.speedMonitorPosition = SpeedMonitorPosition.topRight,
   });
 
   @override
@@ -93,15 +109,127 @@ class _CyberFormViewState extends State<CyberFormView> {
         child: Scaffold(
           appBar: (_form.hideAppBar ?? widget.hideAppBar)
               ? null
-              : AppBar(
-                  backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-                  title: Text(_form.title ?? widget.title),
-                ),
+              : _buildAppBar(),
           backgroundColor: _form.backgroundColor ?? Colors.white,
-          body: _buildBody(),
+          body: _buildBodyWithSpeedMonitor(),
         ),
       ),
     );
+  }
+
+  /// Build AppBar với Speed Monitor nếu cần
+  PreferredSizeWidget _buildAppBar() {
+    final showInAppBar =
+        (widget.showSpeedMonitor || _form.showSpeedMonitor == true) &&
+        widget.speedMonitorPosition == SpeedMonitorPosition.appBar;
+
+    return AppBar(
+      backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+      title: Text(_form.title ?? widget.title),
+      actions: showInAppBar
+          ? [
+              const Padding(
+                padding: EdgeInsets.only(right: 8.0),
+                child: CyberSpeedIndicator(
+                  showLabel: false,
+                  autoStart: true,
+                  compact: true,
+                ),
+              ),
+            ]
+          : null,
+    );
+  }
+
+  /// Build body với Speed Monitor ở các vị trí khác
+  Widget _buildBodyWithSpeedMonitor() {
+    final body = _buildBody();
+    final showMonitor =
+        widget.showSpeedMonitor || _form.showSpeedMonitor == true;
+
+    if (!showMonitor ||
+        widget.speedMonitorPosition == SpeedMonitorPosition.appBar) {
+      return body;
+    }
+
+    // Banner position
+    if (widget.speedMonitorPosition == SpeedMonitorPosition.banner) {
+      return Column(
+        children: [
+          const CyberSpeedBanner(),
+          Expanded(child: body),
+        ],
+      );
+    }
+
+    // Floating positions
+    return Stack(children: [body, _buildFloatingSpeedMonitor()]);
+  }
+
+  /// Build Floating Speed Monitor
+  Widget _buildFloatingSpeedMonitor() {
+    return Positioned(
+      top: _getTop(),
+      left: _getLeft(),
+      right: _getRight(),
+      bottom: _getBottom(),
+      child: const IgnorePointer(
+        ignoring: false,
+        child: CyberSpeedIndicator(
+          showLabel: false,
+          autoStart: true,
+          compact: true,
+        ),
+      ),
+    );
+  }
+
+  double? _getTop() {
+    switch (widget.speedMonitorPosition) {
+      case SpeedMonitorPosition.topLeft:
+      case SpeedMonitorPosition.topRight:
+      case SpeedMonitorPosition.topCenter:
+        return 16;
+      default:
+        return null;
+    }
+  }
+
+  double? _getBottom() {
+    switch (widget.speedMonitorPosition) {
+      case SpeedMonitorPosition.bottomLeft:
+      case SpeedMonitorPosition.bottomRight:
+      case SpeedMonitorPosition.bottomCenter:
+        return 16;
+      default:
+        return null;
+    }
+  }
+
+  double? _getLeft() {
+    switch (widget.speedMonitorPosition) {
+      case SpeedMonitorPosition.topLeft:
+      case SpeedMonitorPosition.bottomLeft:
+        return 16;
+      case SpeedMonitorPosition.topCenter:
+      case SpeedMonitorPosition.bottomCenter:
+        return 0;
+      default:
+        return null;
+    }
+  }
+
+  double? _getRight() {
+    switch (widget.speedMonitorPosition) {
+      case SpeedMonitorPosition.topRight:
+      case SpeedMonitorPosition.bottomRight:
+        return 16;
+      case SpeedMonitorPosition.topCenter:
+      case SpeedMonitorPosition.bottomCenter:
+        return 0;
+      default:
+        return null;
+    }
   }
 
   Widget _buildBody() {
@@ -180,6 +308,9 @@ abstract class CyberForm {
   String? get title => null;
   Color? get backgroundColor => null;
   bool? get hideAppBar => null;
+
+  /// ✅ NEW: Hiển thị Speed Monitor cố định trong form
+  bool? get showSpeedMonitor => null;
 
   // ============================================================================
   // LIFECYCLE METHODS
