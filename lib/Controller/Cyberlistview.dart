@@ -234,7 +234,7 @@ class _CyberListViewState extends State<CyberListView> {
       _filteredDataTable = null;
       _currentSearchText = '';
       _searchController.clear();
-      _searchFocusNode.dispose();
+      _searchFocusNode.unfocus(); // ✅ FIX: Chỉ unfocus, KHÔNG dispose
       setState(() {});
     }
 
@@ -254,6 +254,7 @@ class _CyberListViewState extends State<CyberListView> {
       _scrollController.dispose();
     }
     _searchController.dispose();
+    _searchFocusNode.dispose(); // ✅ Chỉ dispose ở đây
     super.dispose();
   }
 
