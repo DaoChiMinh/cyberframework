@@ -801,6 +801,7 @@ class _CyberListViewState extends State<CyberListView> {
   void _handleItemTap(CyberDataRow row, int index) {
     if (widget.onItemTap != null) {
       widget.onItemTap?.call(row, index);
+      return;
     }
 
     if (widget.isClickToScreen) {
@@ -845,7 +846,7 @@ class _CyberListViewState extends State<CyberListView> {
         children: _buildSwipeActions(row, index),
       ),
       child: InkWell(
-        onTap: widget.onItemTap != null
+        onTap: (widget.onItemTap != null || widget.isClickToScreen)
             ? () => _handleItemTap(row, index)
             : null,
         onLongPress: () => _handleItemLongPress(row, index),

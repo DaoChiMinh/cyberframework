@@ -418,7 +418,7 @@ Future<bool> V_callform(
     default:
       final screen = V_getScreen(strfrm, title, cpName, strparameter);
       if (screen == null) {
-        //debugPrint('⚠️ Không tìm thấy màn hình: $strfrm');
+        debugPrint('⚠️ Không tìm thấy màn hình: $strfrm');
         return false;
       }
       if (clearAllStack) {
