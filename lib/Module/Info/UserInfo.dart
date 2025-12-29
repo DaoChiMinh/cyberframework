@@ -112,7 +112,19 @@ class UserInfo {
     } else {
       id_otp = "";
     }
-    // cập nhập lại Language theo biến loginRow["M_Lan"]?.toString()
+    // ✅ Cập nhật Language theo biến M_Lan từ server
+    if (dtlogin.containerColumn("M_Lan")) {
+      String languageCode = loginRow["M_Lan"]?.toString() ?? "";
+      if (languageCode.isNotEmpty) {
+        try {
+          final language = CyberLanguage.fromCode(languageCode);
+          // Cập nhật language (không pass context để không gọi API lại)
+          await cyberLanguage.setLanguage(language);
+        } catch (e) {
+          //debugPrint('⚠️ Error updating language from server: $e');
+        }
+      }
+    }
     dtPhanHe = dslogin[2];
     dtCommand = dslogin[3];
 

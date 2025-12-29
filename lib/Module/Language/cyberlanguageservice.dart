@@ -25,9 +25,7 @@ enum CyberLanguage {
 
   static CyberLanguage fromCode(String code) {
     switch (code.toLowerCase()) {
-      case 'vi':
-      case 'vietnamese':
-        return CyberLanguage.vietnamese;
+      case 'e':
       case 'en':
       case 'english':
         return CyberLanguage.english;
