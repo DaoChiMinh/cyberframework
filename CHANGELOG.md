@@ -1,3 +1,6 @@
+## 0.0.45
+
+cập nhật lại ngôn ngữ
 ## 0.0.44
 
 fix listview khi có Swipe sự kiện click không hoạt động
