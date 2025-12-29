@@ -161,7 +161,7 @@ class _CyberSpeedIndicatorState extends State<CyberSpeedIndicator> {
   final _service = CyberConnectivityService();
   double? _speed;
   Timer? _timer;
-
+  bool _disposed = false;
   @override
   void initState() {
     super.initState();
@@ -171,14 +171,19 @@ class _CyberSpeedIndicatorState extends State<CyberSpeedIndicator> {
   }
 
   void _startMonitoring() {
+    if (_disposed) return;
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 3), (timer) {
-      _checkSpeed();
+      if (!_disposed) {
+        // ✅ Kiểm tra trước khi check speed
+        _checkSpeed();
+      }
     });
     _checkSpeed();
   }
 
   Future<void> _checkSpeed() async {
+    if (_disposed) return;
     final speed = await _service.checkInternetSpeed();
     if (mounted && speed != null) {
       // Chỉ update nếu thay đổi > 10%
@@ -192,12 +197,15 @@ class _CyberSpeedIndicatorState extends State<CyberSpeedIndicator> {
 
   @override
   void dispose() {
+    _disposed = true;
     _timer?.cancel();
+    super.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_disposed) return const SizedBox.shrink();
     final speedText = _speed == null
         ? '--'
         : _speed! >= 1024
@@ -297,7 +305,7 @@ class _CyberSpeedBannerState extends State<CyberSpeedBanner> {
   double? _speed;
   Timer? _timer;
   bool _isDismissed = false;
-
+  bool _disposed = false;
   @override
   void initState() {
     super.initState();
@@ -307,12 +315,15 @@ class _CyberSpeedBannerState extends State<CyberSpeedBanner> {
   void _startMonitoring() {
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 3), (timer) {
-      _checkSpeed();
+      if (!_disposed) {
+        _checkSpeed();
+      }
     });
     _checkSpeed();
   }
 
   Future<void> _checkSpeed() async {
+    if (_disposed) return;
     final speed = await _service.checkInternetSpeed();
     if (mounted && speed != null && !_isDismissed) {
       if (_speed == null || (_speed! - speed).abs() / _speed! > 0.1) {
@@ -325,13 +336,15 @@ class _CyberSpeedBannerState extends State<CyberSpeedBanner> {
 
   @override
   void dispose() {
+    _disposed = true;
     _timer?.cancel();
+    super.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isDismissed) {
+    if (_disposed || _isDismissed) {
       return const SizedBox.shrink();
     }
 
@@ -419,7 +432,7 @@ class _CyberSpeedFloatingState extends State<CyberSpeedFloating> {
   double? _speed;
   Timer? _timer;
   bool _showDetails = false;
-
+  bool _disposed = false;
   @override
   void initState() {
     super.initState();
@@ -430,12 +443,15 @@ class _CyberSpeedFloatingState extends State<CyberSpeedFloating> {
   void _startMonitoring() {
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 3), (timer) {
-      _checkSpeed();
+      if (!_disposed) {
+        _checkSpeed();
+      }
     });
     _checkSpeed();
   }
 
   Future<void> _checkSpeed() async {
+    if (_disposed) return;
     final speed = await _service.checkInternetSpeed();
     if (mounted && speed != null) {
       if (_speed == null || (_speed! - speed).abs() / _speed! > 0.1) {
@@ -448,12 +464,15 @@ class _CyberSpeedFloatingState extends State<CyberSpeedFloating> {
 
   @override
   void dispose() {
+    _disposed = true;
     _timer?.cancel();
+    _timer = null;
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_disposed) return const SizedBox.shrink();
     final color = _speed == null
         ? Colors.grey
         : _speed! < 50

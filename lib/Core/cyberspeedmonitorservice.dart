@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:cyberframework/cyberframework.dart';
 
 /// Service để monitor tốc độ internet và hiển thị overlay
@@ -141,8 +140,13 @@ class CyberSpeedMonitorService extends ChangeNotifier {
 
   /// Ẩn overlay
   void _hideOverlay() {
-    _overlayEntry?.remove();
-    _overlayEntry = null;
+    try {
+      _overlayEntry?.remove();
+      _overlayEntry?.dispose(); // ✅ Thêm dispose
+      _overlayEntry = null;
+    } catch (e) {
+      // Ignore error nếu overlay đã bị remove
+    }
   }
 
   @override
