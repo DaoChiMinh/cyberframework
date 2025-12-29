@@ -37,7 +37,7 @@ class FrmDocView extends BaseFileViewer {
   @override
   Widget buildViewer() {
     if (localFilePath == null) {
-      return Center(child: Text(ngonngu('Không có dữ liệu', 'No data')));
+      return Center(child: Text(setText('Không có dữ liệu', 'No data')));
     }
 
     // Using Syncfusion to render DOCX
@@ -58,7 +58,7 @@ class FrmDocView extends BaseFileViewer {
               children: [
                 const Icon(Icons.error, size: 64, color: Colors.red),
                 const SizedBox(height: 16),
-                Text(ngonngu('Lỗi hiển thị file', 'Display error')),
+                Text(setText('Lỗi hiển thị file', 'Display error')),
                 const SizedBox(height: 8),
                 Text(snapshot.error.toString(), textAlign: TextAlign.center),
               ],
@@ -90,7 +90,7 @@ class FrmDocView extends BaseFileViewer {
     final PdfPage page = document.pages.add();
     page.graphics.drawString(
       _extractedText ??
-          ngonngu('Không thể trích xuất nội dung', 'Cannot extract content'),
+          setText('Không thể trích xuất nội dung', 'Cannot extract content'),
       PdfStandardFont(PdfFontFamily.helvetica, 12),
       bounds: Rect.fromLTWH(
         0,

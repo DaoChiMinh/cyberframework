@@ -5,13 +5,13 @@ extension CyberLanguageStringExtension on String {
   /// Translate with English text
   /// Usage: "Xin chào".tr("Hello")
   String tr(String english) {
-    return ngonngu(this, english);
+    return setText(this, english);
   }
 
   /// Operator >> for translation
   /// Usage: "Xin chào" >> "Hello"
   String operator >>(String english) {
-    return ngonngu(this, english);
+    return setText(this, english);
   }
 }
 
@@ -22,7 +22,7 @@ extension CyberLanguageBuildContext on BuildContext {
 
   /// Translate text based on current language
   String tr(String vietnamese, String english) {
-    return ngonngu(vietnamese, english);
+    return setText(vietnamese, english);
   }
 
   /// Check if current language is Vietnamese
@@ -34,8 +34,8 @@ extension CyberLanguageBuildContext on BuildContext {
 
 /// Global function to get text based on current language
 /// This is the main API for multilingual text
-/// Usage: Text(ngonngu("Xin chào", "Hello"))
-String ngonngu(String vietnamese, String english) {
+/// Usage: Text(setText("Xin chào", "Hello"))
+String setText(String vietnamese, String english) {
   return cyberLanguage.getText(vietnamese, english);
 }
 
@@ -80,7 +80,7 @@ class CyberLangText extends StatelessWidget {
   Widget build(BuildContext context) {
     return CyberLanguageBuilder(
       builder: (context, language) => Text(
-        ngonngu(vietnamese, english),
+        setText(vietnamese, english),
         style: style,
         textAlign: textAlign,
         maxLines: maxLines,
@@ -174,7 +174,7 @@ class CyberLanguageSelector extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              title ?? ngonngu('Chọn ngôn ngữ', 'Select Language'),
+              title ?? setText('Chọn ngôn ngữ', 'Select Language'),
               style:
                   titleStyle ??
                   const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -243,22 +243,22 @@ class _LanguageOption extends StatelessWidget {
 
 /// Optional: Common language constants
 class CyberLanguageConstants {
-  static String get ok => ngonngu('Đồng ý', 'OK');
-  static String get cancel => ngonngu('Hủy', 'Cancel');
-  static String get save => ngonngu('Lưu', 'Save');
-  static String get delete => ngonngu('Xóa', 'Delete');
-  static String get edit => ngonngu('Sửa', 'Edit');
-  static String get add => ngonngu('Thêm', 'Add');
-  static String get search => ngonngu('Tìm kiếm', 'Search');
-  static String get error => ngonngu('Lỗi', 'Error');
-  static String get success => ngonngu('Thành công', 'Success');
-  static String get warning => ngonngu('Cảnh báo', 'Warning');
-  static String get info => ngonngu('Thông tin', 'Information');
-  static String get confirm => ngonngu('Xác nhận', 'Confirm');
+  static String get ok => setText('Đồng ý', 'OK');
+  static String get cancel => setText('Hủy', 'Cancel');
+  static String get save => setText('Lưu', 'Save');
+  static String get delete => setText('Xóa', 'Delete');
+  static String get edit => setText('Sửa', 'Edit');
+  static String get add => setText('Thêm', 'Add');
+  static String get search => setText('Tìm kiếm', 'Search');
+  static String get error => setText('Lỗi', 'Error');
+  static String get success => setText('Thành công', 'Success');
+  static String get warning => setText('Cảnh báo', 'Warning');
+  static String get info => setText('Thông tin', 'Information');
+  static String get confirm => setText('Xác nhận', 'Confirm');
   static String get confirmDelete =>
-      ngonngu('Bạn có chắc muốn xóa?', 'Are you sure you want to delete?');
+      setText('Bạn có chắc muốn xóa?', 'Are you sure you want to delete?');
   static String get saveSuccess =>
-      ngonngu('Lưu thành công', 'Saved successfully');
+      setText('Lưu thành công', 'Saved successfully');
   static String get deleteSuccess =>
-      ngonngu('Xóa thành công', 'Deleted successfully');
+      setText('Xóa thành công', 'Deleted successfully');
 }

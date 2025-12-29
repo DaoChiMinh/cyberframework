@@ -20,7 +20,7 @@ class FrmImageView extends BaseFileViewer {
   @override
   Widget buildViewer() {
     if (fileBytes == null) {
-      return Center(child: Text(ngonngu('Không có dữ liệu', 'No data')));
+      return Center(child: Text(setText('Không có dữ liệu', 'No data')));
     }
 
     return PhotoView(
@@ -41,7 +41,7 @@ class FrmImageView extends BaseFileViewer {
       // Zoom out
       IconButton(
         icon: const Icon(Icons.zoom_out),
-        tooltip: ngonngu('Thu nhỏ', 'Zoom out'),
+        tooltip: setText('Thu nhỏ', 'Zoom out'),
         onPressed: () {
           _photoController?.scale = (_currentScale - 0.5).clamp(0.5, 4.0);
         },
@@ -50,7 +50,7 @@ class FrmImageView extends BaseFileViewer {
       // Zoom in
       IconButton(
         icon: const Icon(Icons.zoom_in),
-        tooltip: ngonngu('Phóng to', 'Zoom in'),
+        tooltip: setText('Phóng to', 'Zoom in'),
         onPressed: () {
           _photoController?.scale = (_currentScale + 0.5).clamp(0.5, 4.0);
         },
@@ -59,7 +59,7 @@ class FrmImageView extends BaseFileViewer {
       // Reset zoom
       IconButton(
         icon: const Icon(Icons.fit_screen),
-        tooltip: ngonngu('Vừa màn hình', 'Fit screen'),
+        tooltip: setText('Vừa màn hình', 'Fit screen'),
         onPressed: () {
           _photoController?.scale = 1.0;
         },
@@ -68,7 +68,7 @@ class FrmImageView extends BaseFileViewer {
       // Rotate
       IconButton(
         icon: const Icon(Icons.rotate_right),
-        tooltip: ngonngu('Xoay', 'Rotate'),
+        tooltip: setText('Xoay', 'Rotate'),
         onPressed: () {
           final currentRotation = _photoController?.rotation ?? 0;
           _photoController?.rotation = currentRotation + 90;

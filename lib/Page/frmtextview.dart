@@ -41,7 +41,7 @@ class FrmTextView extends BaseFileViewer {
       // Decrease font size
       IconButton(
         icon: const Icon(Icons.text_decrease),
-        tooltip: ngonngu('Giảm cỡ chữ', 'Decrease font'),
+        tooltip: setText('Giảm cỡ chữ', 'Decrease font'),
         onPressed: () {
           _fontSize = (_fontSize - 2).clamp(8, 32);
           rebuild();
@@ -51,7 +51,7 @@ class FrmTextView extends BaseFileViewer {
       // Increase font size
       IconButton(
         icon: const Icon(Icons.text_increase),
-        tooltip: ngonngu('Tăng cỡ chữ', 'Increase font'),
+        tooltip: setText('Tăng cỡ chữ', 'Increase font'),
         onPressed: () {
           _fontSize = (_fontSize + 2).clamp(8, 32);
           rebuild();

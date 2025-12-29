@@ -30,13 +30,13 @@ class FrmExcelView extends BaseFileViewer {
   @override
   Widget buildViewer() {
     if (_excel == null || _currentSheet.isEmpty) {
-      return Center(child: Text(ngonngu('Không có dữ liệu', 'No data')));
+      return Center(child: Text(setText('Không có dữ liệu', 'No data')));
     }
 
     final sheet = _excel!.tables[_currentSheet];
     if (sheet == null) {
       return Center(
-        child: Text(ngonngu('Sheet không tồn tại', 'Sheet not found')),
+        child: Text(setText('Sheet không tồn tại', 'Sheet not found')),
       );
     }
 

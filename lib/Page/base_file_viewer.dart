@@ -35,7 +35,7 @@ abstract class BaseFileViewer extends CyberForm {
           await _loadFromUrl();
           break;
         default:
-          throw Exception(ngonngu('Định dạng không hợp lệ', 'Invalid format'));
+          throw Exception(setText('Định dạng không hợp lệ', 'Invalid format'));
       }
 
       _isLoading = false;
@@ -85,14 +85,14 @@ abstract class BaseFileViewer extends CyberForm {
       await file.writeAsBytes(_fileBytes!);
       _localFilePath = file.path;
     } catch (e) {
-      throw Exception(ngonngu('Lỗi giải mã base64', 'Base64 decode error'));
+      throw Exception(setText('Lỗi giải mã base64', 'Base64 decode error'));
     }
   }
 
   Future<void> _loadFromPath() async {
     final file = File(text);
     if (!await file.exists()) {
-      throw Exception(ngonngu('File không tồn tại', 'File does not exist'));
+      throw Exception(setText('File không tồn tại', 'File does not exist'));
     }
     _localFilePath = text;
     _fileBytes = await file.readAsBytes();
@@ -115,7 +115,7 @@ abstract class BaseFileViewer extends CyberForm {
       await file.writeAsBytes(_fileBytes!);
       _localFilePath = file.path;
     } catch (e) {
-      throw Exception(ngonngu('Lỗi tải file', 'Download error: $e'));
+      throw Exception(setText('Lỗi tải file', 'Download error: $e'));
     }
   }
 
@@ -128,7 +128,7 @@ abstract class BaseFileViewer extends CyberForm {
           children: [
             const CircularProgressIndicator(),
             const SizedBox(height: 16),
-            Text(ngonngu('Đang tải...', 'Loading...')),
+            Text(setText('Đang tải...', 'Loading...')),
           ],
         ),
       );
@@ -145,7 +145,7 @@ abstract class BaseFileViewer extends CyberForm {
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () => onLoadData(),
-              child: Text(ngonngu('Thử lại', 'Retry')),
+              child: Text(setText('Thử lại', 'Retry')),
             ),
           ],
         ),
@@ -172,21 +172,21 @@ abstract class BaseFileViewer extends CyberForm {
           // Print
           IconButton(
             icon: const Icon(Icons.print),
-            tooltip: ngonngu('In', 'Print'),
+            tooltip: setText('In', 'Print'),
             onPressed: canPrint() ? _handlePrint : null,
           ),
 
           // Share
           IconButton(
             icon: const Icon(Icons.share),
-            tooltip: ngonngu('Chia sẻ', 'Share'),
+            tooltip: setText('Chia sẻ', 'Share'),
             onPressed: _handleShare,
           ),
 
           // Download
           IconButton(
             icon: const Icon(Icons.download),
-            tooltip: ngonngu('Tải xuống', 'Download'),
+            tooltip: setText('Tải xuống', 'Download'),
             onPressed: _handleDownload,
           ),
 
@@ -211,7 +211,7 @@ abstract class BaseFileViewer extends CyberForm {
       await onPrint();
     } catch (e) {
       if (context.mounted) {
-        ngonngu(
+        setText(
           'Lỗi in: $e',
           'Print error: $e',
         ).V_MsgBox(context, type: CyberMsgBoxType.error);
@@ -223,7 +223,7 @@ abstract class BaseFileViewer extends CyberForm {
     try {
       if (_localFilePath != null) {
         final params = ShareParams(
-          text: title ?? ngonngu('Chia sẻ file', 'Share file'),
+          text: title ?? setText('Chia sẻ file', 'Share file'),
           files: [XFile(_localFilePath!)],
         );
 
@@ -231,11 +231,11 @@ abstract class BaseFileViewer extends CyberForm {
 
         // await Share.shareXFiles([
         //   XFile(_localFilePath!),
-        // ], text: title ?? ngonngu('Chia sẻ file', 'Share file'));
+        // ], text: title ?? setText('Chia sẻ file', 'Share file'));
       }
     } catch (e) {
       if (context.mounted) {
-        ngonngu(
+        setText(
           'Lỗi chia sẻ: $e',
           'Share error: $e',
         ).V_MsgBox(context, type: CyberMsgBoxType.error);
@@ -258,14 +258,14 @@ abstract class BaseFileViewer extends CyberForm {
       await file.writeAsBytes(_fileBytes!);
 
       if (context.mounted) {
-        ngonngu(
+        setText(
           'Đã lưu: $savePath',
           'Saved: $savePath',
         ).V_MsgBox(context, type: CyberMsgBoxType.defaultType);
       }
     } catch (e) {
       if (context.mounted) {
-        ngonngu(
+        setText(
           'Lỗi tải xuống: $e',
           'Download error: $e',
         ).V_MsgBox(context, type: CyberMsgBoxType.error);

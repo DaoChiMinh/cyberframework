@@ -113,7 +113,7 @@ class _CyberFormViewState extends State<CyberFormView> {
               children: [
                 const CircularProgressIndicator(),
                 const SizedBox(height: 16),
-                Text(ngonngu('Đang tải dữ liệu...', 'Loading data...')),
+                Text(setText('Đang tải dữ liệu...', 'Loading data...')),
               ],
             ),
           );
@@ -127,7 +127,7 @@ class _CyberFormViewState extends State<CyberFormView> {
               children: [
                 const Icon(Icons.error, size: 64, color: Colors.red),
                 const SizedBox(height: 16),
-                Text('${ngonngu("Lỗi", "Error")}: $_errorMessage'),
+                Text('${setText("Lỗi", "Error")}: $_errorMessage'),
                 const SizedBox(height: 16),
                 ElevatedButton(
                   onPressed: () {
@@ -137,7 +137,7 @@ class _CyberFormViewState extends State<CyberFormView> {
                     });
                     _initializeForm();
                   },
-                  child: Text(ngonngu('Thử lại', 'Retry')),
+                  child: Text(setText('Thử lại', 'Retry')),
                 ),
               ],
             ),

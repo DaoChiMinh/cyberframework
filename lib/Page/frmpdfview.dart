@@ -54,7 +54,7 @@ class FrmPdfView extends CyberForm {
     // Nếu không có gì thì hiện lỗi
     return Center(
       child: Text(
-        ngonngu('Không có file PDF để hiển thị', 'No PDF file to display'),
+        setText('Không có file PDF để hiển thị', 'No PDF file to display'),
         style: const TextStyle(fontSize: 16),
       ),
     );
@@ -72,7 +72,7 @@ class FrmPdfView extends CyberForm {
           // Zoom out
           IconButton(
             icon: const Icon(Icons.zoom_out),
-            tooltip: ngonngu('Thu nhỏ', 'Zoom out'),
+            tooltip: setText('Thu nhỏ', 'Zoom out'),
             onPressed: () {
               _pdfController?.zoomLevel =
                   (_pdfController?.zoomLevel ?? 1.0) - 0.25;
@@ -82,7 +82,7 @@ class FrmPdfView extends CyberForm {
           // Zoom in
           IconButton(
             icon: const Icon(Icons.zoom_in),
-            tooltip: ngonngu('Phóng to', 'Zoom in'),
+            tooltip: setText('Phóng to', 'Zoom in'),
             onPressed: () {
               _pdfController?.zoomLevel =
                   (_pdfController?.zoomLevel ?? 1.0) + 0.25;
@@ -94,7 +94,7 @@ class FrmPdfView extends CyberForm {
           // First page
           IconButton(
             icon: const Icon(Icons.first_page),
-            tooltip: ngonngu('Trang đầu', 'First page'),
+            tooltip: setText('Trang đầu', 'First page'),
             onPressed: () {
               _pdfController?.jumpToPage(1);
             },
@@ -103,7 +103,7 @@ class FrmPdfView extends CyberForm {
           // Previous page
           IconButton(
             icon: const Icon(Icons.chevron_left),
-            tooltip: ngonngu('Trang trước', 'Previous page'),
+            tooltip: setText('Trang trước', 'Previous page'),
             onPressed: () {
               _pdfController?.previousPage();
             },
@@ -113,7 +113,7 @@ class FrmPdfView extends CyberForm {
           Expanded(
             child: Center(
               child: Text(
-                '${ngonngu("Trang", "Page")} ${_pdfController?.pageNumber ?? 1} / ${_pdfController?.pageCount ?? 1}',
+                '${setText("Trang", "Page")} ${_pdfController?.pageNumber ?? 1} / ${_pdfController?.pageCount ?? 1}',
                 style: const TextStyle(fontSize: 14),
               ),
             ),
@@ -122,7 +122,7 @@ class FrmPdfView extends CyberForm {
           // Next page
           IconButton(
             icon: const Icon(Icons.chevron_right),
-            tooltip: ngonngu('Trang sau', 'Next page'),
+            tooltip: setText('Trang sau', 'Next page'),
             onPressed: () {
               _pdfController?.nextPage();
             },
@@ -131,7 +131,7 @@ class FrmPdfView extends CyberForm {
           // Last page
           IconButton(
             icon: const Icon(Icons.last_page),
-            tooltip: ngonngu('Trang cuối', 'Last page'),
+            tooltip: setText('Trang cuối', 'Last page'),
             onPressed: () {
               _pdfController?.jumpToPage(_pdfController?.pageCount ?? 1);
             },

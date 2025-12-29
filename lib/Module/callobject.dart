@@ -147,7 +147,7 @@ Future<bool> V_callform(
         context,
         _buildPageRoute(
           CyberFormView(
-            title: title.isEmpty ? ngonngu('Xem PDF', 'PDF Viewer') : title,
+            title: title.isEmpty ? setText('Xem PDF', 'PDF Viewer') : title,
             formBuilder: () => pdfViewer,
             cp_name: cpName,
             strparameter: strparameter,
@@ -166,7 +166,7 @@ Future<bool> V_callform(
         context,
         _buildPageRoute(
           CyberFormView(
-            title: title.isEmpty ? ngonngu('Xem ảnh', 'Image Viewer') : title,
+            title: title.isEmpty ? setText('Xem ảnh', 'Image Viewer') : title,
             formBuilder: () => imageViewer,
             cp_name: cpName,
             strparameter: strparameter,
@@ -190,7 +190,7 @@ Future<bool> V_callform(
         _buildPageRoute(
           CyberFormView(
             title: title.isEmpty
-                ? ngonngu('Xem văn bản', 'Text Viewer')
+                ? setText('Xem văn bản', 'Text Viewer')
                 : title,
             formBuilder: () => textViewer,
             cp_name: cpName,
@@ -216,7 +216,7 @@ Future<bool> V_callform(
         _buildPageRoute(
           CyberFormView(
             title: title.isEmpty
-                ? ngonngu('Xem tài liệu', 'Document Viewer')
+                ? setText('Xem tài liệu', 'Document Viewer')
                 : title,
             formBuilder: () => docViewer,
             cp_name: cpName,
@@ -241,7 +241,7 @@ Future<bool> V_callform(
         context,
         _buildPageRoute(
           CyberFormView(
-            title: title.isEmpty ? ngonngu('Xem Excel', 'Excel Viewer') : title,
+            title: title.isEmpty ? setText('Xem Excel', 'Excel Viewer') : title,
             formBuilder: () => excelViewer,
             cp_name: cpName,
             strparameter: strparameter,
