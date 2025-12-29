@@ -50,15 +50,15 @@ class _CyberSpeedOverlayState extends State<CyberSpeedOverlay> {
               duration: const Duration(milliseconds: 200),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.7),
+                color: Colors.black.withAlpha(70),
                 borderRadius: BorderRadius.circular(_showDetails ? 12 : 20),
                 border: Border.all(
-                  color: widget.service.speedColor.withOpacity(0.5),
+                  color: widget.service.speedColor.withAlpha(50),
                   width: 2,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: widget.service.speedColor.withOpacity(0.3),
+                    color: widget.service.speedColor.withAlpha(30),
                     blurRadius: 8,
                     spreadRadius: 1,
                   ),

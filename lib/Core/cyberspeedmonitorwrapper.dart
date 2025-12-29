@@ -1,17 +1,5 @@
 import 'package:cyberframework/cyberframework.dart';
 
-/// Widget wrapper để tự động tích hợp Speed Monitor vào app
-/// Usage:
-/// ```dart
-/// void main() {
-///   runApp(
-///     CyberSpeedMonitorWrapper(
-///       autoStart: true, // Tự động bật khi app chạy
-///       child: MyApp(),
-///     ),
-///   );
-/// }
-/// ```
 class CyberSpeedMonitorWrapper extends StatefulWidget {
   final Widget child;
   final bool autoStart;
@@ -231,9 +219,9 @@ class _CyberSpeedIndicatorState extends State<CyberSpeedIndicator> {
             widget.padding ??
             const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withAlpha(10),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.3)),
+          border: Border.all(color: color.withAlpha(30)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -261,9 +249,9 @@ class _CyberSpeedIndicatorState extends State<CyberSpeedIndicator> {
           widget.padding ??
           const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withAlpha(10),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withAlpha(30)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -284,7 +272,7 @@ class _CyberSpeedIndicatorState extends State<CyberSpeedIndicator> {
             const SizedBox(width: 6),
             Text(
               setText('Tốc độ', 'Speed'),
-              style: TextStyle(color: color.withOpacity(0.7), fontSize: 11),
+              style: TextStyle(color: color.withAlpha(70), fontSize: 11),
             ),
           ],
         ],
@@ -367,8 +355,8 @@ class _CyberSpeedBannerState extends State<CyberSpeedBanner> {
           widget.padding ??
           const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: widget.backgroundColor ?? color.withOpacity(0.1),
-        border: Border(bottom: BorderSide(color: color.withOpacity(0.3))),
+        color: widget.backgroundColor ?? color.withAlpha(10),
+        border: Border(bottom: BorderSide(color: color.withAlpha(30))),
       ),
       child: Row(
         children: [
@@ -381,7 +369,7 @@ class _CyberSpeedBannerState extends State<CyberSpeedBanner> {
               children: [
                 Text(
                   setText('Tốc độ kết nối', 'Connection Speed'),
-                  style: TextStyle(color: color.withOpacity(0.8), fontSize: 11),
+                  style: TextStyle(color: color.withAlpha(80), fontSize: 11),
                 ),
                 Text(
                   speedText,
@@ -396,7 +384,7 @@ class _CyberSpeedBannerState extends State<CyberSpeedBanner> {
           ),
           IconButton(
             icon: const Icon(Icons.close, size: 18),
-            color: color.withOpacity(0.6),
+            color: color.withAlpha(60),
             onPressed: () {
               setState(() {
                 _isDismissed = true;
@@ -494,12 +482,12 @@ class _CyberSpeedFloatingState extends State<CyberSpeedFloating> {
             duration: const Duration(milliseconds: 200),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.7),
+              color: Colors.black.withAlpha(70),
               borderRadius: BorderRadius.circular(_showDetails ? 12 : 20),
-              border: Border.all(color: color.withOpacity(0.5), width: 2),
+              border: Border.all(color: color.withAlpha(50), width: 2),
               boxShadow: [
                 BoxShadow(
-                  color: color.withOpacity(0.3),
+                  color: color.withAlpha(30),
                   blurRadius: 8,
                   spreadRadius: 1,
                 ),

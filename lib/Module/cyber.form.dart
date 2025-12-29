@@ -32,8 +32,8 @@ class CyberFormView extends StatefulWidget {
     required this.strparameter,
     this.objectdata,
     this.hideAppBar = false,
-    this.showSpeedMonitor = false,
-    this.speedMonitorPosition = SpeedMonitorPosition.topRight,
+    this.showSpeedMonitor = true,
+    this.speedMonitorPosition = SpeedMonitorPosition.appBar,
   });
 
   @override
@@ -253,7 +253,7 @@ class _CyberFormViewState extends State<CyberFormView> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.error, size: 64, color: Colors.red),
+                const Icon(Icons.error, size: 64, color: Colors.white),
                 const SizedBox(height: 16),
                 Text('${setText("Lỗi", "Error")}: $_errorMessage'),
                 const SizedBox(height: 16),
