@@ -148,7 +148,14 @@ class _CyberFormViewState extends State<CyberFormView> {
     final body = _buildBody();
     final showMonitor =
         widget.showSpeedMonitor || _form.showSpeedMonitor == true;
-
+    // ✅ FIX: Nếu là Main Screen + ẩn AppBar + position = appBar
+    // → Tự động chuyển sang floating position
+    var position = widget.speedMonitorPosition;
+    if (widget.isMainScreen &&
+        (_form.hideAppBar ?? widget.hideAppBar) &&
+        position == SpeedMonitorPosition.appBar) {
+      position = SpeedMonitorPosition.topRight; // Hiển thị floating
+    }
     if (!showMonitor ||
         widget.speedMonitorPosition == SpeedMonitorPosition.appBar) {
       return body;

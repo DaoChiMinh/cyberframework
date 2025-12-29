@@ -641,12 +641,19 @@ class _CyberListViewState extends State<CyberListView> {
       },
     );
 
+    // ✅ Wrap với SlidableAutoCloseBehavior để tự động đóng khi click ra ngoài
+    final wrappedListView = SlidableAutoCloseBehavior(
+      closeWhenOpened: true, // Đóng slidable khác khi mở cái mới
+      closeWhenTapped: true, // Đóng khi tap ra ngoài
+      child: listView,
+    );
+
     // Chỉ wrap RefreshIndicator khi không dùng shrinkWrap
     if (_useShrinkWrap) {
-      return listView;
+      return wrappedListView;
     }
 
-    return RefreshIndicator(onRefresh: _refresh, child: listView);
+    return RefreshIndicator(onRefresh: _refresh, child: wrappedListView);
   }
 
   /// Build Horizontal ListView
