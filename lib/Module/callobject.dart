@@ -13,7 +13,7 @@ MaterialApp V_Root(
 }) {
   return MaterialApp(
     title: (ShowTitleBar || title == "") ? title : null,
-
+    navigatorKey: AppNavigator.navigatorKey,
     debugShowCheckedModeBanner: false,
     theme: ThemeData(
       colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),

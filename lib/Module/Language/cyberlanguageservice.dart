@@ -94,7 +94,7 @@ class CyberLanguageService extends ChangeNotifier {
     _currentLanguage = language;
     await AppStorage.set(_storageKey, language.code);
     notifyListeners();
-
+    await _checkAndCallApiAfterLanguageChange();
     //debugPrint('✅ Language changed to: ${language.name}');
   }
 
@@ -108,6 +108,31 @@ class CyberLanguageService extends ChangeNotifier {
   String getText(String vietnamese, String english) {
     //debugPrint('🌐 getText on instance ${hashCode}: $_currentLanguage');
     return _currentLanguage == CyberLanguage.vietnamese ? vietnamese : english;
+  }
+
+  Future<void> _checkAndCallApiAfterLanguageChange() async {
+    try {
+      // Kiểm tra xem có strTokenId không
+      final strTokenId = await UserInfo.strTokenId;
+
+      if (strTokenId.isNotEmpty) {
+        //debugPrint('🔑 Found strTokenId: $strTokenId');
+        final context = AppNavigator.context;
+        if (context == null) return;
+
+        // TODO: Chỗ này call API để cập nhật ngôn ngữ lên server
+        // Ví dụ:
+        await context.callApi(
+          functionName: "Cp_SysUpdateLangGuage",
+          parameter: "${_currentLanguage.code}##",
+          showLoading: false,
+        );
+      } else {
+        //debugPrint('⚠️ No strTokenId found, skip API call');
+      }
+    } catch (e) {
+      //debugPrint('❌ Error checking token or calling API: $e');
+    }
   }
 
   String getTextOrDefault(
