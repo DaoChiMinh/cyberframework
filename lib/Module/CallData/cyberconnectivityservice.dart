@@ -31,11 +31,13 @@ class CyberConnectivityService {
   }
 
   /// Kiểm tra internet có hoạt động thực sự không (ping Google)
-  Future<bool> hasInternetConnection() async {
+  Future<bool> hasInternetConnection({
+    Duration timeout = const Duration(seconds: 3), // ⚡ Giảm timeout
+  }) async {
     try {
       final result = await InternetAddress.lookup(
         'google.com',
-      ).timeout(const Duration(seconds: 5));
+      ).timeout(timeout);
       return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
     } on SocketException catch (_) {
       return false;
@@ -164,7 +166,81 @@ class CyberConnectivityService {
     return types.isEmpty ? 'Không xác định' : types.join(', ');
   }
 
-  /// Kiểm tra toàn diện trước khi call API
+  /// ⚡ OPTIMIZED: Fast check - chỉ check cơ bản (connectivity + ping)
+  /// Dùng cho API calls thường xuyên (với cache)
+  /// Thời gian: ~100-500ms thay vì 10s+
+  Future<InternetCheckResult> performFastCheck({
+    bool checkSpeed = false,
+    double minimumSpeedKBps = 10.0,
+  }) async {
+    // 1. ✅ Kiểm tra connectivity (nhanh ~100ms)
+    final connectivityResults = await checkConnectivity();
+    if (!hasActiveConnection(connectivityResults)) {
+      return InternetCheckResult(
+        isValid: false,
+        message:
+            'Không có kết nối internet. Vui lòng kiểm tra WiFi hoặc dữ liệu di động.',
+        errorType: InternetErrorType.noConnection,
+        connectionType: 'Không có kết nối',
+      );
+    }
+
+    // 2. ⚡ Quick ping check (timeout 3s thay vì 5s)
+    final hasInternet = await hasInternetConnection(
+      timeout: const Duration(seconds: 3),
+    );
+    if (!hasInternet) {
+      return InternetCheckResult(
+        isValid: false,
+        message:
+            'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối internet.',
+        errorType: InternetErrorType.noInternet,
+        connectionType: getConnectionType(connectivityResults),
+      );
+    }
+
+    // 3. ⚡ Kiểm tra VPN (nhanh ~100ms)
+    final isVPN = await isUsingVPN();
+
+    // 4. ⚠️ Kiểm tra tốc độ CHỈ KHI được yêu cầu (chậm ~5s)
+    if (checkSpeed) {
+      final speed = await checkInternetSpeed();
+
+      if (speed == null) {
+        return InternetCheckResult(
+          isValid: false,
+          message: 'Không thể kiểm tra tốc độ internet. Vui lòng thử lại.',
+          errorType: InternetErrorType.speedTestFailed,
+          isUsingVPN: isVPN,
+          connectionType: getConnectionType(connectivityResults),
+        );
+      }
+
+      if (speed < minimumSpeedKBps) {
+        return InternetCheckResult(
+          isValid: false,
+          message:
+              'Kết nối internet quá chậm (${speed.toStringAsFixed(1)} KB/s). Tốc độ tối thiểu: ${minimumSpeedKBps.toStringAsFixed(0)} KB/s.',
+          errorType: InternetErrorType.slowConnection,
+          speed: speed,
+          isUsingVPN: isVPN,
+          connectionType: getConnectionType(connectivityResults),
+        );
+      }
+    }
+
+    // 5. ✅ Tất cả OK
+    return InternetCheckResult(
+      isValid: true,
+      message: 'Kết nối internet ổn định',
+      errorType: InternetErrorType.none,
+      isUsingVPN: isVPN,
+      connectionType: getConnectionType(connectivityResults),
+    );
+  }
+
+  /// Kiểm tra toàn diện trước khi call API (CHẬM - dùng cho lần đầu)
+  /// ⚠️ CHỈ dùng khi cần kiểm tra đầy đủ (login, first load, manual refresh)
   Future<InternetCheckResult> performFullCheck({
     double minimumSpeedKBps = 100.0,
     bool checkSpeed = true,

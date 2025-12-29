@@ -213,14 +213,19 @@ class _CyberListViewState extends State<CyberListView> {
     if (!_useShrinkWrap) {
       _scrollController.addListener(_onScroll);
     }
-    _searchFocusNode.addListener(() {
-      setState(() {});
-    });
+    // ✅ FIX: Add listener với mounted check
+    _searchFocusNode.addListener(_onFocusChange);
     // ✅ Load initial data nếu có onLoadData
     if (widget.onLoadData != null && widget.dataSource == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _loadInitialData();
       });
+    }
+  }
+
+  void _onFocusChange() {
+    if (mounted) {
+      setState(() {});
     }
   }
 
@@ -234,7 +239,9 @@ class _CyberListViewState extends State<CyberListView> {
       _filteredDataTable = null;
       _currentSearchText = '';
       _searchController.clear();
-      _searchFocusNode.unfocus(); // ✅ FIX: Chỉ unfocus, KHÔNG dispose
+      if (mounted && _searchFocusNode.hasFocus) {
+        _searchFocusNode.unfocus();
+      }
       setState(() {});
     }
 
@@ -250,11 +257,15 @@ class _CyberListViewState extends State<CyberListView> {
 
   @override
   void dispose() {
+    _searchFocusNode.removeListener(_onFocusChange);
+
     if (widget.scrollController == null) {
+      _scrollController.removeListener(_onScroll); // ✅ Ensure removed
       _scrollController.dispose();
     }
+
     _searchController.dispose();
-    _searchFocusNode.dispose(); // ✅ Chỉ dispose ở đây
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -477,6 +488,9 @@ class _CyberListViewState extends State<CyberListView> {
 
   /// Build search bar với toolbar actions
   Widget _buildSearchBar() {
+    if (!mounted) {
+      return const SizedBox.shrink();
+    }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
