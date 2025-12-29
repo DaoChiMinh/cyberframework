@@ -10,6 +10,11 @@ export 'package:cyberframework/Module/CallData/returndata.dart';
 //cyberconnectivityservice
 export 'package:cyberframework/Module/CallData/cyberconnectivityservice.dart';
 export 'package:cyberframework/Core/app_navigator.dart';
+
+export 'package:cyberframework/Core/cyberspeedmonitorservice.dart';
+export 'package:cyberframework/Core/cyberspeedmonitorwrapper.dart';
+export 'package:cyberframework/Core/cyberspeedoverlay.dart';
+
 export 'package:cyberframework/Module/Data/cyberdatarow.dart';
 export 'package:cyberframework/Module/Data/cyberdatatable.dart';
 export 'package:cyberframework/Module/Data/cyberdataset.dart';
