@@ -1,3 +1,6 @@
+## 0.0.46
+
+check internet, bỏ 2 lần popup, sửa listview SwipeActions click ra ngoài đóng lại, sửa lại textsearch
 ## 0.0.45
 
 cập nhật lại ngôn ngữ
