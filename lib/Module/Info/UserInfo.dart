@@ -112,7 +112,7 @@ class UserInfo {
     } else {
       id_otp = "";
     }
-
+    // cập nhập lại Language theo biến loginRow["M_Lan"]?.toString()
     dtPhanHe = dslogin[2];
     dtCommand = dslogin[3];
 
