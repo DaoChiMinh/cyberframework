@@ -1,6 +1,5 @@
 import 'package:cyberframework/cyberframework.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
-import 'package:flutter/cupertino.dart';
 
 typedef FutureDataCallback =
     Future<CyberDataTable> Function(
@@ -170,7 +169,7 @@ class CyberListView extends StatefulWidget {
 class _CyberListViewState extends State<CyberListView> {
   late ScrollController _scrollController;
   final TextEditingController _searchController = TextEditingController();
-  final FocusNode _searchFocusNode = FocusNode();
+
   bool _isLoading = false;
   bool _isLoadingMore = false;
   bool _hasMoreData = true;
@@ -213,19 +212,12 @@ class _CyberListViewState extends State<CyberListView> {
     if (!_useShrinkWrap) {
       _scrollController.addListener(_onScroll);
     }
-    // ✅ FIX: Add listener với mounted check
-    _searchFocusNode.addListener(_onFocusChange);
+
     // ✅ Load initial data nếu có onLoadData
     if (widget.onLoadData != null && widget.dataSource == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _loadInitialData();
       });
-    }
-  }
-
-  void _onFocusChange() {
-    if (mounted) {
-      setState(() {});
     }
   }
 
@@ -239,9 +231,6 @@ class _CyberListViewState extends State<CyberListView> {
       _filteredDataTable = null;
       _currentSearchText = '';
       _searchController.clear();
-      if (mounted && _searchFocusNode.hasFocus) {
-        _searchFocusNode.unfocus();
-      }
       setState(() {});
     }
 
@@ -257,15 +246,10 @@ class _CyberListViewState extends State<CyberListView> {
 
   @override
   void dispose() {
-    _searchFocusNode.removeListener(_onFocusChange);
-
     if (widget.scrollController == null) {
-      _scrollController.removeListener(_onScroll); // ✅ Ensure removed
       _scrollController.dispose();
     }
-
     _searchController.dispose();
-    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -488,103 +472,46 @@ class _CyberListViewState extends State<CyberListView> {
 
   /// Build search bar với toolbar actions
   Widget _buildSearchBar() {
-    if (!mounted) {
-      return const SizedBox.shrink();
-    }
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(8),
       child: Row(
         children: [
           // Search TextField
           Expanded(
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              height: 36,
-              decoration: BoxDecoration(
-                color: _searchFocusNode.hasFocus
-                    ? Colors.white
-                    : CupertinoColors.systemGrey6,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: TextField(
-                controller: _searchController,
-                focusNode: _searchFocusNode,
-                style: const TextStyle(fontSize: 16, color: Colors.black87),
-                decoration: InputDecoration(
-                  hintText: setText('Tìm kiếm', 'Search'),
-                  hintStyle: TextStyle(
-                    color: CupertinoColors.systemGrey.withOpacity(0.8),
-                    fontSize: 16,
-                  ),
-                  prefixIcon: Icon(
-                    CupertinoIcons.search,
-                    color: _searchFocusNode.hasFocus
-                        ? CupertinoColors.activeBlue
-                        : CupertinoColors.systemGrey,
-                    size: 20,
-                  ),
-                  suffixIcon: _searchController.text.isNotEmpty
-                      ? CupertinoButton(
-                          padding: EdgeInsets.zero,
-                          minSize: 0,
-                          child: const Icon(
-                            CupertinoIcons.xmark_circle_fill,
-                            color: CupertinoColors.systemGrey,
-                            size: 18,
-                          ),
-                          onPressed: () {
-                            _searchController.clear();
-                            _onSearchChanged('');
-                            setState(() {});
-                          },
-                        )
-                      : null,
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 8,
-                  ),
-                  counterText: '',
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Tìm kiếm...',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          _onSearchChanged('');
+                        },
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                onChanged: (value) {
-                  setState(() {});
-                  Future.delayed(
-                    Duration(milliseconds: widget.searchDebounceTime),
-                    () {
-                      if (_searchController.text == value) {
-                        _onSearchChanged(value);
-                      }
-                    },
-                  );
-                },
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16),
               ),
+              onChanged: (value) {
+                Future.delayed(
+                  Duration(milliseconds: widget.searchDebounceTime),
+                  () {
+                    if (_searchController.text == value) {
+                      _onSearchChanged(value);
+                    }
+                  },
+                );
+              },
             ),
           ),
 
-          // Cancel button (hiện khi focus)
-          if (_searchFocusNode.hasFocus)
-            CupertinoButton(
-              padding: const EdgeInsets.only(left: 8),
-              child: Text(
-                setText('Huỷ', 'Cancel'),
-                style: const TextStyle(
-                  color: CupertinoColors.activeBlue,
-                  fontSize: 16,
-                ),
-              ),
-              onPressed: () {
-                _searchController.clear();
-                _searchFocusNode.unfocus();
-                _onSearchChanged('');
-                setState(() {});
-              },
-            ),
-
-          // Toolbar Actions (ẩn khi focus search)
-          if (!_searchFocusNode.hasFocus &&
-              widget.dtToolbarActions != null &&
+          // Toolbar Actions
+          if (widget.dtToolbarActions != null &&
               widget.dtToolbarActions!.rowCount > 0)
             ..._buildToolbarActions(),
         ],
@@ -714,19 +641,12 @@ class _CyberListViewState extends State<CyberListView> {
       },
     );
 
-    // ✅ Wrap với SlidableAutoCloseBehavior để tự động đóng khi click ra ngoài
-    final wrappedListView = SlidableAutoCloseBehavior(
-      closeWhenOpened: true, // Đóng slidable khác khi mở cái mới
-      closeWhenTapped: true, // Đóng khi tap ra ngoài
-      child: listView,
-    );
-
     // Chỉ wrap RefreshIndicator khi không dùng shrinkWrap
     if (_useShrinkWrap) {
-      return wrappedListView;
+      return listView;
     }
 
-    return RefreshIndicator(onRefresh: _refresh, child: wrappedListView);
+    return RefreshIndicator(onRefresh: _refresh, child: listView);
   }
 
   /// Build Horizontal ListView
