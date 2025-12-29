@@ -124,14 +124,15 @@ class CyberLanguageService extends ChangeNotifier {
         // Ví dụ:
         await context.callApi(
           functionName: "Cp_SysUpdateLangGuage",
-          parameter: "${_currentLanguage.code}##",
+          parameter:
+              "${_currentLanguage.code.toString() == "vi" ? "V" : "E"}##",
           showLoading: false,
         );
       } else {
         //debugPrint('⚠️ No strTokenId found, skip API call');
       }
     } catch (e) {
-      //debugPrint('❌ Error checking token or calling API: $e');
+      //debugPrint('❌ Error checking token or calling API: $e');u
     }
   }
 
