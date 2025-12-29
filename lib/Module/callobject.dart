@@ -26,7 +26,14 @@ MaterialApp V_Root(
       ),
     ),
     home:
-        V_getScreen(strfrm, title, cp_name, strparameter, hideAppBar: true) ??
+        V_getScreen(
+          strfrm,
+          title,
+          cp_name,
+          strparameter,
+          hideAppBar: true,
+          isMainScreen: true,
+        ) ??
         const Scaffold(body: Center(child: Text('Không tìm thấy màn hình'))),
   );
 }
@@ -47,6 +54,7 @@ void V_MainScreen(
     cp_name,
     strparameter,
     hideAppBar: !showAppBar,
+    isMainScreen: true,
   );
 
   if (screen == null) {

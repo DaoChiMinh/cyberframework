@@ -42,6 +42,7 @@ CyberFormView? V_getScreen(
   String cpName,
   String strparameter, {
   bool hideAppBar = false,
+  bool isMainScreen = false,
 }) {
   final normalizedName = strfrm.toLowerCase().trim();
   final factory = _factoryMap_form[normalizedName];
@@ -54,6 +55,7 @@ CyberFormView? V_getScreen(
     cp_name: cpName,
     strparameter: strparameter,
     hideAppBar: hideAppBar,
+    isMainScreen: isMainScreen,
   );
 }
 

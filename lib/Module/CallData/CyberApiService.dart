@@ -2,6 +2,7 @@ import 'package:cyberframework/cyberframework.dart';
 import 'package:http/http.dart' as http;
 
 /// CyberApiService - Service call API với internet checking
+/// ✅ FIXED: Không còn hiển thị 2 popup thông báo khi mất mạng
 class CyberApiService {
   static final CyberApiService _instance = CyberApiService._internal();
   factory CyberApiService() => _instance;
@@ -28,6 +29,7 @@ class CyberApiService {
     if (enableInternetCheck) {
       final checkResult = await _performInternetCheck(context);
       if (!checkResult.isValid) {
+        // ✅ QUAN TRỌNG: Show error TẠI ĐÂY, không show ở cuối nữa
         if (showError && context.mounted) {
           _showError(context, checkResult.message, checkResult.errorType);
         }
@@ -186,7 +188,7 @@ class CyberApiService {
     }
   }
 
-  /// ✅ Kiểm tra internet trước khi call API
+  /// ✅ Kiểm tra internet trước khi call API (KHÔNG show error ở đây)
   Future<InternetCheckResult> _performInternetCheck(
     BuildContext context,
   ) async {
@@ -213,7 +215,13 @@ class CyberApiService {
       showError: showError,
     );
 
-    if (returnData.isValid() == false && showError && context.mounted) {
+    // ✅ FIX: Chỉ show error nếu là lỗi từ SERVER (isConnect = true)
+    // Nếu isConnect = false (lỗi mạng), đã show error ở trên rồi
+    if (returnData.isValid() == false &&
+        showError &&
+        context.mounted &&
+        returnData.isConnect == true) {
+      // ← CHỈ show khi là lỗi server
       _showError(
         context,
         returnData.message ?? 'Lỗi từ máy chủ',

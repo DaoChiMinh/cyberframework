@@ -22,6 +22,7 @@ class CyberFormView extends StatefulWidget {
   final bool hideAppBar;
   final bool showSpeedMonitor;
   final SpeedMonitorPosition speedMonitorPosition;
+  final bool isMainScreen; // ✅ NEW: Track nếu là main screen
 
   const CyberFormView({
     super.key,
@@ -34,6 +35,7 @@ class CyberFormView extends StatefulWidget {
     this.hideAppBar = false,
     this.showSpeedMonitor = true,
     this.speedMonitorPosition = SpeedMonitorPosition.appBar,
+    this.isMainScreen = false, // ✅ Mặc định false
   });
 
   @override
@@ -167,11 +169,15 @@ class _CyberFormViewState extends State<CyberFormView> {
   }
 
   /// Build Floating Speed Monitor
+  /// ✅ FIXED: Nếu là Main Screen thì hiển thị ở top 30, right 30
   Widget _buildFloatingSpeedMonitor() {
+    // ✅ Check nếu là Main Screen
+    final isMainScreen = widget.isMainScreen;
+
     return Positioned(
-      top: _getTop(),
+      top: isMainScreen ? 30 : _getTop(),
       left: _getLeft(),
-      right: _getRight(),
+      right: isMainScreen ? 30 : _getRight(),
       bottom: _getBottom(),
       child: const IgnorePointer(
         ignoring: false,
@@ -253,7 +259,7 @@ class _CyberFormViewState extends State<CyberFormView> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.error, size: 64, color: Colors.white),
+                const Icon(Icons.error, size: 64, color: Colors.red),
                 const SizedBox(height: 16),
                 Text('${setText("Lỗi", "Error")}: $_errorMessage'),
                 const SizedBox(height: 16),
