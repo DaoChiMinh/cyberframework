@@ -29,7 +29,6 @@ class CyberSpeedMonitorService extends ChangeNotifier
   double? _currentSpeed;
   Timer? _monitorTimer;
   OverlayEntry? _overlayEntry;
-  BuildContext? _overlayContext;
 
   // ✅ Persisted overlay position
   Offset _position = const Offset(10, 100);
@@ -125,7 +124,7 @@ class CyberSpeedMonitorService extends ChangeNotifier
 
     _isRunning = true;
     _isPaused = false;
-    _overlayContext = context;
+    // _overlayContext = context;
 
     // Load persisted position
     await _loadPosition();
@@ -143,7 +142,7 @@ class CyberSpeedMonitorService extends ChangeNotifier
     _isPaused = false;
     _stopMonitoring();
     _hideOverlay();
-    _overlayContext = null;
+    // _overlayContext = null;
     notifyListeners();
   }
 
@@ -330,7 +329,7 @@ class CyberSpeedMonitorService extends ChangeNotifier
   void cleanup() {
     _stopMonitoring();
     _hideOverlay();
-    _overlayContext = null;
+    //_overlayContext = null;
     _currentSpeed = null;
     _isRunning = false;
     _isPaused = false;
