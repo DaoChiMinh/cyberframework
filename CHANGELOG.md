@@ -1,4 +1,6 @@
 ## 0.0.47
+fix hiệu năng
+## 0.0.47
 fix lỗi chuyển màn
 ## 0.0.46
 
