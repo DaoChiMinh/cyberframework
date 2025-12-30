@@ -14,7 +14,7 @@ class CyberApiService {
   // ✅ Cấu hình internet checking
   bool enableInternetCheck = true;
   bool enableSpeedCheck = false; // ⚡ MẶC ĐỊNH TẮT speed check (chậm)
-  double minimumSpeedKBps = 10.0;
+  double minimumSpeedKBps = 4.0;
 
   // ✅ Lưu trạng thái VPN ban đầu
   bool? _initialVPNState;
