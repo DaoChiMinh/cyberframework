@@ -169,30 +169,31 @@ class CyberListView extends StatefulWidget {
 class _CyberListViewState extends State<CyberListView> {
   late ScrollController _scrollController;
   final TextEditingController _searchController = TextEditingController();
-  late final ChangeNotifier _emptyNotifier = ChangeNotifier();
   bool _isLoading = false;
   bool _isLoadingMore = false;
   bool _hasMoreData = true;
   int _currentPage = 0;
   String _currentSearchText = '';
 
-  /// ✅ Filtered data cho local search (khi không có onLoadData)
-  CyberDataTable? _filteredDataTable;
+  /// ✅ SOLUTION 2: Filtered indices thay vì filtered data table
+  List<int>? _filteredIndices;
 
-  /// ✅ Working DataTable - Point đến filtered hoặc external dataSource
-  CyberDataTable get _dataTable {
-    // Nếu có onLoadData, luôn dùng external dataSource
+  /// ✅ Working rows - Apply filter on-the-fly
+  List<CyberDataRow> get _workingRows {
     if (widget.onLoadData != null) {
-      return widget.dataSource ?? CyberDataTable(tableName: 'Empty');
+      return widget.dataSource?.rows ?? [];
     }
 
-    // Nếu không có onLoadData, dùng filtered data (nếu có) hoặc original data
-    return _filteredDataTable ??
-        widget.dataSource ??
-        CyberDataTable(tableName: 'Empty');
+    if (_filteredIndices != null && widget.dataSource != null) {
+      return _filteredIndices!
+          .map((i) => widget.dataSource!.rows[i])
+          .toList(growable: false);
+    }
+
+    return widget.dataSource?.rows ?? [];
   }
 
-  /// ✅ Check xem có dùng shrinkWrap không (khi height = "*")
+  /// ✅ Check xem có dùng shrinkWrap không
   bool get _useShrinkWrap => widget.height == "*";
 
   /// ✅ Get physics phù hợp
@@ -200,7 +201,7 @@ class _CyberListViewState extends State<CyberListView> {
     if (_useShrinkWrap) {
       return const NeverScrollableScrollPhysics();
     }
-    return null; // Dùng default physics
+    return null;
   }
 
   @override
@@ -209,12 +210,10 @@ class _CyberListViewState extends State<CyberListView> {
     if (!mounted) return;
     _scrollController = widget.scrollController ?? ScrollController();
 
-    // Chỉ add listener khi không dùng shrinkWrap
     if (!_useShrinkWrap) {
       _scrollController.addListener(_onScroll);
     }
 
-    // ✅ Load initial data nếu có onLoadData
     if (widget.onLoadData != null && widget.dataSource == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _loadInitialData();
@@ -226,10 +225,9 @@ class _CyberListViewState extends State<CyberListView> {
   void didUpdateWidget(CyberListView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!mounted) return;
-    // ✅ Rebuild khi dataSource thay đổi reference
+
     if (widget.dataSource != oldWidget.dataSource) {
-      // Reset filtered data khi dataSource mới
-      _filteredDataTable = null;
+      _filteredIndices = null;
       _currentSearchText = '';
       _searchController.clear();
       if (mounted) {
@@ -237,7 +235,6 @@ class _CyberListViewState extends State<CyberListView> {
       }
     }
 
-    // ✅ Update scroll listener nếu height thay đổi
     if (widget.height != oldWidget.height) {
       if (oldWidget.height == "*" && widget.height != "*") {
         _scrollController.addListener(_onScroll);
@@ -249,20 +246,19 @@ class _CyberListViewState extends State<CyberListView> {
 
   @override
   void dispose() {
-    if (!mounted) return;
     if (widget.scrollController == null) {
       _scrollController.dispose();
     }
     _searchController.dispose();
-    _emptyNotifier.dispose();
     _filterDebounceTimer?.cancel();
+    _filteredIndices = null;
     super.dispose();
   }
 
-  /// Load dữ liệu ban đầu - Reset về page 0
   Future<void> _loadInitialData() async {
     if (!mounted) return;
     if (widget.onLoadData == null) return;
+
     if (mounted) {
       setState(() {
         _isLoading = true;
@@ -272,17 +268,18 @@ class _CyberListViewState extends State<CyberListView> {
     }
 
     try {
+      final requestSearch = _currentSearchText;
       final newDataTable = await widget.onLoadData!(
         _currentPage,
         widget.pageSize,
         _currentSearchText,
       );
-
-      // ✅ Sync vào external dataSource
+      if (!mounted || requestSearch != _currentSearchText) return;
       if (widget.dataSource != null) {
         widget.dataSource!.clear();
         widget.dataSource!.loadDatafromTb(newDataTable);
       }
+
       if (mounted) {
         setState(() {
           _hasMoreData = newDataTable.rowCount >= widget.pageSize;
@@ -297,28 +294,31 @@ class _CyberListViewState extends State<CyberListView> {
     }
   }
 
-  /// Load more data - Tự động tăng pageIndex
   Future<void> _loadMore() async {
     if (!mounted) return;
     if (_isLoadingMore || !_hasMoreData || widget.onLoadData == null) return;
+
     if (mounted) {
       setState(() => _isLoadingMore = true);
     }
+
     try {
       final nextPage = _currentPage + 1;
       final moreDataTable = await widget.onLoadData!(
-        _currentPage,
+        nextPage,
         widget.pageSize,
         _currentSearchText,
       );
+
       if (!mounted) return;
       _currentPage = nextPage;
-      // ✅ Append vào external dataSource
+
       if (widget.dataSource != null) {
         for (var row in moreDataTable.rows) {
-          widget.dataSource!.addRow(row.copy());
+          widget.dataSource!.addRow(row);
         }
       }
+
       if (mounted) {
         setState(() {
           _hasMoreData = moreDataTable.rowCount >= widget.pageSize;
@@ -329,25 +329,23 @@ class _CyberListViewState extends State<CyberListView> {
       if (mounted) {
         setState(() {
           _isLoadingMore = false;
-          _currentPage--;
         });
       }
       _showError('Lỗi khi load thêm dữ liệu: $e');
     }
   }
 
-  /// Refresh - Reset về page 0
   Future<void> _refresh() async {
     if (!mounted) return;
+
     if (_currentSearchText.isNotEmpty) {
       _searchController.clear();
       _currentSearchText = '';
 
-      // Reset filtered data nếu dùng local search
       if (widget.onLoadData == null) {
         if (mounted) {
           setState(() {
-            _filteredDataTable = null;
+            _filteredIndices = null;
           });
         }
         return;
@@ -357,24 +355,20 @@ class _CyberListViewState extends State<CyberListView> {
     await _loadInitialData();
   }
 
-  /// Search - Reset về page 0 hoặc filter local data
   void _onSearchChanged(String searchText) {
     if (!mounted) return;
     _currentSearchText = searchText;
 
-    // ✅ Nếu có onLoadData, gọi API
     if (widget.onLoadData != null) {
       _loadInitialData();
       return;
     }
 
-    // ✅ Nếu không có onLoadData, filter local data
     _filterLocalData(searchText);
   }
 
   Timer? _filterDebounceTimer;
 
-  /// ✅ Filter dữ liệu local theo columnsFilter
   void _filterLocalData(String searchText) {
     if (!mounted) return;
     _filterDebounceTimer?.cancel();
@@ -384,62 +378,18 @@ class _CyberListViewState extends State<CyberListView> {
       () {
         if (!mounted) return;
 
-        // Filter logic here
-        final filtered = _performFilter(searchText);
+        final indices = _performFilterIndices(searchText);
 
         if (mounted) {
           setState(() {
-            _filteredDataTable = filtered;
+            _filteredIndices = indices;
           });
         }
       },
     );
-    // // Nếu không có dataSource hoặc không có columnsFilter, skip
-    // if (widget.dataSource == null ||
-    //     widget.columnsFilter == null ||
-    //     widget.columnsFilter!.isEmpty) {
-    //   setState(() {
-    //     _filteredDataTable = null;
-    //   });
-    //   return;
-    // }
-
-    // // Nếu search text rỗng, reset về data gốc
-    // if (searchText.trim().isEmpty) {
-    //   setState(() {
-    //     _filteredDataTable = null;
-    //   });
-    //   return;
-    // }
-
-    // // Filter data
-    // final filtered = CyberDataTable(tableName: widget.dataSource!.tableName);
-    // final lowerSearch = searchText.toLowerCase().trim();
-
-    // for (var row in widget.dataSource!.rows) {
-    //   bool matches = false;
-
-    //   // Check từng cột trong columnsFilter
-    //   for (var columnName in widget.columnsFilter!) {
-    //     final value = row[columnName]?.toString().toLowerCase() ?? '';
-    //     if (value.contains(lowerSearch)) {
-    //       matches = true;
-    //       break;
-    //     }
-    //   }
-
-    //   if (matches) {
-    //     filtered.addRow(row.copy());
-    //   }
-    // }
-
-    // setState(() {
-    //   _filteredDataTable = filtered;
-    // });
   }
 
-  CyberDataTable? _performFilter(String searchText) {
-    // Move filter logic to separate method
+  List<int>? _performFilterIndices(String searchText) {
     if (widget.dataSource == null ||
         widget.columnsFilter == null ||
         widget.columnsFilter!.isEmpty) {
@@ -450,11 +400,14 @@ class _CyberListViewState extends State<CyberListView> {
       return null;
     }
 
-    final filtered = CyberDataTable(tableName: widget.dataSource!.tableName);
+    final filteredIndices = <int>[];
     final lowerSearch = searchText.toLowerCase().trim();
+    final sourceRows = widget.dataSource!.rows;
 
-    for (var row in widget.dataSource!.rows) {
+    for (int i = 0; i < sourceRows.length; i++) {
+      final row = sourceRows[i];
       bool matches = false;
+
       for (var columnName in widget.columnsFilter!) {
         final value = row[columnName]?.toString().toLowerCase() ?? '';
         if (value.contains(lowerSearch)) {
@@ -462,28 +415,25 @@ class _CyberListViewState extends State<CyberListView> {
           break;
         }
       }
+
       if (matches) {
-        filtered.addRow(row.copy());
+        filteredIndices.add(i);
       }
     }
 
-    return filtered;
+    return filteredIndices;
   }
 
-  /// Scroll listener - Trigger load more
   void _onScroll() {
     if (!mounted) return;
     final position = _scrollController.position;
-    final threshold = widget.horizontal
-        ? position.maxScrollExtent * 0.9
-        : position.maxScrollExtent * 0.9;
+    final threshold = position.maxScrollExtent * 0.9;
 
     if (position.pixels >= threshold) {
       _loadMore();
     }
   }
 
-  /// Show error
   void _showError(String message) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -492,7 +442,6 @@ class _CyberListViewState extends State<CyberListView> {
     }
   }
 
-  /// ✅ PUBLIC METHOD: Refresh từ bên ngoài
   Future<void> refresh() async {
     if (!mounted) return;
     await _refresh();
@@ -500,7 +449,6 @@ class _CyberListViewState extends State<CyberListView> {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ Build nội dung chính
     Widget content = Column(
       mainAxisSize: widget.height == "*" ? MainAxisSize.min : MainAxisSize.max,
       children: [
@@ -509,24 +457,19 @@ class _CyberListViewState extends State<CyberListView> {
       ],
     );
 
-    // ✅ Xử lý height
     if (widget.height is double) {
-      // Height cố định - wrap bằng SizedBox
       return SizedBox(height: widget.height as double, child: content);
     } else if (widget.height == "*") {
-      // Auto height - trả về content trực tiếp (đã có MainAxisSize.min)
       return content;
     } else {
-      // height = null - cần Expanded từ parent, nhưng trả về content để flexible
       return content;
     }
   }
 
-  /// ✅ Build container cho ListView với height phù hợp
   Widget _buildListViewContainer() {
     final listViewContent = _isLoading
         ? _buildLoading()
-        : _dataTable.rowCount == 0
+        : _workingRows.isEmpty
         ? _buildEmpty()
         : widget.horizontal
         ? _buildHorizontalList()
@@ -534,22 +477,18 @@ class _CyberListViewState extends State<CyberListView> {
         ? _buildGridList()
         : _buildList();
 
-    // Case 1: height = "*" -> Tự động theo nội dung (không dùng Expanded)
     if (widget.height == "*") {
       return listViewContent;
     }
 
-    // Case 2: height = số cụ thể hoặc null -> Expanded để chiếm space còn lại
     return Expanded(child: listViewContent);
   }
 
-  /// Build search bar với toolbar actions
   Widget _buildSearchBar() {
     return Container(
       padding: const EdgeInsets.all(8),
       child: Row(
         children: [
-          // Search TextField
           Expanded(
             child: TextField(
               controller: _searchController,
@@ -582,8 +521,6 @@ class _CyberListViewState extends State<CyberListView> {
               },
             ),
           ),
-
-          // Toolbar Actions
           if (widget.dtToolbarActions != null &&
               widget.dtToolbarActions!.rowCount > 0)
             ..._buildToolbarActions(),
@@ -592,7 +529,6 @@ class _CyberListViewState extends State<CyberListView> {
     );
   }
 
-  /// Build toolbar action buttons
   List<Widget> _buildToolbarActions() {
     if (widget.dtToolbarActions == null ||
         widget.dtToolbarActions!.rowCount == 0) {
@@ -642,14 +578,10 @@ class _CyberListViewState extends State<CyberListView> {
     }).toList();
   }
 
-  /// Handle toolbar action tap với auto navigation
   void _handleToolbarActionTap(CyberDataRow actionRow) {
-    // Auto navigation nếu enabled
     if (widget.isToolbarActionClickToScreen) {
       actionRow.V_Call(context);
     }
-
-    // Callback
     widget.onToolbarActionTap?.call(actionRow);
   }
 
@@ -677,42 +609,36 @@ class _CyberListViewState extends State<CyberListView> {
         );
   }
 
-  /// Build ListView (columnCount = 1, vertical)
+  /// ✅ FIX: Build ListView WITHOUT AnimatedBuilder
   Widget _buildList() {
-    final listView = AnimatedBuilder(
-      animation: widget.dataSource ?? _emptyNotifier,
-      builder: (context, child) {
-        final rows = _dataTable.rows;
+    final rows = _workingRows;
 
-        return ListView.separated(
-          controller: _scrollController,
-          padding: widget.padding ?? const EdgeInsets.all(8),
-          itemCount: rows.length + (_isLoadingMore ? 1 : 0),
-          shrinkWrap: _useShrinkWrap,
-          physics: _scrollPhysics,
-          separatorBuilder: (context, index) =>
-              widget.separator ??
-              Divider(height: 1, thickness: 1, color: Colors.grey[200]),
-          itemBuilder: (context, index) {
-            if (index >= rows.length) {
-              return const Padding(
-                padding: EdgeInsets.all(16),
-                child: Center(child: CircularProgressIndicator()),
-              );
-            }
+    final listView = ListView.separated(
+      controller: _scrollController,
+      padding: widget.padding ?? const EdgeInsets.all(8),
+      itemCount: rows.length + (_isLoadingMore ? 1 : 0),
+      shrinkWrap: _useShrinkWrap,
+      physics: _scrollPhysics,
+      separatorBuilder: (context, index) =>
+          widget.separator ??
+          Divider(height: 1, thickness: 1, color: Colors.grey[200]),
+      itemBuilder: (context, index) {
+        if (index >= rows.length) {
+          return const Padding(
+            padding: EdgeInsets.all(16),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
 
-            final row = rows[index];
+        final row = rows[index];
+        final itemWidget =
+            widget.dtSwipeActions != null && widget.dtSwipeActions!.rowCount > 0
+            ? _buildSlidableItem(row, index)
+            : _buildItem(row, index);
 
-            // ✅ BUILD ITEM WITH KEY (giống horizontal list)
-            final itemWidget =
-                widget.dtSwipeActions != null &&
-                    widget.dtSwipeActions!.rowCount > 0
-                ? _buildSlidableItem(row, index)
-                : _buildItem(row, index);
-
-            // ✅ ADD KEY FOR BETTER PERFORMANCE
-            return KeyedSubtree(key: ValueKey(row.hashCode), child: itemWidget);
-          },
+        return KeyedSubtree(
+          key: ValueKey(row['stt_rec0'] ?? row.hashCode),
+          child: itemWidget,
         );
       },
     );
@@ -724,93 +650,73 @@ class _CyberListViewState extends State<CyberListView> {
     return RefreshIndicator(onRefresh: _refresh, child: listView);
   }
 
-  /// Build Horizontal ListView
+  /// ✅ FIX: Build Horizontal ListView WITHOUT AnimatedBuilder
   Widget _buildHorizontalList() {
-    return AnimatedBuilder(
-      animation: widget.dataSource ?? _emptyNotifier,
-      builder: (context, child) {
-        final rows = _dataTable.rows;
+    final rows = _workingRows;
 
-        return ListView.separated(
-          controller: _scrollController,
-          scrollDirection: Axis.horizontal,
-          padding: widget.padding ?? const EdgeInsets.all(8),
-          itemCount: rows.length + (_isLoadingMore ? 1 : 0),
-          shrinkWrap: _useShrinkWrap,
-          physics: _scrollPhysics,
-          separatorBuilder: (context, index) =>
-              widget.separator ?? const SizedBox(width: 8),
-          itemBuilder: (context, index) {
-            if (index >= rows.length) {
-              return const Padding(
-                padding: EdgeInsets.all(16),
-                child: Center(child: CircularProgressIndicator()),
-              );
-            }
+    return ListView.separated(
+      controller: _scrollController,
+      scrollDirection: Axis.horizontal,
+      padding: widget.padding ?? const EdgeInsets.all(8),
+      itemCount: rows.length + (_isLoadingMore ? 1 : 0),
+      shrinkWrap: _useShrinkWrap,
+      physics: _scrollPhysics,
+      separatorBuilder: (context, index) =>
+          widget.separator ?? const SizedBox(width: 8),
+      itemBuilder: (context, index) {
+        if (index >= rows.length) {
+          return const Padding(
+            padding: EdgeInsets.all(16),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
 
-            final row = rows[index];
-            final itemWidget =
-                widget.dtSwipeActions != null &&
-                    widget.dtSwipeActions!.rowCount > 0
-                ? _buildSlidableItem(row, index)
-                : _buildItem(row, index);
+        final row = rows[index];
+        final itemWidget =
+            widget.dtSwipeActions != null && widget.dtSwipeActions!.rowCount > 0
+            ? _buildSlidableItem(row, index)
+            : _buildItem(row, index);
 
-            return KeyedSubtree(
-              key: ValueKey(row.hashCode), // ✅ Unique key
-              child: itemWidget,
-            );
-            // Note: Swipe actions không hoạt động tốt trong horizontal scroll
-            // Nên chỉ dùng tap/long press
-            //return _buildItem(row, index);
-          },
+        return KeyedSubtree(
+          key: ValueKey(row['stt_rec0'] ?? row.hashCode),
+          child: itemWidget,
         );
       },
     );
   }
 
-  /// Build GridView (columnCount > 1, vertical)
+  /// ✅ FIX: Build GridView WITHOUT AnimatedBuilder
   Widget _buildGridList() {
-    final gridView = AnimatedBuilder(
-      animation: widget.dataSource ?? _emptyNotifier,
-      builder: (context, child) {
-        final rows = _dataTable.rows;
+    final rows = _workingRows;
 
-        // ✅ Dùng auto height layout nếu enabled
-        if (widget.autoItemHeight) {
-          return _buildAutoHeightGrid(rows);
+    if (widget.autoItemHeight) {
+      return _buildAutoHeightGrid(rows);
+    }
+
+    final totalItems = rows.length + (_isLoadingMore ? 1 : 0);
+
+    final gridView = GridView.builder(
+      controller: _scrollController,
+      padding: widget.padding ?? const EdgeInsets.all(8),
+      shrinkWrap: _useShrinkWrap,
+      physics: _scrollPhysics,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: widget.columnCount,
+        crossAxisSpacing: widget.crossAxisSpacing,
+        mainAxisSpacing: widget.mainAxisSpacing,
+        childAspectRatio: widget.childAspectRatio,
+      ),
+      itemCount: totalItems,
+      itemBuilder: (context, index) {
+        if (index >= rows.length) {
+          return const Center(child: CircularProgressIndicator());
         }
 
-        // ✅ Dùng GridView chuẩn với childAspectRatio
-        final totalItems = rows.length + (_isLoadingMore ? 1 : 0);
-
-        return GridView.builder(
-          controller: _scrollController,
-          padding: widget.padding ?? const EdgeInsets.all(8),
-          shrinkWrap: _useShrinkWrap,
-          physics: _scrollPhysics,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: widget.columnCount,
-            crossAxisSpacing: widget.crossAxisSpacing,
-            mainAxisSpacing: widget.mainAxisSpacing,
-            childAspectRatio: widget.childAspectRatio,
-          ),
-          itemCount: totalItems,
-          itemBuilder: (context, index) {
-            if (index >= rows.length) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            final row = rows[index];
-
-            // Note: Swipe actions không hoạt động tốt trong GridView
-            // Nên chỉ dùng tap/long press
-            return _buildItem(row, index);
-          },
-        );
+        final row = rows[index];
+        return _buildItem(row, index);
       },
     );
 
-    // Chỉ wrap RefreshIndicator khi không dùng shrinkWrap
     if (_useShrinkWrap) {
       return gridView;
     }
@@ -818,7 +724,6 @@ class _CyberListViewState extends State<CyberListView> {
     return RefreshIndicator(onRefresh: _refresh, child: gridView);
   }
 
-  /// ✅ Build Grid với Auto Height - Dùng ListView + Row
   Widget _buildAutoHeightGrid(List<CyberDataRow> rows) {
     final rowCount = (rows.length / widget.columnCount).ceil();
 
@@ -852,18 +757,14 @@ class _CyberListViewState extends State<CyberListView> {
     );
   }
 
-  /// ✅ Build một row trong auto height grid
   Widget _buildAutoHeightGridRow(List<CyberDataRow> rowItems, int startIndex) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Render các items có data
         for (int i = 0; i < rowItems.length; i++) ...[
           Expanded(child: _buildItem(rowItems[i], startIndex + i)),
           if (i < rowItems.length - 1) SizedBox(width: widget.crossAxisSpacing),
         ],
-
-        // Thêm empty space nếu row không đủ items
         for (int i = rowItems.length; i < widget.columnCount; i++) ...[
           if (i > 0) SizedBox(width: widget.crossAxisSpacing),
           const Expanded(child: SizedBox()),
@@ -978,18 +879,14 @@ class _CyberListViewState extends State<CyberListView> {
     }).toList();
   }
 
-  /// Handle swipe action tap với auto navigation
   void _handleSwipeActionTap(
     CyberDataRow swipeRow,
     CyberDataRow sourceRow,
     int sourceIndex,
   ) {
-    // Auto navigation nếu enabled
     if (widget.isSwipeActionClickToScreen) {
       swipeRow.V_Call(context);
     }
-
-    // Callback
     widget.onSwipeActionTap?.call(swipeRow, sourceRow, sourceIndex);
   }
 
@@ -1007,6 +904,10 @@ class _CyberListViewState extends State<CyberListView> {
     }
   }
 }
+
+// ============================================================================
+// MENU BOTTOM SHEET - NO CHANGES NEEDED
+// ============================================================================
 
 class _MenuBottomSheet extends StatelessWidget {
   final CyberDataTable menuTable;
@@ -1115,7 +1016,6 @@ class _MenuBottomSheet extends StatelessWidget {
     );
   }
 
-  /// Handle menu item tap với auto navigation
   void _handleMenuItemTap(
     BuildContext context,
     CyberDataRow menuRow,
@@ -1123,21 +1023,15 @@ class _MenuBottomSheet extends StatelessWidget {
     int sourceIndex,
   ) {
     try {
-      // Auto navigation nếu enabled
       if (isMenuClickToScreen) {
         final pageName = menuRow['pagename'] as String?;
-
-        if (pageName == null || pageName.isEmpty) {
-          //debugPrint('Warning: pageName is empty');
-        } else {
+        if (pageName != null && pageName.isNotEmpty) {
           menuRow.V_Call(context);
         }
       }
-
-      // Callback
       onMenuItemTap?.call(menuRow, sourceRow, sourceIndex);
     } catch (e) {
-      //debugPrint('Error handling menu item tap: $e');
+      // Silent error handling
     }
   }
 }
