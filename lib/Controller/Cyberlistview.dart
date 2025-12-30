@@ -224,7 +224,7 @@ class _CyberListViewState extends State<CyberListView> {
   @override
   void didUpdateWidget(CyberListView oldWidget) {
     super.didUpdateWidget(oldWidget);
-
+    if (!mounted) return;
     // ✅ Rebuild khi dataSource thay đổi reference
     if (widget.dataSource != oldWidget.dataSource) {
       // Reset filtered data khi dataSource mới
@@ -256,7 +256,7 @@ class _CyberListViewState extends State<CyberListView> {
   /// Load dữ liệu ban đầu - Reset về page 0
   Future<void> _loadInitialData() async {
     if (widget.onLoadData == null) return;
-
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
       _currentPage = 0;
@@ -289,7 +289,7 @@ class _CyberListViewState extends State<CyberListView> {
   /// Load more data - Tự động tăng pageIndex
   Future<void> _loadMore() async {
     if (_isLoadingMore || !_hasMoreData || widget.onLoadData == null) return;
-
+    if (!mounted) return;
     setState(() => _isLoadingMore = true);
 
     try {
@@ -323,6 +323,7 @@ class _CyberListViewState extends State<CyberListView> {
 
   /// Refresh - Reset về page 0
   Future<void> _refresh() async {
+    if (!mounted) return;
     if (_currentSearchText.isNotEmpty) {
       _searchController.clear();
       _currentSearchText = '';
@@ -341,6 +342,7 @@ class _CyberListViewState extends State<CyberListView> {
 
   /// Search - Reset về page 0 hoặc filter local data
   void _onSearchChanged(String searchText) {
+    if (!mounted) return;
     _currentSearchText = searchText;
 
     // ✅ Nếu có onLoadData, gọi API
@@ -355,6 +357,7 @@ class _CyberListViewState extends State<CyberListView> {
 
   /// ✅ Filter dữ liệu local theo columnsFilter
   void _filterLocalData(String searchText) {
+    if (!mounted) return;
     // Nếu không có dataSource hoặc không có columnsFilter, skip
     if (widget.dataSource == null ||
         widget.columnsFilter == null ||
@@ -401,6 +404,7 @@ class _CyberListViewState extends State<CyberListView> {
 
   /// Scroll listener - Trigger load more
   void _onScroll() {
+    if (!mounted) return;
     final position = _scrollController.position;
     final threshold = widget.horizontal
         ? position.maxScrollExtent * 0.9

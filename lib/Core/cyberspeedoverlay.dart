@@ -13,89 +13,62 @@ class CyberSpeedOverlay extends StatefulWidget {
 class _CyberSpeedOverlayState extends State<CyberSpeedOverlay> {
   Offset _position = const Offset(10, 100);
   bool _showDetails = false;
-  bool _disposed = false; // ✅ Thêm flag
-  VoidCallback? _listener; // ✅ Track listener
-
-  @override
-  void initState() {
-    super.initState();
-    // ✅ Create và track listener
-    _listener = () {
-      if (mounted && !_disposed) {
-        setState(() {});
-      }
-    };
-    widget.service.addListener(_listener!);
-  }
-
-  @override
-  void dispose() {
-    _disposed = true;
-    // ✅ Remove listener trước khi dispose
-    if (_listener != null) {
-      widget.service.removeListener(_listener!);
-      _listener = null;
-    }
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
-    if (_disposed) return const SizedBox.shrink();
+    return ListenableBuilder(
+      listenable: widget.service,
+      builder: (context, _) {
+        if (!widget.service.isVisible) {
+          return const SizedBox.shrink();
+        }
 
-    // ✅ Không dùng ListenableBuilder nữa, đã có listener trong initState
-    if (!widget.service.isVisible) {
-      return const SizedBox.shrink();
-    }
-
-    return Positioned(
-      left: _position.dx,
-      top: _position.dy,
-      child: GestureDetector(
-        onPanUpdate: (details) {
-          if (!_disposed) {
-            setState(() {
-              _position = Offset(
-                (_position.dx + details.delta.dx).clamp(
-                  0.0,
-                  MediaQuery.of(context).size.width - 120,
+        return Positioned(
+          left: _position.dx,
+          top: _position.dy,
+          child: GestureDetector(
+            onPanUpdate: (details) {
+              setState(() {
+                _position = Offset(
+                  (_position.dx + details.delta.dx).clamp(
+                    0.0,
+                    MediaQuery.of(context).size.width - 120,
+                  ),
+                  (_position.dy + details.delta.dy).clamp(
+                    0.0,
+                    MediaQuery.of(context).size.height - 50,
+                  ),
+                );
+              });
+            },
+            onTap: () {
+              setState(() {
+                _showDetails = !_showDetails;
+              });
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.black.withAlpha(70),
+                borderRadius: BorderRadius.circular(_showDetails ? 12 : 20),
+                border: Border.all(
+                  color: widget.service.speedColor.withAlpha(50),
+                  width: 2,
                 ),
-                (_position.dy + details.delta.dy).clamp(
-                  0.0,
-                  MediaQuery.of(context).size.height - 50,
-                ),
-              );
-            });
-          }
-        },
-        onTap: () {
-          if (!_disposed) {
-            setState(() {
-              _showDetails = !_showDetails;
-            });
-          }
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.black.withAlpha(70),
-            borderRadius: BorderRadius.circular(_showDetails ? 12 : 20),
-            border: Border.all(
-              color: widget.service.speedColor.withAlpha(50),
-              width: 2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: widget.service.speedColor.withAlpha(30),
-                blurRadius: 8,
-                spreadRadius: 1,
+                boxShadow: [
+                  BoxShadow(
+                    color: widget.service.speedColor.withAlpha(30),
+                    blurRadius: 8,
+                    spreadRadius: 1,
+                  ),
+                ],
               ),
-            ],
+              child: _showDetails ? _buildDetailView() : _buildCompactView(),
+            ),
           ),
-          child: _showDetails ? _buildDetailView() : _buildCompactView(),
-        ),
-      ),
+        );
+      },
     );
   }
 
