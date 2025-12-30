@@ -1,3 +1,5 @@
+// lib/Module/CallData/ReturnData.dart
+
 import 'package:cyberframework/cyberframework.dart';
 
 class ReturnData {
@@ -28,24 +30,14 @@ class ReturnData {
     );
   }
 
+  /// ✅ Check if response is valid
   bool isValid() {
     if (status == false && message == null) return false;
     if (status == false) return false;
-
     return true;
   }
 
-  // ============================================================================
-  // ⭐ CONVERT TO CYBERDATASET - LOWERCASE KEYS
-  // ============================================================================
-
-  /// Convert data sang CyberDataset với keys normalized thành lowercase
-  /// Usage:
-  /// ```dart
-  /// final response = await context.callApi(...);
-  /// final dataset = response.toCyberDataset();
-  /// final table = dataset['TableName']; // case-insensitive
-  /// ```
+  /// ✅ Convert data to CyberDataset with lowercase keys
   CyberDataset? toCyberDataset() {
     if (data == null) return null;
 
@@ -53,22 +45,21 @@ class ReturnData {
       final dataset = CyberDataset();
 
       if (data is Map<String, dynamic>) {
-        // ✅ Normalize Map keys thành lowercase
         final normalizedMap = _normalizeMapKeys(data as Map<String, dynamic>);
         dataset.loadFromMap(normalizedMap);
       } else if (data is List) {
-        // ✅ Normalize List items keys thành lowercase
         final normalizedList = _normalizeListKeys(data as List);
         dataset.loadTable('table1', normalizedList);
       }
 
       return dataset;
     } catch (e) {
+      debugPrint('❌ Error converting to CyberDataset: $e');
       return null;
     }
   }
 
-  /// Normalize Map keys thành lowercase (cho nested Map cũng áp dụng)
+  /// Normalize Map keys to lowercase (recursive)
   Map<String, dynamic> _normalizeMapKeys(Map<String, dynamic> map) {
     final result = <String, dynamic>{};
 
@@ -77,10 +68,8 @@ class ReturnData {
       final value = entry.value;
 
       if (value is Map<String, dynamic>) {
-        // ✅ Recursive normalize nested Map
         result[key] = _normalizeMapKeys(value);
       } else if (value is List) {
-        // ✅ Normalize List items
         result[key] = _normalizeListKeys(value);
       } else {
         result[key] = value;
@@ -90,7 +79,7 @@ class ReturnData {
     return result;
   }
 
-  /// Normalize List items keys thành lowercase
+  /// Normalize List items keys to lowercase
   List<Map<String, dynamic>> _normalizeListKeys(List list) {
     return list.map((item) {
       if (item is Map<String, dynamic>) {
@@ -100,48 +89,3 @@ class ReturnData {
     }).toList();
   }
 }
-
-// // ============================================================================
-// // EXTENSIONS
-// // ============================================================================
-
-// extension ReturnDataExtension on ReturnData {
-//   CyberDataset? get dataset => toCyberDataset();
-//   CyberDataTable? get firstTable => getFirstTable();
-//   CyberDataTable? operator [](dynamic key) {
-//     if (key is String) {
-//       return getTable(key);
-//     } else if (key is int) {
-//       return toCyberDataset()?[key];
-//     }
-//     return null;
-//   }
-// }
-
-// // ============================================================================
-// // HELPER FUNCTIONS
-// // ============================================================================
-
-// CyberDataset getDatasetOrThrow(ReturnData response) {
-//   if (!response.isValid()) {
-//     throw Exception(response.message ?? 'API call failed');
-//   }
-
-//   final dataset = response.toCyberDataset();
-//   if (dataset == null) {
-//     throw Exception('Cannot parse data to CyberDataset');
-//   }
-
-//   return dataset;
-// }
-
-// CyberDataTable getTableOrThrow(ReturnData response, String tableName) {
-//   final dataset = getDatasetOrThrow(response);
-//   final table = dataset[tableName];
-
-//   if (table == null) {
-//     throw Exception('Table "$tableName" not found');
-//   }
-
-//   return table;
-// }

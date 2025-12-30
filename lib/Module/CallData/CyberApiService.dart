@@ -1,31 +1,119 @@
+// lib/Module/CallData/CyberApiService.dart
+
 import 'package:cyberframework/cyberframework.dart';
 import 'package:http/http.dart' as http;
 
-/// CyberApiService - Service call API với internet checking được tối ưu
-/// ✅ OPTIMIZED: Cache internet check, giảm thời gian check từ 10s xuống < 1s
-class CyberApiService {
+/// ✅ OPTIMIZED: API Service with lifecycle awareness & proper cache management
+class CyberApiService with WidgetsBindingObserver {
   static final CyberApiService _instance = CyberApiService._internal();
   factory CyberApiService() => _instance;
-  CyberApiService._internal();
+
+  CyberApiService._internal() {
+    // ✅ Register lifecycle observer
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  // ============================================================================
+  // CONFIGURATION
+  // ============================================================================
 
   String baseUrl = 'https://mauiapidms.cybersoft.com.vn/api/CyberAPI';
   Duration timeout = const Duration(seconds: 30);
 
-  // ✅ Cấu hình internet checking
   bool enableInternetCheck = true;
-  bool enableSpeedCheck = false; // ⚡ MẶC ĐỊNH TẮT speed check (chậm)
+  bool enableSpeedCheck = false; // ⚡ Disabled by default (slow)
   double minimumSpeedKBps = 4.0;
 
-  // ✅ Lưu trạng thái VPN ban đầu
-  bool? _initialVPNState;
+  // ============================================================================
+  // STATE MANAGEMENT
+  // ============================================================================
 
-  // ⚡ CACHE INTERNET CHECK (tránh check lại liên tục)
+  bool? _initialVPNState;
   InternetCheckResult? _cachedCheckResult;
   DateTime? _cacheTime;
-  final Duration _cacheDuration = const Duration(seconds: 30); // Cache 30s
-
-  // ⚡ Đang thực hiện check (tránh check song song)
   bool _isChecking = false;
+  bool _isAppPaused = false; // ✅ Track app state
+
+  final Duration _cacheDuration = const Duration(seconds: 30);
+  Timer? _cacheCleanupTimer; // ✅ Timer to cleanup old cache
+
+  // ============================================================================
+  // ✅ LIFECYCLE MANAGEMENT
+  // ============================================================================
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.resumed:
+        // ✅ App returned to foreground
+        _isAppPaused = false;
+        _invalidateCache(); // Refresh cache when app resumes
+        _startCacheCleanupTimer();
+        break;
+
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.detached:
+      case AppLifecycleState.hidden:
+        // ✅ App in background
+        _isAppPaused = true;
+        _stopCacheCleanupTimer();
+        break;
+    }
+  }
+
+  /// ✅ Start cache cleanup timer
+  void _startCacheCleanupTimer() {
+    _stopCacheCleanupTimer();
+
+    _cacheCleanupTimer = Timer.periodic(
+      const Duration(minutes: 1),
+      (_) => _cleanupExpiredCache(),
+    );
+  }
+
+  /// ✅ Stop cache cleanup timer
+  void _stopCacheCleanupTimer() {
+    _cacheCleanupTimer?.cancel();
+    _cacheCleanupTimer = null;
+  }
+
+  /// ✅ Clean up expired cache
+  void _cleanupExpiredCache() {
+    if (_cachedCheckResult != null && _cacheTime != null) {
+      final elapsed = DateTime.now().difference(_cacheTime!);
+      if (elapsed >= _cacheDuration) {
+        _invalidateCache();
+      }
+    }
+  }
+
+  // ============================================================================
+  // ✅ API CALL WITH PROPER ERROR HANDLING
+  // ============================================================================
+
+  Future<ReturnData> callApi({
+    required BuildContext context,
+    required CyberDataPost dataPost,
+    bool showLoading = true,
+    bool showError = true,
+  }) async {
+    // ✅ Check if app is paused
+    if (_isAppPaused) {
+      return ReturnData(
+        status: false,
+        message: 'App is in background',
+        isConnect: false,
+      );
+    }
+
+    return await _callApi(
+      context: context,
+      dataPost: dataPost,
+      showLoading: showLoading,
+      showError: showError,
+    );
+  }
 
   Future<ReturnData> _callApi({
     required BuildContext context,
@@ -33,11 +121,10 @@ class CyberApiService {
     bool showLoading = true,
     bool showError = true,
   }) async {
-    // ⚡ KIỂM TRA INTERNET VỚI CACHE
+    // ⚡ Internet check with cache
     if (enableInternetCheck) {
       final checkResult = await _performInternetCheckWithCache(context);
       if (!checkResult.isValid) {
-        // ✅ Show error TẠI ĐÂY, không show ở cuối nữa
         if (showError && context.mounted) {
           _showError(context, checkResult.message, checkResult.errorType);
         }
@@ -48,7 +135,6 @@ class CyberApiService {
         );
       }
 
-      // Lưu trạng thái VPN lần đầu
       _initialVPNState ??= checkResult.isUsingVPN;
     }
 
@@ -80,7 +166,7 @@ class CyberApiService {
       if (response.statusCode != 200) {
         final returnData = ReturnData(
           status: false,
-          message: 'Lỗi HTTP ${response.statusCode}: ${response.reasonPhrase}',
+          message: 'HTTP ${response.statusCode}: ${response.reasonPhrase}',
           isConnect: true,
         );
 
@@ -91,9 +177,9 @@ class CyberApiService {
         return returnData;
       }
 
-      String encryptedData = response.body;
+      final encryptedData = response.body;
 
-      if (encryptedData == "" || encryptedData.isEmpty) {
+      if (encryptedData.isEmpty) {
         final returnData = ReturnData(
           status: false,
           message: 'Response không hợp lệ',
@@ -109,46 +195,35 @@ class CyberApiService {
 
       final returnData = parseResponse(encryptedData);
 
+      // ✅ Show server error if needed
+      if (!returnData.isValid() &&
+          showError &&
+          context.mounted &&
+          returnData.isConnect == true) {
+        _showError(
+          context,
+          returnData.message ?? 'Lỗi từ máy chủ',
+          InternetErrorType.none,
+        );
+      }
+
       return returnData;
     } on SocketException {
       if (showLoading && context.mounted) {
         Navigator.of(context, rootNavigator: true).pop();
       }
 
-      // ⚡ Invalidate cache khi có lỗi mạng
       _invalidateCache();
 
-      // ✅ Kiểm tra có phải VPN disconnect hoặc mất internet không
-      String errorMessage = 'Không thể kết nối đến máy chủ';
-      InternetErrorType errorType = InternetErrorType.noConnection;
-
-      // Kiểm tra lại kết nối hiện tại (NHANH - không check speed)
-      final connectivity = CyberConnectivityService();
-      final currentResults = await connectivity.checkConnectivity();
-
-      // Kiểm tra có kết nối không
-      if (!connectivity.hasActiveConnection(currentResults)) {
-        errorMessage =
-            'Mất kết nối internet. Vui lòng kiểm tra ${connectivity.getConnectionType(currentResults)}.';
-        errorType = InternetErrorType.noConnection;
-      }
-      // Kiểm tra VPN có bị ngắt không
-      else if (_initialVPNState == true) {
-        final isStillVPN = await connectivity.isUsingVPN();
-        if (!isStillVPN) {
-          errorMessage = 'VPN đã ngắt kết nối. Vui lòng kết nối lại VPN.';
-          errorType = InternetErrorType.vpnDisconnected;
-        }
-      }
-
+      final errorInfo = await _analyzeNetworkError();
       final returnData = ReturnData(
         status: false,
-        message: errorMessage,
+        message: errorInfo.message,
         isConnect: false,
       );
 
       if (showError && context.mounted) {
-        _showError(context, returnData.message!, errorType);
+        _showError(context, errorInfo.message, errorInfo.errorType);
       }
 
       return returnData;
@@ -157,29 +232,17 @@ class CyberApiService {
         Navigator.of(context, rootNavigator: true).pop();
       }
 
-      // ⚡ Invalidate cache khi timeout
       _invalidateCache();
 
-      // ✅ Check lại internet khi timeout (NHANH)
-      final connectivity = CyberConnectivityService();
-      final currentResults = await connectivity.checkConnectivity();
-
-      String errorMessage = 'Timeout: Máy chủ không phản hồi';
-      InternetErrorType errorType = InternetErrorType.none;
-
-      if (!connectivity.hasActiveConnection(currentResults)) {
-        errorMessage = 'Mất kết nối internet trong khi đang gọi API.';
-        errorType = InternetErrorType.noConnection;
-      }
-
+      final errorInfo = await _analyzeTimeoutError();
       final returnData = ReturnData(
         status: false,
-        message: errorMessage,
+        message: errorInfo.message,
         isConnect: false,
       );
 
       if (showError && context.mounted) {
-        _showError(context, returnData.message!, errorType);
+        _showError(context, errorInfo.message, errorInfo.errorType);
       }
 
       return returnData;
@@ -202,48 +265,52 @@ class CyberApiService {
     }
   }
 
-  /// ⚡ OPTIMIZED: Kiểm tra internet với cache (giảm từ 10s xuống ~100ms)
+  // ============================================================================
+  // ⚡ OPTIMIZED CACHE MANAGEMENT
+  // ============================================================================
+
   Future<InternetCheckResult> _performInternetCheckWithCache(
     BuildContext context,
   ) async {
-    // ✅ Kiểm tra cache còn hiệu lực không
+    // ✅ Check cache validity
     if (_cachedCheckResult != null && _cacheTime != null) {
       final elapsed = DateTime.now().difference(_cacheTime!);
       if (elapsed < _cacheDuration) {
-        // ⚡ Trả về kết quả từ cache (~0ms)
         return _cachedCheckResult!;
       }
     }
 
-    // ✅ Tránh check song song (nếu đang check thì chờ)
+    // ✅ Avoid parallel checks
     if (_isChecking) {
-      // Chờ tối đa 5s
       int waited = 0;
       while (_isChecking && waited < 50) {
         await Future.delayed(const Duration(milliseconds: 100));
         waited++;
       }
 
-      // Nếu có cache sau khi chờ thì dùng
       if (_cachedCheckResult != null) {
         return _cachedCheckResult!;
       }
     }
 
-    // ✅ Thực hiện check mới
+    // ✅ Perform new check
     _isChecking = true;
     try {
       final connectivity = CyberConnectivityService();
 
-      // ⚡ FAST CHECK: Chỉ check connectivity + ping (skip speed check)
       final result = await connectivity.performFastCheck(
         checkSpeed: enableSpeedCheck,
         minimumSpeedKBps: minimumSpeedKBps,
       );
 
-      // Cache kết quả
+      // Cache result
       _cachedCheckResult = result;
       _cacheTime = DateTime.now();
+
+      // ✅ Start cleanup timer if not running
+      if (_cacheCleanupTimer == null && !_isAppPaused) {
+        _startCacheCleanupTimer();
+      }
 
       return result;
     } finally {
@@ -251,43 +318,64 @@ class CyberApiService {
     }
   }
 
-  /// ⚡ Xóa cache (gọi khi có lỗi mạng)
   void _invalidateCache() {
     _cachedCheckResult = null;
     _cacheTime = null;
   }
 
-  Future<ReturnData> callApi({
-    required BuildContext context,
-    required CyberDataPost dataPost,
-    bool showLoading = true,
-    bool showError = true,
-  }) async {
-    ReturnData returnData = await _callApi(
-      context: context,
-      dataPost: dataPost,
-      showLoading: showLoading,
-      showError: showError,
-    );
+  // ============================================================================
+  // ✅ ERROR ANALYSIS
+  // ============================================================================
 
-    // ✅ FIX: Chỉ show error nếu là lỗi từ SERVER (isConnect = true)
-    // Nếu isConnect = false (lỗi mạng), đã show error ở trên rồi
-    if (returnData.isValid() == false &&
-        showError &&
-        context.mounted &&
-        returnData.isConnect == true) {
-      // ← CHỈ show khi là lỗi server
-      _showError(
-        context,
-        returnData.message ?? 'Lỗi từ máy chủ',
-        InternetErrorType.none,
+  Future<_ErrorInfo> _analyzeNetworkError() async {
+    final connectivity = CyberConnectivityService();
+    final currentResults = await connectivity.checkConnectivity();
+
+    if (!connectivity.hasActiveConnection(currentResults)) {
+      return _ErrorInfo(
+        message:
+            'Mất kết nối internet. Vui lòng kiểm tra ${connectivity.getConnectionType(currentResults)}.',
+        errorType: InternetErrorType.noConnection,
       );
     }
 
-    return returnData;
+    if (_initialVPNState == true) {
+      final isStillVPN = await connectivity.isUsingVPN();
+      if (!isStillVPN) {
+        return _ErrorInfo(
+          message: 'VPN đã ngắt kết nối. Vui lòng kết nối lại VPN.',
+          errorType: InternetErrorType.vpnDisconnected,
+        );
+      }
+    }
+
+    return _ErrorInfo(
+      message: 'Không thể kết nối đến máy chủ',
+      errorType: InternetErrorType.noConnection,
+    );
   }
 
-  /// ✅ Hiển thị lỗi với icon phù hợp và thông tin chi tiết
+  Future<_ErrorInfo> _analyzeTimeoutError() async {
+    final connectivity = CyberConnectivityService();
+    final currentResults = await connectivity.checkConnectivity();
+
+    if (!connectivity.hasActiveConnection(currentResults)) {
+      return _ErrorInfo(
+        message: 'Mất kết nối internet trong khi đang gọi API.',
+        errorType: InternetErrorType.noConnection,
+      );
+    }
+
+    return _ErrorInfo(
+      message: 'Timeout: Máy chủ không phản hồi',
+      errorType: InternetErrorType.none,
+    );
+  }
+
+  // ============================================================================
+  // UI HELPERS
+  // ============================================================================
+
   void _showError(
     BuildContext context,
     String message,
@@ -346,14 +434,33 @@ class CyberApiService {
     );
   }
 
-  /// ✅ Reset cache & VPN state (gọi khi user reconnect VPN thủ công)
+  // ============================================================================
+  // PUBLIC METHODS
+  // ============================================================================
+
+  /// Reset cache & VPN state
   void resetState() {
     _initialVPNState = null;
     _invalidateCache();
   }
 
-  /// ⚡ Force refresh cache (gọi khi user pull-to-refresh)
+  /// Force refresh cache
   void forceRefresh() {
     _invalidateCache();
   }
+
+  /// ✅ Cleanup (call when app terminates)
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _stopCacheCleanupTimer();
+    _invalidateCache();
+  }
+}
+
+/// Helper class for error info
+class _ErrorInfo {
+  final String message;
+  final InternetErrorType errorType;
+
+  _ErrorInfo({required this.message, required this.errorType});
 }
