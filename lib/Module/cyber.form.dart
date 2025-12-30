@@ -1,3 +1,5 @@
+// lib/Module/cyber.form.dart
+
 import 'package:cyberframework/cyberframework.dart';
 
 /// Vị trí hiển thị Speed Monitor trong CyberForm
@@ -8,8 +10,8 @@ enum SpeedMonitorPosition {
   bottomLeft,
   bottomRight,
   bottomCenter,
-  appBar, // Trong AppBar
-  banner, // Banner ở đầu body
+  appBar,
+  banner,
 }
 
 class CyberFormView extends StatefulWidget {
@@ -22,7 +24,7 @@ class CyberFormView extends StatefulWidget {
   final bool hideAppBar;
   final bool showSpeedMonitor;
   final SpeedMonitorPosition speedMonitorPosition;
-  final bool isMainScreen; // ✅ NEW: Track nếu là main screen
+  final bool isMainScreen;
 
   const CyberFormView({
     super.key,
@@ -35,7 +37,7 @@ class CyberFormView extends StatefulWidget {
     this.hideAppBar = false,
     this.showSpeedMonitor = true,
     this.speedMonitorPosition = SpeedMonitorPosition.appBar,
-    this.isMainScreen = false, // ✅ Mặc định false
+    this.isMainScreen = false,
   });
 
   @override
@@ -50,6 +52,8 @@ class _CyberFormViewState extends State<CyberFormView> {
   @override
   void initState() {
     super.initState();
+
+    // ✅ Create NEW form instance
     _form = widget.formBuilder();
     _form._context = context;
     _form._widget = widget;
@@ -57,32 +61,22 @@ class _CyberFormViewState extends State<CyberFormView> {
       if (mounted) setState(() {});
     };
 
-    // Call lifecycle methods
     _initializeForm();
   }
 
   Future<void> _initializeForm() async {
     try {
-      // 1. onInit - Khởi tạo cơ bản
       _form.onInit();
-
-      // 2. onBeforeLoad - Chuẩn bị trước khi load API
       await _form.onBeforeLoad();
-
-      // 3. onLoadData - Load data từ API
       await _form.onLoadData();
-
-      // 4. onAfterLoad - Xử lý sau khi load xong
       await _form.onAfterLoad();
 
-      // Done loading
       if (mounted) {
         setState(() {
           _isLoading = false;
         });
       }
     } catch (e) {
-      // Handle error
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -95,7 +89,7 @@ class _CyberFormViewState extends State<CyberFormView> {
 
   @override
   void dispose() {
-    // Gọi onDispose của form để cleanup resources
+    // ✅ Proper cleanup
     _form.onDispose();
     super.dispose();
   }
@@ -119,7 +113,6 @@ class _CyberFormViewState extends State<CyberFormView> {
     );
   }
 
-  /// Build AppBar với Speed Monitor nếu cần
   PreferredSizeWidget _buildAppBar() {
     final showInAppBar =
         (widget.showSpeedMonitor || _form.showSpeedMonitor == true) &&
@@ -143,26 +136,23 @@ class _CyberFormViewState extends State<CyberFormView> {
     );
   }
 
-  /// Build body với Speed Monitor ở các vị trí khác
   Widget _buildBodyWithSpeedMonitor() {
     final body = _buildBody();
     final showMonitor =
         widget.showSpeedMonitor || _form.showSpeedMonitor == true;
-    // ✅ FIX: Nếu là Main Screen + ẩn AppBar + position = appBar
-    // → Tự động chuyển sang floating position
+
     var position = widget.speedMonitorPosition;
     if (widget.isMainScreen &&
         (_form.hideAppBar ?? widget.hideAppBar) &&
         position == SpeedMonitorPosition.appBar) {
-      position = SpeedMonitorPosition.topRight; // Hiển thị floating
+      position = SpeedMonitorPosition.topRight;
     }
-    if (!showMonitor ||
-        widget.speedMonitorPosition == SpeedMonitorPosition.appBar) {
+
+    if (!showMonitor || position == SpeedMonitorPosition.appBar) {
       return body;
     }
 
-    // Banner position
-    if (widget.speedMonitorPosition == SpeedMonitorPosition.banner) {
+    if (position == SpeedMonitorPosition.banner) {
       return Column(
         children: [
           const CyberSpeedBanner(),
@@ -171,14 +161,10 @@ class _CyberFormViewState extends State<CyberFormView> {
       );
     }
 
-    // Floating positions
     return Stack(children: [body, _buildFloatingSpeedMonitor()]);
   }
 
-  /// Build Floating Speed Monitor
-  /// ✅ FIXED: Nếu là Main Screen thì hiển thị ở top 30, right 30
   Widget _buildFloatingSpeedMonitor() {
-    // ✅ Check nếu là Main Screen
     final isMainScreen = widget.isMainScreen;
 
     return Positioned(
@@ -289,40 +275,39 @@ class _CyberFormViewState extends State<CyberFormView> {
   }
 }
 
+// ============================================================================
+// ✅ OPTIMIZED: CyberForm with proper resource management
+// ============================================================================
+
 abstract class CyberForm {
   late BuildContext _context;
   late CyberFormView _widget;
   late VoidCallback _setState;
 
-  // Danh sách resources cần dispose (controllers, streams, listeners...)
+  // ✅ Typed resource management
   final List<dynamic> _disposables = [];
+  final Map<Listenable, Set<VoidCallback>> _listeners = {};
+  bool _isDisposed = false;
 
   BuildContext get context => _context;
   CyberFormView get widget => _widget;
 
   // ============================================================================
-  // ✅ GETTERS ĐỂ TRUY CẬP CÁC THAM SỐ
+  // GETTERS
   // ============================================================================
 
-  /// Lấy cp_name từ CyberFormView
   // ignore: non_constant_identifier_names
   String get cp_name => _widget.cp_name;
-
-  /// Lấy strparameter từ CyberFormView
   String get strparameter => _widget.strparameter;
-
-  /// Lấy objectdata từ CyberFormView
   dynamic get objectdata => _widget.objectdata;
 
   // ============================================================================
-  // PROPERTIES - Có thể override trong form con
+  // PROPERTIES - Override in subclass
   // ============================================================================
 
   String? get title => null;
   Color? get backgroundColor => null;
   bool? get hideAppBar => null;
-
-  /// ✅ NEW: Hiển thị Speed Monitor cố định trong form
   bool? get showSpeedMonitor => null;
 
   // ============================================================================
@@ -333,61 +318,139 @@ abstract class CyberForm {
   Future<void> onBeforeLoad() async {}
   Future<void> onLoadData() async {}
   Future<void> onAfterLoad() async {}
-  void onLoadError(dynamic error) {
-    //debugPrint('Load error: $error');
-  }
+  void onLoadError(dynamic error) {}
 
-  /// Override method này để cleanup resources khi form bị dispose
-  /// Ví dụ: dispose controllers, cancel timers, close streams...
   void onDispose() {
-    // Tự động dispose tất cả resources đã register
     _disposeAllResources();
   }
 
   // ============================================================================
-  // RESOURCE MANAGEMENT HELPERS
+  // ✅ IMPROVED: Resource Management
   // ============================================================================
 
-  /// Register một resource để tự động dispose
-  /// Hỗ trợ: TextEditingController, StreamController, Timer, etc
+  /// Register resource for automatic disposal
   void registerDisposable(dynamic resource) {
+    if (resource == null || _isDisposed) return;
     _disposables.add(resource);
   }
 
-  /// Dispose tất cả resources đã register
+  /// ✅ Register listener with tracking
+  void registerListener(Listenable listenable, VoidCallback listener) {
+    if (_isDisposed) return;
+
+    listenable.addListener(listener);
+    _listeners.putIfAbsent(listenable, () => {}).add(listener);
+  }
+
+  /// ✅ Remove specific listener
+  void removeListener(Listenable listenable, VoidCallback listener) {
+    listenable.removeListener(listener);
+    _listeners[listenable]?.remove(listener);
+  }
+
+  /// ✅ FIXED: Proper disposal implementation
   void _disposeAllResources() {
+    if (_isDisposed) return;
+    _isDisposed = true;
+
+    // 1. Remove all listeners first
+    for (var entry in _listeners.entries) {
+      final listenable = entry.key;
+      final listeners = entry.value;
+
+      for (var listener in listeners) {
+        try {
+          listenable.removeListener(listener);
+        } catch (e) {
+          debugPrint('Error removing listener: $e');
+        }
+      }
+    }
+    _listeners.clear();
+
+    // 2. Dispose all resources
     for (var resource in _disposables) {
       try {
-        if (resource is TextEditingController) {
-          resource.dispose();
-        } else if (resource is StreamController) {
-          resource.close();
-        } else if (resource is AnimationController) {
-          resource.dispose();
-        } else if (resource is FocusNode) {
-          resource.dispose();
-        } else if (resource is ScrollController) {
-          resource.dispose();
-        } else if (resource is TabController) {
-          resource.dispose();
-        } else if (resource is PageController) {
-          resource.dispose();
-        } else // Nếu có method dispose() hoặc close()
-        if (resource.runtimeType.toString().contains('Controller') ||
-            resource.runtimeType.toString().contains('Stream')) {
-          try {
-            resource.dispose?.call();
-          } catch (_) {
-            try {
-              resource.close?.call();
-            } catch (_) {}
-          }
-        }
+        _disposeResource(resource);
       } catch (e) {
-        debugPrint('Error disposing resource: $e');
+        debugPrint('Error disposing ${resource.runtimeType}: $e');
       }
     }
     _disposables.clear();
+  }
+
+  /// ✅ Smart resource disposal with type checking
+  void _disposeResource(dynamic resource) {
+    // ✅ Check concrete types (fastest path)
+    if (resource is TextEditingController) {
+      resource.dispose();
+      return;
+    }
+    if (resource is ScrollController) {
+      resource.dispose();
+      return;
+    }
+    if (resource is TabController) {
+      resource.dispose();
+      return;
+    }
+    if (resource is PageController) {
+      resource.dispose();
+      return;
+    }
+    if (resource is AnimationController) {
+      resource.dispose();
+      return;
+    }
+    if (resource is FocusNode) {
+      resource.dispose();
+      return;
+    }
+    if (resource is StreamController) {
+      resource.close();
+      return;
+    }
+    if (resource is StreamSubscription) {
+      resource.cancel();
+      return;
+    }
+    if (resource is Timer) {
+      resource.cancel();
+      return;
+    }
+    if (resource is ChangeNotifier) {
+      resource.dispose();
+      return;
+    }
+    if (resource is ValueNotifier) {
+      resource.dispose();
+      return;
+    }
+
+    // ✅ Try dynamic dispatch as fallback
+    try {
+      final dynamic obj = resource;
+      if (obj.dispose != null) {
+        obj.dispose();
+        return;
+      }
+    } catch (_) {}
+
+    try {
+      final dynamic obj = resource;
+      if (obj.close != null) {
+        obj.close();
+        return;
+      }
+    } catch (_) {}
+
+    try {
+      final dynamic obj = resource;
+      if (obj.cancel != null) {
+        obj.cancel();
+        return;
+      }
+    } catch (_) {}
   }
 
   // ============================================================================
@@ -402,8 +465,6 @@ abstract class CyberForm {
   // HELPER METHODS
   // ============================================================================
 
-  /// Navigate đến form khác
-  // ignore: non_constant_identifier_names
   void V_Call(
     String strfrm, {
     bool hideAppBar = false,
@@ -424,10 +485,14 @@ abstract class CyberForm {
   }
 
   void rebuild() {
-    _setState();
+    if (!_isDisposed && _context.mounted) {
+      _setState();
+    }
   }
 
   void showLoading([String? message]) {
+    if (_isDisposed || !_context.mounted) return;
+
     showDialog(
       context: _context,
       barrierDismissible: false,
@@ -457,8 +522,11 @@ abstract class CyberForm {
   }
 
   void hideLoading() {
-    if (_context.mounted) {
+    if (!_isDisposed && _context.mounted) {
       Navigator.of(_context).pop();
     }
   }
+
+  /// ✅ Check if form is disposed
+  bool get isDisposed => _isDisposed;
 }
