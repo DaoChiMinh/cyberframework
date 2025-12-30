@@ -232,7 +232,9 @@ class _CyberListViewState extends State<CyberListView> {
       _filteredDataTable = null;
       _currentSearchText = '';
       _searchController.clear();
-      setState(() {});
+      if (mounted) {
+        setState(() {});
+      }
     }
 
     // ✅ Update scroll listener nếu height thay đổi
@@ -261,12 +263,13 @@ class _CyberListViewState extends State<CyberListView> {
   Future<void> _loadInitialData() async {
     if (!mounted) return;
     if (widget.onLoadData == null) return;
-
-    setState(() {
-      _isLoading = true;
-      _currentPage = 0;
-      _hasMoreData = true;
-    });
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _currentPage = 0;
+        _hasMoreData = true;
+      });
+    }
 
     try {
       final newDataTable = await widget.onLoadData!(
@@ -280,13 +283,16 @@ class _CyberListViewState extends State<CyberListView> {
         widget.dataSource!.clear();
         widget.dataSource!.loadDatafromTb(newDataTable);
       }
-
-      setState(() {
-        _hasMoreData = newDataTable.rowCount >= widget.pageSize;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _hasMoreData = newDataTable.rowCount >= widget.pageSize;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
       _showError('Lỗi khi load dữ liệu: $e');
     }
   }
@@ -295,34 +301,37 @@ class _CyberListViewState extends State<CyberListView> {
   Future<void> _loadMore() async {
     if (!mounted) return;
     if (_isLoadingMore || !_hasMoreData || widget.onLoadData == null) return;
-
-    setState(() => _isLoadingMore = true);
-
+    if (mounted) {
+      setState(() => _isLoadingMore = true);
+    }
     try {
-      _currentPage++;
-
+      final nextPage = _currentPage + 1;
       final moreDataTable = await widget.onLoadData!(
         _currentPage,
         widget.pageSize,
         _currentSearchText,
       );
-
+      if (!mounted) return;
+      _currentPage = nextPage;
       // ✅ Append vào external dataSource
       if (widget.dataSource != null) {
         for (var row in moreDataTable.rows) {
           widget.dataSource!.addRow(row.copy());
         }
       }
-
-      setState(() {
-        _hasMoreData = moreDataTable.rowCount >= widget.pageSize;
-        _isLoadingMore = false;
-      });
+      if (mounted) {
+        setState(() {
+          _hasMoreData = moreDataTable.rowCount >= widget.pageSize;
+          _isLoadingMore = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _isLoadingMore = false;
-        _currentPage--;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoadingMore = false;
+          _currentPage--;
+        });
+      }
       _showError('Lỗi khi load thêm dữ liệu: $e');
     }
   }
@@ -336,9 +345,11 @@ class _CyberListViewState extends State<CyberListView> {
 
       // Reset filtered data nếu dùng local search
       if (widget.onLoadData == null) {
-        setState(() {
-          _filteredDataTable = null;
-        });
+        if (mounted) {
+          setState(() {
+            _filteredDataTable = null;
+          });
+        }
         return;
       }
     }
@@ -692,18 +703,20 @@ class _CyberListViewState extends State<CyberListView> {
 
             final row = rows[index];
 
-            if (widget.dtSwipeActions != null &&
-                widget.dtSwipeActions!.rowCount > 0) {
-              return _buildSlidableItem(row, index);
-            }
+            // ✅ BUILD ITEM WITH KEY (giống horizontal list)
+            final itemWidget =
+                widget.dtSwipeActions != null &&
+                    widget.dtSwipeActions!.rowCount > 0
+                ? _buildSlidableItem(row, index)
+                : _buildItem(row, index);
 
-            return _buildItem(row, index);
+            // ✅ ADD KEY FOR BETTER PERFORMANCE
+            return KeyedSubtree(key: ValueKey(row.hashCode), child: itemWidget);
           },
         );
       },
     );
 
-    // Chỉ wrap RefreshIndicator khi không dùng shrinkWrap
     if (_useShrinkWrap) {
       return listView;
     }
@@ -714,7 +727,7 @@ class _CyberListViewState extends State<CyberListView> {
   /// Build Horizontal ListView
   Widget _buildHorizontalList() {
     return AnimatedBuilder(
-      animation: widget.dataSource ?? ChangeNotifier(),
+      animation: widget.dataSource ?? _emptyNotifier,
       builder: (context, child) {
         final rows = _dataTable.rows;
 
@@ -758,7 +771,7 @@ class _CyberListViewState extends State<CyberListView> {
   /// Build GridView (columnCount > 1, vertical)
   Widget _buildGridList() {
     final gridView = AnimatedBuilder(
-      animation: widget.dataSource ?? ChangeNotifier(),
+      animation: widget.dataSource ?? _emptyNotifier,
       builder: (context, child) {
         final rows = _dataTable.rows;
 
