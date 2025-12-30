@@ -20,7 +20,7 @@ IconData? v_parseIcon(String codePointStr) {
       codePoint = int.parse(codePointStr);
     }
 
-    return IconData(codePoint, fontFamily: 'MaterialIcons');
+    return IconData(codePoint, fontFamily: 'MaterialIconsOutlined');
   } catch (e) {
     return null;
   }
