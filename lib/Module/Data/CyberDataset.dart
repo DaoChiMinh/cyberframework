@@ -5,6 +5,9 @@ class CyberDataset extends ChangeNotifier {
   final Map<String, CyberDataTable> _tables = {};
   bool _isDisposed = false;
 
+  // ✅ NEW: Batch mode flag
+  bool _isBatchMode = false;
+
   Map<String, CyberDataTable> get tables => Map.unmodifiable(_tables);
   int get tableCount => _tables.length;
 
@@ -26,6 +29,25 @@ class CyberDataset extends ChangeNotifier {
     return null;
   }
 
+  /// ✅ NEW: Batch mode control
+  void beginBatch() {
+    _isBatchMode = true;
+  }
+
+  void endBatch() {
+    _isBatchMode = false;
+    notifyListeners();
+  }
+
+  void batch(void Function() action) {
+    beginBatch();
+    try {
+      action();
+    } finally {
+      endBatch();
+    }
+  }
+
   void addTable(CyberDataTable table) {
     if (_isDisposed) {
       return;
@@ -33,7 +55,10 @@ class CyberDataset extends ChangeNotifier {
 
     _tables[table.tableName] = table;
     table.addListener(_onTableChanged);
-    notifyListeners();
+
+    if (!_isBatchMode) {
+      notifyListeners();
+    }
   }
 
   CyberDataTable createTable(String tableName) {
@@ -46,10 +71,12 @@ class CyberDataset extends ChangeNotifier {
     final table = _tables[tableName];
     if (table != null) {
       table.removeListener(_onTableChanged);
-      // ✅ Dispose table when removing
       table.dispose();
       _tables.remove(tableName);
-      notifyListeners();
+
+      if (!_isBatchMode) {
+        notifyListeners();
+      }
     }
   }
 
@@ -58,114 +85,99 @@ class CyberDataset extends ChangeNotifier {
       return false;
     }
 
-    // Quét tất cả các tables
     for (var table in _tables.values) {
-      // Kiểm tra table có dòng dữ liệu
       if (table.rows.isEmpty) {
         continue;
       }
 
-      // Kiểm tra có cột Status không
       if (!table.containerColumn('status')) {
         continue;
       }
-      // Lấy dòng đầu tiên
-      var firstRow = table.rows.first;
 
-      // Lấy giá trị Status
+      var firstRow = table.rows.first;
       String? statusValue = firstRow['status']?.toString().trim().toUpperCase();
       String? msgValue = table.containerColumn('msg')
           ? firstRow['Msg']?.toString()
           : null;
-
-      // Lấy nội dung message để hiển thị
       String message = firstRow['note'].toString();
 
-      // ✅ Kiểm tra Status = "N"
       if (statusValue == 'N') {
-        // Hiển thị message nếu isShowMsg = true
         if (isShowMsg) {
-          // Tránh hiển thị 2 lần
           message.V_MsgBox(contex, type: CyberMsgBoxType.error);
         }
-        return false; // ❌ Return false ngay khi tìm thấy Status = "N"
+        return false;
       }
-      // ✅ Nếu có Msg = "Y" và isShowMsg = true => luôn hiển thị message
+
       if (msgValue == 'Y' && isShowMsg) {
         message.V_MsgBox(contex, type: CyberMsgBoxType.warning);
       }
     }
 
-    // ✅ Tất cả Status hợp lệ (khác "N")
     return true;
   }
 
-  /// ✅ FIXED: Clear with proper disposal
   void clear() {
+    if (_tables.isEmpty) return;
+
     for (var table in _tables.values) {
       table.removeListener(_onTableChanged);
-      // ✅ Dispose table (which will dispose all rows)
       table.dispose();
     }
     _tables.clear();
-    notifyListeners();
+
+    if (!_isBatchMode) {
+      notifyListeners();
+    }
   }
 
+  /// ✅ OPTIMIZED: Batch mode for loading
   void loadFromJson(String jsonString) {
     final data = json.decode(jsonString) as Map<String, dynamic>;
     loadFromMap(data);
   }
 
   void loadFromMap(Map<String, dynamic> data) {
-    clear();
-
-    for (var entry in data.entries) {
-      final tableName = entry.key;
-      final tableData = entry.value;
-
-      if (tableData is List) {
-        final table = createTable(tableName);
-        final rows = tableData
-            .map((item) => item as Map<String, dynamic>)
-            .toList();
-        table.loadData(rows);
-      } else if (tableData is Map) {
-        final table = createTable(tableName);
-        table.loadData([tableData as Map<String, dynamic>]);
+    batch(() {
+      // Clear existing tables
+      for (var table in _tables.values) {
+        table.removeListener(_onTableChanged);
+        table.dispose();
       }
-    }
+      _tables.clear();
+
+      // Load new tables
+      for (var entry in data.entries) {
+        final tableName = entry.key;
+        final tableData = entry.value;
+
+        if (tableData is List) {
+          final table = CyberDataTable(tableName: tableName);
+          _tables[tableName] = table;
+          table.addListener(_onTableChanged);
+
+          final rows = tableData
+              .map((item) => item as Map<String, dynamic>)
+              .toList();
+          table.loadData(rows);
+        } else if (tableData is Map) {
+          final table = CyberDataTable(tableName: tableName);
+          _tables[tableName] = table;
+          table.addListener(_onTableChanged);
+          table.loadData([tableData as Map<String, dynamic>]);
+        }
+      }
+    });
   }
 
   void loadTable(String tableName, List<Map<String, dynamic>> data) {
     var table = _tables[tableName];
-    table ??= createTable(tableName);
+
+    if (table == null) {
+      table = createTable(tableName);
+    }
+
     table.loadData(data);
   }
-
-  // String toXml({
-  //   Map<String, List<String>>? tableIncludeColumns,
-  //   Map<String, List<String>>? tableExcludeColumns,
-  // }) {
-  //   final StringBuffer xml = StringBuffer();
-
-  //   for (var entry in tables.entries) {
-  //     final tableName = entry.key;
-  //     final table = entry.value;
-
-  //     // Lấy include/exclude columns cho table này
-  //     List<String>? includeColumns = tableIncludeColumns?[tableName];
-  //     List<String>? excludeColumns = tableExcludeColumns?[tableName];
-
-  //     xml.write(
-  //       table.toXml(
-  //         includeColumns: includeColumns,
-  //         excludeColumns: excludeColumns,
-  //       ),
-  //     );
-  //   }
-
-  //   return xml.toString();
-  // }
 
   String toXml({
     List<String>? tableNames,
@@ -174,18 +186,11 @@ class CyberDataset extends ChangeNotifier {
   }) {
     final StringBuffer xml = StringBuffer();
 
-    // Nếu có danh sách tableNames, duyệt theo thứ tự đó
     if (tableNames != null && tableNames.isNotEmpty) {
       for (var tableName in tableNames) {
         final table = this[tableName];
+        if (table == null) continue;
 
-        // Bỏ qua nếu table không tồn tại
-        if (table == null) {
-          //debugPrint('⚠️ WARNING: Table "$tableName" not found in dataset');
-          continue;
-        }
-
-        // Lấy include/exclude columns cho table này
         List<String>? includeColumns = tableIncludeColumns?[tableName];
         List<String>? excludeColumns = tableExcludeColumns?[tableName];
 
@@ -197,12 +202,10 @@ class CyberDataset extends ChangeNotifier {
         );
       }
     } else {
-      // Nếu không có tableNames, duyệt tất cả tables
       for (var entry in tables.entries) {
         final tableName = entry.key;
         final table = entry.value;
 
-        // Lấy include/exclude columns cho table này
         List<String>? includeColumns = tableIncludeColumns?[tableName];
         List<String>? excludeColumns = tableExcludeColumns?[tableName];
 
@@ -222,14 +225,18 @@ class CyberDataset extends ChangeNotifier {
     for (var table in _tables.values) {
       table.acceptChanges();
     }
-    notifyListeners();
+    if (!_isBatchMode) {
+      notifyListeners();
+    }
   }
 
   void rejectChanges() {
     for (var table in _tables.values) {
       table.rejectChanges();
     }
-    notifyListeners();
+    if (!_isBatchMode) {
+      notifyListeners();
+    }
   }
 
   bool get hasChanges => _tables.values.any((table) => table.hasChanges);
@@ -252,27 +259,29 @@ class CyberDataset extends ChangeNotifier {
 
   CyberDataset copy() {
     final newDataset = CyberDataset();
-    for (var table in _tables.values) {
-      newDataset.addTable(table.copy());
-    }
+
+    newDataset.batch(() {
+      for (var table in _tables.values) {
+        final newTable = table.copy();
+        newDataset._tables[newTable.tableName] = newTable;
+        newTable.addListener(newDataset._onTableChanged);
+      }
+    });
+
     return newDataset;
   }
 
   void _onTableChanged() {
-    if (!_isDisposed) {
+    if (!_isDisposed && !_isBatchMode) {
       notifyListeners();
     }
   }
 
-  /// ✅ ENHANCED: Dispose with proper cleanup
   @override
   void dispose() {
     if (_isDisposed) {
-      //debugPrint('⚠️ WARNING: Double dispose detected on dataset!');
       return;
     }
-
-    //debugPrint('🗑️ Disposing CyberDataset with ${_tables.length} tables');
 
     for (var table in _tables.values) {
       table.removeListener(_onTableChanged);
@@ -284,7 +293,6 @@ class CyberDataset extends ChangeNotifier {
     super.dispose();
   }
 
-  /// ✅ NEW: Check if disposed
   bool get isDisposed => _isDisposed;
 
   @override

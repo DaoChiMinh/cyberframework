@@ -2,21 +2,146 @@
 
 import 'package:cyberframework/cyberframework.dart';
 import 'package:intl/intl.dart';
+import 'package:uuid/uuid.dart';
 
 /// CyberDataRow - đại diện cho một row dữ liệu với memory leak protection
-class CyberDataRow extends ChangeNotifier {
+class CyberDataRow extends ChangeNotifier implements ICyberIdentifiable {
   final Map<String, dynamic> _data = {};
   final Map<String, dynamic> _originalData = {};
   final Set<String> _changedFields = {};
 
-  // ✅ NEW: Track listeners để có thể dispose
+  // Field name caching
+  final Map<String, String> _fieldNameCache = {};
+
+  // Track listeners
   final Set<VoidCallback> _trackedListeners = {};
   bool _isDisposed = false;
+
+  // Batch mode
+  bool _isBatchMode = false;
+
+  // ============================================================================
+  // ✅ UUID-BASED IDENTITY WITH LOCK PROTECTION
+  // ============================================================================
+
+  /// Shared UUID generator instance (singleton pattern)
+  static final _uuid = Uuid();
+
+  /// Internal unique identity - UUID v4
+  /// Format: "550e8400-e29b-41d4-a716-446655440000"
+  /// - 128-bit random UUID
+  /// - RFC 4122 compliant
+  /// - Collision probability: ~1 in 10^38
+  late final String _internalId = _uuid.v4();
+
+  /// Optional: User-defined identity key (overrides internal)
+  Object? _customIdentityKey;
+
+  /// ✅ IMPROVED: Identity lock flag
+  /// Locks identity ONLY when used in critical operations (e.g., widget keys)
+  /// Does NOT lock on simple reads/debugging
+  bool _identityLocked = false;
 
   CyberDataRow([Map<String, dynamic>? initialData]) {
     if (initialData != null) {
       _data.addAll(initialData);
       _originalData.addAll(initialData);
+    }
+  }
+
+  // ============================================================================
+  // ✅ IDENTITY CONTRACT IMPLEMENTATION
+  // ============================================================================
+
+  /// Get the identity key for this row
+  /// Returns stable, unique UUID suitable for widget keys, caching, comparison
+  ///
+  /// NOTE: This getter does NOT lock identity. Use lockIdentity() explicitly
+  /// when binding to UI to prevent accidental identity changes.
+  @override
+  Object get identityKey {
+    return _customIdentityKey ?? _internalId;
+  }
+
+  /// ✅ NEW: Explicitly lock identity
+  /// Call this before binding row to UI (e.g., in ListView itemBuilder)
+  /// After locking, setIdentityKey() will throw error
+  void lockIdentity() {
+    _identityLocked = true;
+  }
+
+  /// ✅ Check if identity is locked
+  bool get isIdentityLocked => _identityLocked;
+
+  /// Set custom identity key (advanced usage)
+  /// Use when you want to override internal UUID with data-based key
+  ///
+  /// Example: row.setIdentityKey('CUSTOMER_${row["id"]}')
+  ///
+  /// Throws StateError if identity is already locked (used in UI)
+  void setIdentityKey(Object key) {
+    if (_identityLocked) {
+      throw StateError(
+        'Cannot change identity key: Already locked (used in UI). '
+        'Identity must be set before lockIdentity() or UI binding.',
+      );
+    }
+    _customIdentityKey = key;
+  }
+
+  /// Clear custom identity (revert to internal UUID)
+  /// Throws StateError if identity is locked
+  void clearCustomIdentity() {
+    if (_identityLocked) {
+      throw StateError(
+        'Cannot clear identity key: Already locked (used in UI).',
+      );
+    }
+    _customIdentityKey = null;
+  }
+
+  /// Check if using custom identity
+  bool get hasCustomIdentity => _customIdentityKey != null;
+
+  /// Get internal UUID (even if custom identity is set)
+  String get internalId => _internalId;
+
+  // ============================================================================
+  // OPTIMIZED: Field Name Caching
+  // ============================================================================
+
+  String _getCachedFieldName(String fieldName) {
+    var cached = _fieldNameCache[fieldName];
+    if (cached != null) return cached;
+
+    final lowerKey = fieldName.toLowerCase();
+
+    _fieldNameCache[fieldName] = lowerKey;
+    if (fieldName != lowerKey) {
+      _fieldNameCache[lowerKey] = lowerKey;
+    }
+
+    return lowerKey;
+  }
+
+  /// Batch mode operations
+  void beginBatch() {
+    _isBatchMode = true;
+  }
+
+  void endBatch() {
+    _isBatchMode = false;
+    if (hasListeners) {
+      notifyListeners();
+    }
+  }
+
+  void batch(void Function() action) {
+    beginBatch();
+    try {
+      action();
+    } finally {
+      endBatch();
     }
   }
 
@@ -35,36 +160,34 @@ class CyberDataRow extends ChangeNotifier {
   }
 
   @override
-  // ignore: unnecessary_overrides
   void removeListener(VoidCallback listener) {
     super.removeListener(listener);
+    _trackedListeners.remove(listener);
   }
 
-  /// ✅ NEW: Dispose all tracked listeners
   void disposeAllListeners() {
     if (_trackedListeners.isEmpty) return;
-    // Create copy to avoid concurrent modification
+
     final listenersCopy = _trackedListeners.toList();
 
     for (var listener in listenersCopy) {
       try {
         super.removeListener(listener);
-        // ignore: empty_catches
-      } catch (e) {}
+      } catch (e) {
+        // Ignore errors during cleanup
+      }
     }
 
     _trackedListeners.clear();
   }
 
-  /// ✅ NEW: Check if row has listeners
   @override
   bool get hasListeners => _trackedListeners.isNotEmpty;
 
-  /// ✅ NEW: Get listener count
   int get listenerCount => _trackedListeners.length;
 
   // ============================================================================
-  // EXISTING METHODS (UNCHANGED)
+  // OPTIMIZED: Data Access Methods
   // ============================================================================
 
   // ignore: non_constant_identifier_names
@@ -84,15 +207,15 @@ class CyberDataRow extends ChangeNotifier {
   }
 
   dynamic operator [](String fieldName) {
-    return _data[fieldName.toLowerCase()];
+    return _data[_getCachedFieldName(fieldName)];
   }
 
   void operator []=(String fieldName, dynamic value) {
-    setValue(fieldName.toLowerCase(), value);
+    setValue(_getCachedFieldName(fieldName), value);
   }
 
   T? get<T>(String fieldName) {
-    return _data[fieldName.toLowerCase()] as T?;
+    return _data[_getCachedFieldName(fieldName)] as T?;
   }
 
   void setValue(String fieldName, dynamic value) {
@@ -100,7 +223,7 @@ class CyberDataRow extends ChangeNotifier {
       return;
     }
 
-    fieldName = fieldName.toLowerCase();
+    fieldName = _getCachedFieldName(fieldName);
     final oldValue = _data[fieldName];
 
     if (oldValue != value) {
@@ -113,12 +236,15 @@ class CyberDataRow extends ChangeNotifier {
         _changedFields.remove(fieldName);
       }
 
-      notifyListeners();
+      // Smart notification
+      if (!_isBatchMode && hasListeners) {
+        notifyListeners();
+      }
     }
   }
 
   bool hasField(String fieldName) {
-    return _data.containsKey(fieldName.toLowerCase());
+    return _data.containsKey(_getCachedFieldName(fieldName));
   }
 
   List<String> get fieldNames => _data.keys.toList();
@@ -131,22 +257,31 @@ class CyberDataRow extends ChangeNotifier {
     _originalData.clear();
     _originalData.addAll(_data);
     _changedFields.clear();
-    notifyListeners();
+
+    if (hasListeners) {
+      notifyListeners();
+    }
   }
 
   void rejectChanges() {
     _data.clear();
     _data.addAll(_originalData);
     _changedFields.clear();
-    notifyListeners();
+
+    if (hasListeners) {
+      notifyListeners();
+    }
   }
 
   dynamic getOriginal(String fieldName) {
-    return _originalData[fieldName.toLowerCase()];
+    return _originalData[_getCachedFieldName(fieldName)];
   }
 
+  /// Copy creates new entity with new UUID
   CyberDataRow copy() {
-    return CyberDataRow(Map<String, dynamic>.from(_data));
+    final newRow = CyberDataRow(Map<String, dynamic>.from(_data));
+    // ✅ NEW ROW gets NEW UUID (different entity)
+    return newRow;
   }
 
   Map<String, dynamic> toMap() {
@@ -169,7 +304,6 @@ class CyberDataRow extends ChangeNotifier {
     final StringBuffer xml = StringBuffer();
     final tableTag = tableName.toUpperCase();
 
-    // Lấy danh sách fields cần xử lý
     List<String> fieldsToProcess = _getFieldsToProcess(
       includeColumns,
       excludeColumns,
@@ -195,7 +329,6 @@ class CyberDataRow extends ChangeNotifier {
     return xml.toString();
   }
 
-  /// Lấy danh sách fields cần process
   List<String> _getFieldsToProcess(
     List<String>? includeColumns,
     List<String>? excludeColumns,
@@ -203,13 +336,11 @@ class CyberDataRow extends ChangeNotifier {
     List<String> fields = fieldNames;
 
     if (includeColumns != null && includeColumns.isNotEmpty) {
-      // Nếu có includeColumns, chỉ lấy những columns trong list
       final includeLower = includeColumns.map((e) => e.toLowerCase()).toSet();
       fields = fields
           .where((f) => includeLower.contains(f.toLowerCase()))
           .toList();
     } else if (excludeColumns != null && excludeColumns.isNotEmpty) {
-      // Nếu có excludeColumns, loại bỏ những columns trong list
       final excludeLower = excludeColumns.map((e) => e.toLowerCase()).toSet();
       fields = fields
           .where((f) => !excludeLower.contains(f.toLowerCase()))
@@ -219,37 +350,45 @@ class CyberDataRow extends ChangeNotifier {
     return fields;
   }
 
-  /// Format giá trị theo type (tương tự C#)
   String _formatValue(dynamic value) {
     if (value == null) {
       return '';
     }
 
-    // DateTime
     if (value is DateTime) {
-      // Format: yyyyMMdd HH:mm:ss (giống V_CyberToStringDatetimeSQL)
       return DateFormat('yyyyMMdd HH:mm:ss').format(value);
     }
 
-    // Int
     if (value is int) {
       return value.toString();
     }
 
-    // Double, Float
     if (value is double) {
       return value.toStringAsFixed(4).replaceAll(',', '.');
     }
 
-    // Bool
     if (value is bool) {
       return value ? '1' : '0';
     }
 
-    // String và các type khác => CDATA
     String strValue = value.toString().replaceAll('#', '!~!\$!~!');
     return '<![CDATA[$strValue]]>';
   }
+
+  // ============================================================================
+  // ENHANCED: Equality based on identity
+  // ============================================================================
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! CyberDataRow) return false;
+    return identityKey == other.identityKey;
+  }
+
+  @override
+  int get hashCode => identityKey.hashCode;
+
   // ============================================================================
   // ENHANCED DISPOSE
   // ============================================================================
@@ -259,24 +398,25 @@ class CyberDataRow extends ChangeNotifier {
     if (_isDisposed) {
       return;
     }
-    // ✅ Dispose all listeners first
+
     disposeAllListeners();
 
-    // Clear data
     _data.clear();
     _originalData.clear();
     _changedFields.clear();
+    _fieldNameCache.clear();
+    _customIdentityKey = null;
 
     _isDisposed = true;
 
     super.dispose();
   }
 
-  /// ✅ NEW: Check if disposed
   bool get isDisposed => _isDisposed;
+
   @override
   String toString() {
-    return 'CyberDataRow{fields: ${_data.keys.join(", ")}, isDirty: $isDirty, listeners: $listenerCount, disposed: $_isDisposed}';
+    return 'CyberDataRow{id: $identityKey, fields: ${_data.keys.join(", ")}, isDirty: $isDirty, listeners: $listenerCount, locked: $_identityLocked, disposed: $_isDisposed}';
   }
 }
 
@@ -306,4 +446,12 @@ class CyberBindingExpression {
 
   @override
   String toString() => value?.toString() ?? '';
+}
+
+abstract class ICyberIdentifiable {
+  /// Returns a stable, unique identity key for this object
+  /// - MUST be stable (same value across object's lifetime)
+  /// - MUST be unique (different objects have different keys)
+  /// - SHOULD be efficient to compute
+  Object get identityKey;
 }

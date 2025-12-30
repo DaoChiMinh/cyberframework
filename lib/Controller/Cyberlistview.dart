@@ -636,10 +636,7 @@ class _CyberListViewState extends State<CyberListView> {
             ? _buildSlidableItem(row, index)
             : _buildItem(row, index);
 
-        return KeyedSubtree(
-          key: ValueKey(row['stt_rec0'] ?? row.hashCode),
-          child: itemWidget,
-        );
+        return KeyedSubtree(key: ValueKey(row.identityKey), child: itemWidget);
       },
     );
 
@@ -677,10 +674,7 @@ class _CyberListViewState extends State<CyberListView> {
             ? _buildSlidableItem(row, index)
             : _buildItem(row, index);
 
-        return KeyedSubtree(
-          key: ValueKey(row['stt_rec0'] ?? row.hashCode),
-          child: itemWidget,
-        );
+        return KeyedSubtree(key: ValueKey(row.identityKey), child: itemWidget);
       },
     );
   }

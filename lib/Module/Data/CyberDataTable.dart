@@ -7,6 +7,9 @@ class CyberDataTable extends ChangeNotifier {
   final Map<String, Type> _columns = {};
   bool _isDisposed = false;
 
+  // ✅ NEW: Batch mode flag
+  bool _isBatchMode = false;
+
   CyberDataTable({required this.tableName});
 
   List<CyberDataRow> get rows => List.unmodifiable(_rows);
@@ -25,15 +28,55 @@ class CyberDataTable extends ChangeNotifier {
     _columns[columnName] = type;
   }
 
+  // ✅ OPTIMIZED: Smart notification
   void addRow(CyberDataRow row) {
     if (_isDisposed) {
-      //debugPrint('⚠️ WARNING: Trying to add row to disposed table!');
       return;
     }
 
     _rows.add(row);
     row.addListener(_onRowChanged);
+
+    // ✅ Only notify if not in batch mode
+    if (!_isBatchMode) {
+      notifyListeners();
+    }
+  }
+
+  /// ✅ NEW: Add multiple rows in batch (no notifications until done)
+  void addRowsBatch(List<CyberDataRow> rows) {
+    if (_isDisposed) return;
+    if (rows.isEmpty) return;
+
+    beginBatch();
+    try {
+      for (var row in rows) {
+        _rows.add(row);
+        row.addListener(_onRowChanged);
+      }
+    } finally {
+      endBatch();
+    }
+  }
+
+  /// ✅ NEW: Batch mode control
+  void beginBatch() {
+    _isBatchMode = true;
+  }
+
+  void endBatch() {
+    _isBatchMode = false;
     notifyListeners();
+  }
+
+  /// ✅ NEW: Execute action in batch mode
+  void batch(void Function() action) {
+    beginBatch();
+    try {
+      action();
+    } finally {
+      endBatch();
+    }
   }
 
   CyberDataRow newRow() {
@@ -42,84 +85,125 @@ class CyberDataTable extends ChangeNotifier {
 
   void removeRow(CyberDataRow row) {
     row.removeListener(_onRowChanged);
-    // ✅ Dispose row when removing
     row.disposeAllListeners();
     row.dispose();
     _rows.remove(row);
-    notifyListeners();
+
+    if (!_isBatchMode) {
+      notifyListeners();
+    }
   }
 
   void removeAt(int index) {
     if (index >= 0 && index < _rows.length) {
       final row = _rows[index];
       row.removeListener(_onRowChanged);
-      // ✅ Dispose row when removing
       row.disposeAllListeners();
       row.dispose();
       _rows.removeAt(index);
+
+      if (!_isBatchMode) {
+        notifyListeners();
+      }
+    }
+  }
+
+  /// ✅ OPTIMIZED: Clear with proper disposal
+  void clear() {
+    if (_rows.isEmpty) return;
+
+    for (var row in _rows) {
+      row.removeListener(_onRowChanged);
+      row.disposeAllListeners();
+      row.dispose();
+    }
+    _rows.clear();
+
+    if (!_isBatchMode) {
       notifyListeners();
     }
   }
 
-  /// ✅ FIXED: Clear with proper disposal
-  void clear() {
-    for (var row in _rows) {
-      row.removeListener(_onRowChanged);
-      // ✅ Dispose all widget listeners first
-      row.disposeAllListeners();
-      // ✅ Then dispose the row itself
-      row.dispose();
-    }
-    _rows.clear();
-    notifyListeners();
-  }
-
+  /// ✅ OPTIMIZED: Batch mode for better performance
   void loadData(List<Map<String, dynamic>> data) {
-    clear();
-
-    if (data.isNotEmpty) {
-      var firstItem = data.first;
-      for (var entry in firstItem.entries) {
-        var columnName = entry.key;
-        var value = entry.value;
-
-        // Detect type từ giá trị (lowercase key để match với containsColumn)
-        Type columnType = value?.runtimeType ?? dynamic;
-        _columns[columnName.toLowerCase()] = columnType;
+    batch(() {
+      // Clear existing data
+      for (var row in _rows) {
+        row.removeListener(_onRowChanged);
+        row.disposeAllListeners();
+        row.dispose();
       }
-    }
+      _rows.clear();
 
-    for (var item in data) {
-      final row = CyberDataRow(item);
-      addRow(row);
-    }
+      // Detect columns from first item
+      if (data.isNotEmpty) {
+        var firstItem = data.first;
+        for (var entry in firstItem.entries) {
+          var columnName = entry.key;
+          var value = entry.value;
+          Type columnType = value?.runtimeType ?? dynamic;
+          _columns[columnName.toLowerCase()] = columnType;
+        }
+      }
+
+      // Add all rows
+      for (var item in data) {
+        final row = CyberDataRow(item);
+        _rows.add(row);
+        row.addListener(_onRowChanged);
+      }
+    });
   }
 
-  void loadDataFromRows(List<CyberDataRow> rows) {
-    clear();
-
-    if (rows.isNotEmpty) {
-      _columns.clear();
-      // Lấy field names và detect type từ row đầu tiên
-      var firstRow = rows.first;
-      for (var fieldName in firstRow.fieldNames) {
-        var value = firstRow[fieldName];
-        Type columnType = value?.runtimeType ?? dynamic;
-        _columns[fieldName.toLowerCase()] = columnType;
+  /// ✅ OPTIMIZED: Batch mode + zero-copy option
+  void loadDataFromRows(List<CyberDataRow> rows, {bool copy = true}) {
+    batch(() {
+      // Clear existing data
+      for (var row in _rows) {
+        row.removeListener(_onRowChanged);
+        row.disposeAllListeners();
+        row.dispose();
       }
-    }
+      _rows.clear();
 
-    // Copy và add từng row
-    for (var row in rows) {
-      addRow(row.copy());
-    }
+      // Detect columns from first row
+      if (rows.isNotEmpty) {
+        _columns.clear();
+        var firstRow = rows.first;
+        for (var fieldName in firstRow.fieldNames) {
+          var value = firstRow[fieldName];
+          Type columnType = value?.runtimeType ?? dynamic;
+          _columns[fieldName.toLowerCase()] = columnType;
+        }
+      }
+
+      // Add rows (copy or transfer)
+      for (var row in rows) {
+        final targetRow = copy ? row.copy() : row;
+        _rows.add(targetRow);
+        targetRow.addListener(_onRowChanged);
+      }
+    });
   }
 
-  void loadDatafromTb(CyberDataTable data) {
-    clear();
-    for (var row in data.rows) {
-      addRow(row.copy());
-    }
+  /// ✅ OPTIMIZED: Batch mode + smart copying
+  void loadDatafromTb(CyberDataTable data, {bool copy = true}) {
+    batch(() {
+      // Clear existing data
+      for (var row in _rows) {
+        row.removeListener(_onRowChanged);
+        row.disposeAllListeners();
+        row.dispose();
+      }
+      _rows.clear();
+
+      // Add rows
+      for (var row in data.rows) {
+        final targetRow = copy ? row.copy() : row;
+        _rows.add(targetRow);
+        targetRow.addListener(_onRowChanged);
+      }
+    });
   }
 
   String toXml({
@@ -147,14 +231,18 @@ class CyberDataTable extends ChangeNotifier {
     for (var row in _rows) {
       row.acceptChanges();
     }
-    notifyListeners();
+    if (!_isBatchMode) {
+      notifyListeners();
+    }
   }
 
   void rejectChanges() {
     for (var row in _rows) {
       row.rejectChanges();
     }
-    notifyListeners();
+    if (!_isBatchMode) {
+      notifyListeners();
+    }
   }
 
   List<CyberDataRow> getChangedRows() {
@@ -183,27 +271,29 @@ class CyberDataTable extends ChangeNotifier {
     final newTable = CyberDataTable(tableName: tableName);
     newTable._columns.addAll(_columns);
 
-    for (var row in _rows) {
-      newTable.addRow(row.copy());
-    }
+    newTable.batch(() {
+      for (var row in _rows) {
+        final newRow = row.copy();
+        newTable._rows.add(newRow);
+        newRow.addListener(newTable._onRowChanged);
+      }
+    });
 
     return newTable;
   }
 
   void _onRowChanged() {
-    if (!_isDisposed) {
+    if (!_isDisposed && !_isBatchMode) {
       notifyListeners();
     }
   }
 
-  /// ✅ ENHANCED: Dispose with proper cleanup
   @override
   void dispose() {
     if (_isDisposed) {
       return;
     }
 
-    // ✅ Proper cleanup
     for (var row in _rows) {
       row.removeListener(_onRowChanged);
       row.disposeAllListeners();
@@ -215,7 +305,6 @@ class CyberDataTable extends ChangeNotifier {
     super.dispose();
   }
 
-  /// ✅ NEW: Check if disposed
   bool get isDisposed => _isDisposed;
 
   @override
