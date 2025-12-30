@@ -169,7 +169,7 @@ class CyberListView extends StatefulWidget {
 class _CyberListViewState extends State<CyberListView> {
   late ScrollController _scrollController;
   final TextEditingController _searchController = TextEditingController();
-
+  late final ChangeNotifier _emptyNotifier = ChangeNotifier();
   bool _isLoading = false;
   bool _isLoadingMore = false;
   bool _hasMoreData = true;
@@ -206,6 +206,7 @@ class _CyberListViewState extends State<CyberListView> {
   @override
   void initState() {
     super.initState();
+    if (!mounted) return;
     _scrollController = widget.scrollController ?? ScrollController();
 
     // Chỉ add listener khi không dùng shrinkWrap
@@ -246,17 +247,21 @@ class _CyberListViewState extends State<CyberListView> {
 
   @override
   void dispose() {
+    if (!mounted) return;
     if (widget.scrollController == null) {
       _scrollController.dispose();
     }
     _searchController.dispose();
+    _emptyNotifier.dispose();
+    _filterDebounceTimer?.cancel();
     super.dispose();
   }
 
   /// Load dữ liệu ban đầu - Reset về page 0
   Future<void> _loadInitialData() async {
-    if (widget.onLoadData == null) return;
     if (!mounted) return;
+    if (widget.onLoadData == null) return;
+
     setState(() {
       _isLoading = true;
       _currentPage = 0;
@@ -288,8 +293,9 @@ class _CyberListViewState extends State<CyberListView> {
 
   /// Load more data - Tự động tăng pageIndex
   Future<void> _loadMore() async {
-    if (_isLoadingMore || !_hasMoreData || widget.onLoadData == null) return;
     if (!mounted) return;
+    if (_isLoadingMore || !_hasMoreData || widget.onLoadData == null) return;
+
     setState(() => _isLoadingMore = true);
 
     try {
@@ -355,35 +361,89 @@ class _CyberListViewState extends State<CyberListView> {
     _filterLocalData(searchText);
   }
 
+  Timer? _filterDebounceTimer;
+
   /// ✅ Filter dữ liệu local theo columnsFilter
   void _filterLocalData(String searchText) {
     if (!mounted) return;
-    // Nếu không có dataSource hoặc không có columnsFilter, skip
+    _filterDebounceTimer?.cancel();
+
+    _filterDebounceTimer = Timer(
+      Duration(milliseconds: widget.searchDebounceTime),
+      () {
+        if (!mounted) return;
+
+        // Filter logic here
+        final filtered = _performFilter(searchText);
+
+        if (mounted) {
+          setState(() {
+            _filteredDataTable = filtered;
+          });
+        }
+      },
+    );
+    // // Nếu không có dataSource hoặc không có columnsFilter, skip
+    // if (widget.dataSource == null ||
+    //     widget.columnsFilter == null ||
+    //     widget.columnsFilter!.isEmpty) {
+    //   setState(() {
+    //     _filteredDataTable = null;
+    //   });
+    //   return;
+    // }
+
+    // // Nếu search text rỗng, reset về data gốc
+    // if (searchText.trim().isEmpty) {
+    //   setState(() {
+    //     _filteredDataTable = null;
+    //   });
+    //   return;
+    // }
+
+    // // Filter data
+    // final filtered = CyberDataTable(tableName: widget.dataSource!.tableName);
+    // final lowerSearch = searchText.toLowerCase().trim();
+
+    // for (var row in widget.dataSource!.rows) {
+    //   bool matches = false;
+
+    //   // Check từng cột trong columnsFilter
+    //   for (var columnName in widget.columnsFilter!) {
+    //     final value = row[columnName]?.toString().toLowerCase() ?? '';
+    //     if (value.contains(lowerSearch)) {
+    //       matches = true;
+    //       break;
+    //     }
+    //   }
+
+    //   if (matches) {
+    //     filtered.addRow(row.copy());
+    //   }
+    // }
+
+    // setState(() {
+    //   _filteredDataTable = filtered;
+    // });
+  }
+
+  CyberDataTable? _performFilter(String searchText) {
+    // Move filter logic to separate method
     if (widget.dataSource == null ||
         widget.columnsFilter == null ||
         widget.columnsFilter!.isEmpty) {
-      setState(() {
-        _filteredDataTable = null;
-      });
-      return;
+      return null;
     }
 
-    // Nếu search text rỗng, reset về data gốc
     if (searchText.trim().isEmpty) {
-      setState(() {
-        _filteredDataTable = null;
-      });
-      return;
+      return null;
     }
 
-    // Filter data
     final filtered = CyberDataTable(tableName: widget.dataSource!.tableName);
     final lowerSearch = searchText.toLowerCase().trim();
 
     for (var row in widget.dataSource!.rows) {
       bool matches = false;
-
-      // Check từng cột trong columnsFilter
       for (var columnName in widget.columnsFilter!) {
         final value = row[columnName]?.toString().toLowerCase() ?? '';
         if (value.contains(lowerSearch)) {
@@ -391,15 +451,12 @@ class _CyberListViewState extends State<CyberListView> {
           break;
         }
       }
-
       if (matches) {
         filtered.addRow(row.copy());
       }
     }
 
-    setState(() {
-      _filteredDataTable = filtered;
-    });
+    return filtered;
   }
 
   /// Scroll listener - Trigger load more
@@ -426,6 +483,7 @@ class _CyberListViewState extends State<CyberListView> {
 
   /// ✅ PUBLIC METHOD: Refresh từ bên ngoài
   Future<void> refresh() async {
+    if (!mounted) return;
     await _refresh();
   }
 
@@ -611,7 +669,7 @@ class _CyberListViewState extends State<CyberListView> {
   /// Build ListView (columnCount = 1, vertical)
   Widget _buildList() {
     final listView = AnimatedBuilder(
-      animation: widget.dataSource ?? ChangeNotifier(),
+      animation: widget.dataSource ?? _emptyNotifier,
       builder: (context, child) {
         final rows = _dataTable.rows;
 
@@ -678,10 +736,19 @@ class _CyberListViewState extends State<CyberListView> {
             }
 
             final row = rows[index];
+            final itemWidget =
+                widget.dtSwipeActions != null &&
+                    widget.dtSwipeActions!.rowCount > 0
+                ? _buildSlidableItem(row, index)
+                : _buildItem(row, index);
 
+            return KeyedSubtree(
+              key: ValueKey(row.hashCode), // ✅ Unique key
+              child: itemWidget,
+            );
             // Note: Swipe actions không hoạt động tốt trong horizontal scroll
             // Nên chỉ dùng tap/long press
-            return _buildItem(row, index);
+            //return _buildItem(row, index);
           },
         );
       },
