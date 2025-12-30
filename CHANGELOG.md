@@ -1,3 +1,5 @@
+## 0.0.47
+fix lỗi chuyển màn
 ## 0.0.46
 
 check internet, bỏ 2 lần popup, sửa listview SwipeActions click ra ngoài đóng lại, sửa lại textsearch
