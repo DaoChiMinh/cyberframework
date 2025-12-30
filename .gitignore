@@ -1,33 +1,50 @@
-# Miscellaneous
-*.class
-*.log
-*.pyc
-*.swp
-.DS_Store
-.atom/
-.build/
-.buildlog/
-.history
-.svn/
-.swiftpm/
-migrate_working_dir/
-
-# IntelliJ related
+# =========================
+# IDE / Editor
+# =========================
+.idea/
+.vscode/
 *.iml
 *.ipr
 *.iws
-.idea/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
-
-# Flutter/Dart/Pub related
-# Libraries should not include pubspec.lock, per https://dart.dev/guides/libraries/private-files#pubspeclock.
-/pubspec.lock
-**/doc/api/
+# =========================
+# Build / Tooling
+# =========================
+.build/
+.buildlog/
 .dart_tool/
 .flutter-plugins-dependencies
-/build/
-/coverage/
+build/
+coverage/
+
+# =========================
+# OS / Temp
+# =========================
+.DS_Store
+*.log
+*.swp
+*.class
+*.pyc
+
+# =========================
+# SCM / History
+# =========================
+.svn/
+.history/
+.swiftpm/
+migrate_working_dir/
+
+# =========================
+# Docs generated
+# =========================
+**/doc/api/
+
+# =========================
+# Explicitly KEEP source
+# =========================
+!lib/**
+!example/**
+!pubspec.yaml
+!README.md
+!CHANGELOG.md
+!LICENSE
