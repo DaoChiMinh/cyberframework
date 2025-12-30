@@ -43,6 +43,7 @@ String V_MaHoa(String data) {
 }
 
 /// ✅ IMPROVED: Decode and decompress data
+// ignore: non_constant_identifier_names
 String V_GiaiMa(String encryptedData) {
   try {
     if (encryptedData.isEmpty) return '';
@@ -94,6 +95,7 @@ ReturnData parseResponse(String responseStr) {
 }
 
 /// ✅ IMPROVED: MD5 hash with null safety
+// ignore: non_constant_identifier_names
 String MD5(String? input) {
   if (input == null || input.isEmpty) return '';
 

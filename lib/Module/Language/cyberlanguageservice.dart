@@ -88,7 +88,7 @@ class CyberLanguageService extends ChangeNotifier {
       // ✅ FIX: Handle null return from AppStorage.get()
       final savedLanguage = await AppStorage.get(_storageKey);
 
-      if (savedLanguage != null && savedLanguage.isNotEmpty) {
+      if (savedLanguage.isNotEmpty) {
         _currentLanguage = CyberLanguage.fromCode(savedLanguage);
         debugPrint('✅ Loaded saved language: ${_currentLanguage.name}');
       } else {
@@ -187,7 +187,7 @@ class CyberLanguageService extends ChangeNotifier {
       // Check if user is logged in
       final strTokenId = await UserInfo.strTokenId;
 
-      if (strTokenId == null || strTokenId.isEmpty) {
+      if (strTokenId.isEmpty) {
         debugPrint('ℹ️ User not logged in, skipping server update');
         return;
       }
@@ -211,7 +211,7 @@ class CyberLanguageService extends ChangeNotifier {
         showError: false,
       );
 
-      if (result != null && result.isValid()) {
+      if (result.isValid()) {
         debugPrint('✅ Language updated on server: $languageParam');
       } else {
         debugPrint('⚠️ Server update failed, but continuing...');
