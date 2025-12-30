@@ -56,9 +56,7 @@ void buildFactoryMap() {
         }
       };
     }
-  } catch (e) {
-    debugPrint('⚠️ Error building form factory map: $e');
-  }
+  } catch (e) {}
 
   // ============================================================================
   // ✅ Build ContentView factory map
@@ -90,14 +88,7 @@ void buildFactoryMap() {
         }
       };
     }
-  } catch (e) {
-    debugPrint('⚠️ Error building contentview factory map: $e');
-  }
-
-  // ✅ Log statistics
-  debugPrint('📋 Factory map built:');
-  debugPrint('   - Forms: ${_factoryMap_form.length}');
-  debugPrint('   - ContentViews: ${_factoryMap_contentView.length}');
+  } catch (e) {}
 }
 
 /// ✅ NEW: Create instance by Type using reflection
