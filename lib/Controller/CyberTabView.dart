@@ -328,7 +328,7 @@ class _CyberTabViewState extends State<CyberTabView>
     // Colors
     final backColorTab = widget.backColorTab ?? Colors.grey[200]!;
     final textColorTab = widget.textColorTab ?? Colors.black87;
-    final selectBackColorTab = widget.selectBackColorTab ?? theme.primaryColor;
+    //final selectBackColorTab = widget.selectBackColorTab ?? theme.primaryColor;
     final selectTextColorTab = widget.selectTextColorTab ?? Colors.white;
     final indicatorColor = widget.indicatorColor ?? theme.primaryColor;
 
