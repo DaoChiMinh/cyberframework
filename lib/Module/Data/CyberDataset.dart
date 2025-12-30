@@ -172,9 +172,7 @@ class CyberDataset extends ChangeNotifier {
   void loadTable(String tableName, List<Map<String, dynamic>> data) {
     var table = _tables[tableName];
 
-    if (table == null) {
-      table = createTable(tableName);
-    }
+    table ??= createTable(tableName);
 
     table.loadData(data);
   }

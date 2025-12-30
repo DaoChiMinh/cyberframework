@@ -1,3 +1,5 @@
+// lib/Core/cyberspeedoverlay.dart
+
 import 'package:cyberframework/cyberframework.dart';
 
 /// Widget overlay hiển thị tốc độ internet
@@ -11,7 +13,6 @@ class CyberSpeedOverlay extends StatefulWidget {
 }
 
 class _CyberSpeedOverlayState extends State<CyberSpeedOverlay> {
-  Offset _position = const Offset(10, 100);
   bool _showDetails = false;
 
   @override
@@ -23,23 +24,26 @@ class _CyberSpeedOverlayState extends State<CyberSpeedOverlay> {
           return const SizedBox.shrink();
         }
 
+        final position = widget.service.position;
+        final screenSize = MediaQuery.of(context).size;
+
         return Positioned(
-          left: _position.dx,
-          top: _position.dy,
+          left: position.dx,
+          top: position.dy,
           child: GestureDetector(
             onPanUpdate: (details) {
-              setState(() {
-                _position = Offset(
-                  (_position.dx + details.delta.dx).clamp(
-                    0.0,
-                    MediaQuery.of(context).size.width - 120,
-                  ),
-                  (_position.dy + details.delta.dy).clamp(
-                    0.0,
-                    MediaQuery.of(context).size.height - 50,
-                  ),
-                );
-              });
+              // ✅ Clamp position within screen bounds
+              final newPosition = Offset(
+                (position.dx + details.delta.dx).clamp(
+                  0.0,
+                  screenSize.width - 120,
+                ),
+                (position.dy + details.delta.dy).clamp(
+                  0.0,
+                  screenSize.height - 50,
+                ),
+              );
+              widget.service.updatePosition(newPosition);
             },
             onTap: () {
               setState(() {
@@ -50,15 +54,15 @@ class _CyberSpeedOverlayState extends State<CyberSpeedOverlay> {
               duration: const Duration(milliseconds: 200),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.black.withAlpha(70),
+                color: Colors.black.withValues(alpha: 0.7),
                 borderRadius: BorderRadius.circular(_showDetails ? 12 : 20),
                 border: Border.all(
-                  color: widget.service.speedColor.withAlpha(50),
+                  color: widget.service.speedColor.withValues(alpha: 0.5),
                   width: 2,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: widget.service.speedColor.withAlpha(30),
+                    color: widget.service.speedColor.withValues(alpha: 0.3),
                     blurRadius: 8,
                     spreadRadius: 1,
                   ),
@@ -91,6 +95,19 @@ class _CyberSpeedOverlayState extends State<CyberSpeedOverlay> {
   }
 
   Widget _buildDetailView() {
+    final speed = widget.service.currentSpeed;
+    final speedLabel = speed == null
+        ? setText('Đang kiểm tra...', 'Checking...')
+        : speed < 50
+        ? setText('Rất chậm', 'Very Slow')
+        : speed < 200
+        ? setText('Chậm', 'Slow')
+        : speed < 500
+        ? setText('Trung bình', 'Average')
+        : speed < 1024
+        ? setText('Nhanh', 'Fast')
+        : setText('Rất nhanh', 'Very Fast');
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -105,7 +122,6 @@ class _CyberSpeedOverlayState extends State<CyberSpeedOverlay> {
               style: const TextStyle(color: Colors.white70, fontSize: 11),
             ),
             const SizedBox(width: 8),
-            // Close button
             GestureDetector(
               onTap: () => widget.service.stop(),
               child: const Icon(Icons.close, color: Colors.white54, size: 16),
@@ -123,42 +139,10 @@ class _CyberSpeedOverlayState extends State<CyberSpeedOverlay> {
         ),
         const SizedBox(height: 4),
         Text(
-          _getSpeedLabel(),
+          speedLabel,
           style: const TextStyle(color: Colors.white54, fontSize: 10),
         ),
       ],
     );
-  }
-
-  String _getSpeedLabel() {
-    final speed = widget.service.currentSpeed;
-    if (speed == null) return setText('Đang kiểm tra...', 'Checking...');
-    if (speed < 50) return setText('Rất chậm', 'Very Slow');
-    if (speed < 200) return setText('Chậm', 'Slow');
-    if (speed < 500) return setText('Trung bình', 'Average');
-    if (speed < 1024) return setText('Nhanh', 'Fast');
-    return setText('Rất nhanh', 'Very Fast');
-  }
-}
-
-/// Extension để dễ dàng bật/tắt speed monitor
-extension CyberSpeedMonitorExtension on BuildContext {
-  /// Bắt đầu monitor tốc độ internet
-  void startSpeedMonitor() {
-    speedMonitor.start(this);
-  }
-
-  /// Dừng monitor
-  void stopSpeedMonitor() {
-    speedMonitor.stop();
-  }
-
-  /// Toggle hiển thị/ẩn
-  void toggleSpeedMonitor() {
-    if (speedMonitor.isRunning) {
-      speedMonitor.toggleVisibility();
-    } else {
-      speedMonitor.start(this);
-    }
   }
 }

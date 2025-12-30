@@ -1,11 +1,22 @@
-import 'package:cyberframework/cyberframework.dart';
+// lib/Core/cyberspeedmonitorservice.dart
 
-/// Service để monitor tốc độ internet và hiển thị overlay
-class CyberSpeedMonitorService extends ChangeNotifier {
+import 'package:cyberframework/cyberframework.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+/// ✅ LIFECYCLE-AWARE Speed Monitor Service
+/// Automatically pauses when app goes to background
+class CyberSpeedMonitorService extends ChangeNotifier
+    with WidgetsBindingObserver {
+  // ✅ Add lifecycle observer
+
   static final CyberSpeedMonitorService _instance =
       CyberSpeedMonitorService._internal();
   factory CyberSpeedMonitorService() => _instance;
-  CyberSpeedMonitorService._internal();
+
+  CyberSpeedMonitorService._internal() {
+    // ✅ Register lifecycle observer on creation
+    WidgetsBinding.instance.addObserver(this);
+  }
 
   final CyberConnectivityService _connectivity = CyberConnectivityService();
 
@@ -14,9 +25,15 @@ class CyberSpeedMonitorService extends ChangeNotifier {
   // ============================================================================
   bool _isRunning = false;
   bool _isVisible = true;
-  double? _currentSpeed; // KB/s
+  bool _isPaused = false; // ✅ NEW: Track pause state
+  double? _currentSpeed;
   Timer? _monitorTimer;
   OverlayEntry? _overlayEntry;
+  BuildContext? _overlayContext;
+
+  // ✅ Persisted overlay position
+  Offset _position = const Offset(10, 100);
+  bool _positionLoaded = false;
 
   // ============================================================================
   // CONFIGURATION
@@ -26,12 +43,18 @@ class CyberSpeedMonitorService extends ChangeNotifier {
       'https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png';
   Duration timeout = const Duration(seconds: 5);
 
+  // ✅ NEW: Auto-pause configuration
+  bool autoPauseOnBackground = true; // Pause when app goes to background
+  bool autoPauseOnInactive = true; // Pause when app becomes inactive
+
   // ============================================================================
   // GETTERS
   // ============================================================================
   bool get isRunning => _isRunning;
   bool get isVisible => _isVisible;
+  bool get isPaused => _isPaused; // ✅ NEW
   double? get currentSpeed => _currentSpeed;
+  Offset get position => _position;
 
   String get speedText {
     if (_currentSpeed == null) return '--';
@@ -49,26 +72,100 @@ class CyberSpeedMonitorService extends ChangeNotifier {
   }
 
   // ============================================================================
+  // ✅ LIFECYCLE OBSERVER - AUTO PAUSE/RESUME
+  // ============================================================================
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!_isRunning) return; // Only handle if service is running
+
+    switch (state) {
+      case AppLifecycleState.resumed:
+        // ✅ App returned to foreground - resume monitoring
+        if (_isPaused) {
+          _resumeMonitoring();
+        }
+        break;
+
+      case AppLifecycleState.inactive:
+        // ✅ App is transitioning (e.g., system dialog, app switcher)
+        if (autoPauseOnInactive) {
+          _pauseMonitoring();
+        }
+        break;
+
+      case AppLifecycleState.paused:
+        // ✅ App in background - MUST pause to save battery
+        if (autoPauseOnBackground) {
+          _pauseMonitoring();
+        }
+        break;
+
+      case AppLifecycleState.detached:
+        // ✅ App is being destroyed - stop completely
+        _pauseMonitoring();
+        break;
+
+      case AppLifecycleState.hidden:
+        // ✅ App is hidden - pause monitoring
+        if (autoPauseOnBackground) {
+          _pauseMonitoring();
+        }
+        break;
+    }
+  }
+
+  // ============================================================================
   // METHODS
   // ============================================================================
 
   /// Bắt đầu monitor tốc độ
-  void start(BuildContext context) {
+  Future<void> start(BuildContext context) async {
     if (_isRunning) return;
 
     _isRunning = true;
+    _isPaused = false;
+    _overlayContext = context;
+
+    // Load persisted position
+    await _loadPosition();
+
     _showOverlay(context);
     _startMonitoring();
     notifyListeners();
   }
 
-  /// Dừng monitor
+  /// Dừng monitor hoàn toàn
   void stop() {
     if (!_isRunning) return;
 
     _isRunning = false;
+    _isPaused = false;
     _stopMonitoring();
     _hideOverlay();
+    _overlayContext = null;
+    notifyListeners();
+  }
+
+  /// ✅ NEW: Pause monitoring (keep service running, stop timer)
+  void _pauseMonitoring() {
+    if (!_isRunning || _isPaused) return;
+
+    _isPaused = true;
+    _stopMonitoringTimer(); // ✅ Stop timer to save CPU/battery
+
+    debugPrint('🔋 SpeedMonitor: PAUSED (saving battery)');
+    notifyListeners();
+  }
+
+  /// ✅ NEW: Resume monitoring
+  void _resumeMonitoring() {
+    if (!_isRunning || !_isPaused) return;
+
+    _isPaused = false;
+    _startMonitoringTimer(); // ✅ Restart timer
+
+    debugPrint('▶️ SpeedMonitor: RESUMED');
     notifyListeners();
   }
 
@@ -90,32 +187,67 @@ class CyberSpeedMonitorService extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Bắt đầu monitoring loop
+  /// Update overlay position
+  Future<void> updatePosition(Offset newPosition) async {
+    _position = newPosition;
+    await _savePosition();
+    notifyListeners();
+  }
+
+  // ============================================================================
+  // ✅ MONITORING CONTROL - SEPARATED START/STOP
+  // ============================================================================
+
+  /// Start monitoring loop
   void _startMonitoring() {
-    _monitorTimer?.cancel();
+    if (_isPaused) {
+      // Don't start if paused
+      return;
+    }
+    _startMonitoringTimer();
+  }
+
+  /// Start timer
+  void _startMonitoringTimer() {
+    _stopMonitoringTimer(); // Clear existing timer
+
     _monitorTimer = Timer.periodic(checkInterval, (timer) {
+      if (_isPaused) {
+        // ✅ Safety check: Don't check if paused
+        return;
+      }
       _checkSpeed();
     });
-    // Check ngay lần đầu
+
+    // Initial check
     _checkSpeed();
   }
 
-  /// Dừng monitoring loop
+  /// Stop monitoring loop
   void _stopMonitoring() {
+    _stopMonitoringTimer();
+  }
+
+  /// ✅ NEW: Stop timer only (extracted for pause/resume)
+  void _stopMonitoringTimer() {
     _monitorTimer?.cancel();
     _monitorTimer = null;
   }
 
-  /// Kiểm tra tốc độ
+  /// Check internet speed
   Future<void> _checkSpeed() async {
+    // ✅ Double-check: Don't check if paused
+    if (_isPaused) return;
+
     try {
       final speed = await _connectivity.checkInternetSpeed(
         testUrl: testUrl,
         timeout: timeout,
       );
 
-      if (speed != null) {
-        // Chỉ update nếu thay đổi đáng kể (>10%)
+      if (speed != null && !_isPaused) {
+        // ✅ Check again after async
+        // Only update if significant change (>10%)
         if (_currentSpeed == null ||
             ((_currentSpeed! - speed).abs() / _currentSpeed! > 0.1)) {
           _currentSpeed = speed;
@@ -123,32 +255,99 @@ class CyberSpeedMonitorService extends ChangeNotifier {
         }
       }
     } catch (e) {
-      // Không làm gì nếu lỗi, giữ nguyên tốc độ cũ
+      // Keep previous speed on error
     }
   }
 
-  /// Hiển thị overlay
+  // ============================================================================
+  // OVERLAY MANAGEMENT
+  // ============================================================================
+
+  /// Show overlay
   void _showOverlay(BuildContext context) {
     if (_overlayEntry != null) return;
 
-    _overlayEntry = OverlayEntry(
-      builder: (context) => CyberSpeedOverlay(service: this),
-    );
+    try {
+      _overlayEntry = OverlayEntry(
+        builder: (context) => CyberSpeedOverlay(service: this),
+      );
 
-    Overlay.of(context).insert(_overlayEntry!);
+      Overlay.of(context).insert(_overlayEntry!);
+    } catch (e) {
+      _overlayEntry = null;
+    }
   }
 
-  /// Ẩn overlay
+  /// Hide overlay
   void _hideOverlay() {
-    _overlayEntry?.remove();
-    _overlayEntry = null;
+    try {
+      _overlayEntry?.remove();
+    } catch (e) {
+      // Ignore removal errors
+    } finally {
+      _overlayEntry = null;
+    }
   }
 
-  @override
-  void dispose() {
+  // ============================================================================
+  // PERSISTENCE
+  // ============================================================================
+
+  /// Load persisted overlay position
+  Future<void> _loadPosition() async {
+    if (_positionLoaded) return;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final dx = prefs.getDouble('speed_overlay_x');
+      final dy = prefs.getDouble('speed_overlay_y');
+
+      if (dx != null && dy != null) {
+        _position = Offset(dx, dy);
+      }
+      _positionLoaded = true;
+    } catch (e) {
+      // Use default position on error
+    }
+  }
+
+  /// Save overlay position
+  Future<void> _savePosition() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble('speed_overlay_x', _position.dx);
+      await prefs.setDouble('speed_overlay_y', _position.dy);
+    } catch (e) {
+      // Ignore save errors
+    }
+  }
+
+  // ============================================================================
+  // ✅ CLEANUP - PROPER SINGLETON CLEANUP
+  // ============================================================================
+
+  /// Clean up resources (for singleton - doesn't dispose ChangeNotifier)
+  void cleanup() {
     _stopMonitoring();
     _hideOverlay();
-    super.dispose();
+    _overlayContext = null;
+    _currentSpeed = null;
+    _isRunning = false;
+    _isPaused = false;
+    _isVisible = true;
+    notifyListeners();
+  }
+
+  /// ✅ PROPER DISPOSAL - Only when app terminates
+  /// This should ONLY be called when app is shutting down
+  void shutdown() {
+    // Remove lifecycle observer
+    WidgetsBinding.instance.removeObserver(this);
+
+    // Clean up resources
+    cleanup();
+
+    // Don't call super.dispose() - singleton may be accessed again
   }
 }
 
