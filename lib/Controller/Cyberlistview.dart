@@ -176,22 +176,55 @@ class _CyberListViewState extends State<CyberListView> {
   int _currentPage = 0;
   String _currentSearchText = '';
 
-  /// ✅ SOLUTION 2: Filtered indices thay vì filtered data table
+  /// ✅ Filtered indices thay vì filtered data table
   List<int>? _filteredIndices;
 
-  /// ✅ Working rows - Apply filter on-the-fly
+  /// ✅ Cache working rows
+  List<CyberDataRow>? _cachedWorkingRows;
+  int _cachedDataSourceVersion = -1;
+  int _cachedFilterVersion = -1;
+
+  /// ✅ Timer cho search debounce
+  Timer? _searchDebounceTimer;
+
+  /// ✅ Working rows - Apply filter on-the-fly với cache
   List<CyberDataRow> get _workingRows {
-    if (widget.onLoadData != null) {
-      return widget.dataSource?.rows ?? [];
+    // ✅ Check cache
+    final currentDataVersion = widget.dataSource?.hashCode ?? 0;
+    final currentFilterVersion = _filteredIndices?.hashCode ?? 0;
+
+    if (_cachedWorkingRows != null &&
+        _cachedDataSourceVersion == currentDataVersion &&
+        _cachedFilterVersion == currentFilterVersion) {
+      return _cachedWorkingRows!;
     }
 
-    if (_filteredIndices != null && widget.dataSource != null) {
-      return _filteredIndices!
+    // ✅ Rebuild cache
+    List<CyberDataRow> result;
+
+    if (widget.onLoadData != null) {
+      result = widget.dataSource?.rows ?? [];
+    } else if (_filteredIndices != null && widget.dataSource != null) {
+      result = _filteredIndices!
           .map((i) => widget.dataSource!.rows[i])
           .toList(growable: false);
+    } else {
+      result = widget.dataSource?.rows ?? [];
     }
 
-    return widget.dataSource?.rows ?? [];
+    // ✅ Update cache
+    _cachedWorkingRows = result;
+    _cachedDataSourceVersion = currentDataVersion;
+    _cachedFilterVersion = currentFilterVersion;
+
+    return result;
+  }
+
+  /// ✅ Invalidate cache
+  void _invalidateCache() {
+    _cachedWorkingRows = null;
+    _cachedDataSourceVersion = -1;
+    _cachedFilterVersion = -1;
   }
 
   /// ✅ Check xem có dùng shrinkWrap không
@@ -231,6 +264,7 @@ class _CyberListViewState extends State<CyberListView> {
       _filteredIndices = null;
       _currentSearchText = '';
       _searchController.clear();
+      _invalidateCache(); // ✅ Clear cache
       if (mounted) {
         setState(() {});
       }
@@ -251,8 +285,9 @@ class _CyberListViewState extends State<CyberListView> {
       _scrollController.dispose();
     }
     _searchController.dispose();
-    _filterDebounceTimer?.cancel();
+    _searchDebounceTimer?.cancel();
     _filteredIndices = null;
+    _invalidateCache(); // ✅ Clear cache
     super.dispose();
   }
 
@@ -260,10 +295,12 @@ class _CyberListViewState extends State<CyberListView> {
     if (!mounted) return;
     if (widget.onLoadData == null) return;
 
+    // ✅ FIX 2.2: Reset _currentPage TRƯỚC khi setState
+    _currentPage = 0;
+
     if (mounted) {
       setState(() {
         _isLoading = true;
-        _currentPage = 0;
         _hasMoreData = true;
       });
     }
@@ -271,7 +308,7 @@ class _CyberListViewState extends State<CyberListView> {
     try {
       final requestSearch = _currentSearchText;
       final newDataTable = await widget.onLoadData!(
-        _currentPage,
+        _currentPage, // ✅ Luôn = 0
         widget.pageSize,
         _currentSearchText,
       );
@@ -280,6 +317,8 @@ class _CyberListViewState extends State<CyberListView> {
         widget.dataSource!.clear();
         widget.dataSource!.loadDatafromTb(newDataTable);
       }
+
+      _invalidateCache(); // ✅ Clear cache sau khi load data
 
       if (mounted) {
         setState(() {
@@ -320,6 +359,8 @@ class _CyberListViewState extends State<CyberListView> {
         }
       }
 
+      _invalidateCache(); // ✅ Clear cache sau khi load more
+
       if (mounted) {
         setState(() {
           _hasMoreData = moreDataTable.rowCount >= widget.pageSize;
@@ -347,6 +388,7 @@ class _CyberListViewState extends State<CyberListView> {
         if (mounted) {
           setState(() {
             _filteredIndices = null;
+            _invalidateCache(); // ✅ Clear cache
           });
         }
         return;
@@ -356,38 +398,43 @@ class _CyberListViewState extends State<CyberListView> {
     await _loadInitialData();
   }
 
+  /// ✅ FIX 2.1: Chỉ debounce 1 lần ở đây
   void _onSearchChanged(String searchText) {
     if (!mounted) return;
-    _currentSearchText = searchText;
 
-    if (widget.onLoadData != null) {
-      _loadInitialData();
-      return;
-    }
+    // ✅ Cancel timer cũ
+    _searchDebounceTimer?.cancel();
 
-    _filterLocalData(searchText);
-  }
-
-  Timer? _filterDebounceTimer;
-
-  void _filterLocalData(String searchText) {
-    if (!mounted) return;
-    _filterDebounceTimer?.cancel();
-
-    _filterDebounceTimer = Timer(
+    // ✅ Debounce mới
+    _searchDebounceTimer = Timer(
       Duration(milliseconds: widget.searchDebounceTime),
       () {
         if (!mounted) return;
 
-        final indices = _performFilterIndices(searchText);
+        _currentSearchText = searchText;
 
-        if (mounted) {
-          setState(() {
-            _filteredIndices = indices;
-          });
+        if (widget.onLoadData != null) {
+          _loadInitialData();
+          return;
         }
+
+        _filterLocalData(searchText);
       },
     );
+  }
+
+  /// ✅ FIX 2.1: KHÔNG có debounce nữa
+  void _filterLocalData(String searchText) {
+    if (!mounted) return;
+
+    final indices = _performFilterIndices(searchText);
+
+    if (mounted) {
+      setState(() {
+        _filteredIndices = indices;
+        _invalidateCache(); // ✅ Clear cache khi filter
+      });
+    }
   }
 
   List<int>? _performFilterIndices(String searchText) {
@@ -446,6 +493,19 @@ class _CyberListViewState extends State<CyberListView> {
   Future<void> refresh() async {
     if (!mounted) return;
     await _refresh();
+  }
+
+  /// ✅ FIX 2.4: Tính extent ratio an toàn
+  double _calculateSwipeExtentRatio() {
+    if (widget.dtSwipeActions == null || widget.dtSwipeActions!.rowCount == 0) {
+      return 0.25; // Default
+    }
+
+    final screenWidth = MediaQuery.of(context).size.width;
+    final totalWidth = widget.dtSwipeActions!.rowCount * 80.0;
+
+    // ✅ Clamp giữa 0.1 và 0.8 (max 80% màn hình)
+    return (totalWidth / screenWidth).clamp(0.1, 0.8);
   }
 
   @override
@@ -546,14 +606,8 @@ class _CyberListViewState extends State<CyberListView> {
                   if (mounted) {
                     setState(() {}); // Để update suffixIcon
                   }
-                  Future.delayed(
-                    Duration(milliseconds: widget.searchDebounceTime),
-                    () {
-                      if (_searchController.text == value) {
-                        _onSearchChanged(value);
-                      }
-                    },
-                  );
+                  // ✅ FIX 2.1: Chỉ gọi _onSearchChanged, không debounce ở đây
+                  _onSearchChanged(value);
                 },
               ),
             ),
@@ -646,7 +700,7 @@ class _CyberListViewState extends State<CyberListView> {
         );
   }
 
-  /// ✅ FIX: Build ListView WITHOUT AnimatedBuilder
+  /// ✅ FIX: Build ListView WITH SlidableAutoCloseBehavior
   Widget _buildList() {
     final rows = _workingRows;
 
@@ -687,7 +741,7 @@ class _CyberListViewState extends State<CyberListView> {
     return RefreshIndicator(onRefresh: _refresh, child: wrappedListView);
   }
 
-  /// ✅ FIX: Build Horizontal ListView WITHOUT AnimatedBuilder
+  /// ✅ FIX: Build Horizontal ListView WITH SlidableAutoCloseBehavior
   Widget _buildHorizontalList() {
     final rows = _workingRows;
 
@@ -722,7 +776,7 @@ class _CyberListViewState extends State<CyberListView> {
     return SlidableAutoCloseBehavior(child: listView);
   }
 
-  /// ✅ FIX: Build GridView WITHOUT AnimatedBuilder
+  /// ✅ FIX: Build GridView (không cần SlidableAutoCloseBehavior vì GridView không hỗ trợ Slidable)
   Widget _buildGridList() {
     final rows = _workingRows;
 
@@ -810,24 +864,29 @@ class _CyberListViewState extends State<CyberListView> {
     );
   }
 
+  /// ✅ FIX 2.3: Dùng Builder để lấy đúng context
   Widget _buildItem(CyberDataRow row, int index) {
-    return InkWell(
-      onTap: (widget.onItemTap != null || widget.isClickToScreen)
-          ? () {
-              // ✅ Đóng tất cả Slidable đang mở trước khi xử lý tap
-              Slidable.of(context)?.close();
-              _handleItemTap(row, index);
-            }
-          : () {
-              // ✅ Đóng Slidable ngay cả khi không có handler
-              Slidable.of(context)?.close();
-            },
-      onLongPress: () {
-        // ✅ Đóng Slidable trước khi show menu
-        Slidable.of(context)?.close();
-        _handleItemLongPress(row, index);
+    return Builder(
+      builder: (BuildContext itemContext) {
+        return InkWell(
+          onTap: (widget.onItemTap != null || widget.isClickToScreen)
+              ? () {
+                  // ✅ Đóng tất cả Slidable đang mở với đúng context
+                  Slidable.of(itemContext)?.close();
+                  _handleItemTap(row, index);
+                }
+              : () {
+                  // ✅ Đóng Slidable ngay cả khi không có handler
+                  Slidable.of(itemContext)?.close();
+                },
+          onLongPress: () {
+            // ✅ Đóng Slidable trước khi show menu
+            Slidable.of(itemContext)?.close();
+            _handleItemLongPress(row, index);
+          },
+          child: widget.itemBuilder(context, row, index),
+        );
       },
-      child: widget.itemBuilder(context, row, index),
     );
   }
 
@@ -868,6 +927,7 @@ class _CyberListViewState extends State<CyberListView> {
     );
   }
 
+  /// ✅ FIX: Slidable item với Builder và closeOnScroll
   Widget _buildSlidableItem(CyberDataRow row, int index) {
     return Slidable(
       key: Key('item_${row.hashCode}_$index'),
@@ -877,28 +937,28 @@ class _CyberListViewState extends State<CyberListView> {
 
       endActionPane: ActionPane(
         motion: const DrawerMotion(),
-        extentRatio:
-            (widget.dtSwipeActions!.rowCount * 80) /
-            MediaQuery.of(context).size.width,
+        extentRatio: _calculateSwipeExtentRatio(), // ✅ FIX 2.4
         children: _buildSwipeActions(row, index),
       ),
-      child: InkWell(
-        onTap: (widget.onItemTap != null || widget.isClickToScreen)
-            ? () {
-                // ✅ Đóng Slidable hiện tại trước khi xử lý tap
-                Slidable.of(context)?.close();
-                _handleItemTap(row, index);
-              }
-            : () {
-                // ✅ Đóng Slidable ngay cả khi không có handler
-                Slidable.of(context)?.close();
-              },
-        onLongPress: () {
-          // ✅ Đóng Slidable trước khi show menu
-          Slidable.of(context)?.close();
-          _handleItemLongPress(row, index);
+      child: Builder(
+        builder: (BuildContext slidableContext) {
+          return InkWell(
+            onTap: (widget.onItemTap != null || widget.isClickToScreen)
+                ? () {
+                    // ✅ Đóng với context từ trong Slidable
+                    Slidable.of(slidableContext)?.close();
+                    _handleItemTap(row, index);
+                  }
+                : () {
+                    Slidable.of(slidableContext)?.close();
+                  },
+            onLongPress: () {
+              Slidable.of(slidableContext)?.close();
+              _handleItemLongPress(row, index);
+            },
+            child: widget.itemBuilder(context, row, index),
+          );
         },
-        child: widget.itemBuilder(context, row, index),
       ),
     );
   }
