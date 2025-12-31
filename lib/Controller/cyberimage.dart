@@ -1,85 +1,34 @@
 import 'package:cyberframework/cyberframework.dart';
 
-/// CyberImage - Image control với binding, upload, view, delete
+/// CyberImage - Optimized version with memory management
 class CyberImage extends StatefulWidget {
-  /// Binding đến field chứa image (URL, path, hoặc base64)
   final dynamic text;
-
-  /// Label hiển thị phía trên
   final String? label;
-
-  /// Cho phép upload ảnh (chụp/chọn)
   final dynamic isUpload;
-
-  /// Cho phép view ảnh fullscreen
   final dynamic isView;
-
-  /// Cho phép xóa ảnh
   final dynamic isDelete;
-
-  /// Chiều rộng của image
   final double? width;
-
-  /// Chiều cao của image
   final double? height;
-
-  /// Fit mode của image - Có thể binding
-  /// Values: "fill", "cover", "contain", "fitwidth", "fitheight", "center", "scaledown"
-  /// hoặc BoxFit enum
   final dynamic fit;
-
-  /// Border radius
   final double borderRadius;
-
-  /// Placeholder khi chưa có ảnh
   final Widget? placeholder;
-
-  /// Widget hiển thị khi lỗi
   final Widget? errorWidget;
-
-  /// Style cho label
   final TextStyle? labelStyle;
-
-  /// Có hiển thị label không
   final bool isShowLabel;
-
-  /// Callback khi ảnh thay đổi (upload/delete)
   final ValueChanged<String>? onChanged;
-
-  /// Callback khi rời khỏi control
   final Function(dynamic)? onLeaver;
-
-  /// Màu nền
   final Color? backgroundColor;
-
-  /// Border color
   final Color? borderColor;
-
-  /// Border width
   final double borderWidth;
-
-  /// Có enable hay không
   final bool enabled;
-
-  /// Visibility binding
   final dynamic isVisible;
-
-  /// Có nén ảnh khi upload không
   final bool enableCompression;
-
-  /// Chất lượng nén (0-100)
   final int compressionQuality;
-
-  /// Kích thước max sau khi nén
   final int? maxWidth;
   final int? maxHeight;
-
-  /// Icon cho các action buttons
   final IconData? uploadIcon;
   final IconData? viewIcon;
   final IconData? deleteIcon;
-
-  /// Shape của image (circle hoặc rectangle)
   final bool isCircle;
 
   const CyberImage({
@@ -91,7 +40,7 @@ class CyberImage extends StatefulWidget {
     this.isDelete = false,
     this.width,
     this.height = 200,
-    this.fit = "cover", // Default is cover
+    this.fit = "cover",
     this.borderRadius = 12.0,
     this.placeholder,
     this.errorWidget,
@@ -119,22 +68,72 @@ class CyberImage extends StatefulWidget {
 }
 
 class _CyberImageState extends State<CyberImage> {
+  // Binding references
   CyberDataRow? _boundRow;
   String? _boundField;
   CyberDataRow? _visibilityBoundRow;
   String? _visibilityBoundField;
   CyberDataRow? _fitBoundRow;
   String? _fitBoundField;
+
+  // State flags
   bool _isUpdating = false;
   bool _isLoading = false;
+
+  // ⭐ Performance caches
+  bool? _cachedVisibility;
+  BoxFit? _cachedFit;
+  String? _cachedImageValue;
+  Uint8List? _cachedBytes; // Cache decoded base64
 
   @override
   void initState() {
     super.initState();
+    _initializeBindings();
+  }
+
+  @override
+  void didUpdateWidget(CyberImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // ⭐ Check if bindings changed
+    bool bindingsChanged = false;
+
+    if (oldWidget.text != widget.text) {
+      bindingsChanged = true;
+    }
+    if (oldWidget.isVisible != widget.isVisible) {
+      bindingsChanged = true;
+      _cachedVisibility = null;
+    }
+    if (oldWidget.fit != widget.fit) {
+      bindingsChanged = true;
+      _cachedFit = null;
+    }
+
+    if (bindingsChanged) {
+      _removeAllListeners();
+      _initializeBindings();
+    }
+  }
+
+  @override
+  void dispose() {
+    _removeAllListeners();
+    _clearCaches(); // ⭐ Clear all caches
+    super.dispose();
+  }
+
+  // ⭐ Initialize all bindings and listeners
+  void _initializeBindings() {
     _parseBinding();
     _parseVisibilityBinding();
     _parseFitBinding();
+    _addAllListeners();
+  }
 
+  // ⭐ Add all listeners (no duplicates)
+  void _addAllListeners() {
     if (_boundRow != null) {
       _boundRow!.addListener(_onBindingChanged);
     }
@@ -148,8 +147,8 @@ class _CyberImageState extends State<CyberImage> {
     }
   }
 
-  @override
-  void dispose() {
+  // ⭐ Remove all listeners safely
+  void _removeAllListeners() {
     if (_boundRow != null) {
       _boundRow!.removeListener(_onBindingChanged);
     }
@@ -161,7 +160,14 @@ class _CyberImageState extends State<CyberImage> {
         _fitBoundRow != _visibilityBoundRow) {
       _fitBoundRow!.removeListener(_onBindingChanged);
     }
-    super.dispose();
+  }
+
+  // ⭐ Clear all caches
+  void _clearCaches() {
+    _cachedVisibility = null;
+    _cachedFit = null;
+    _cachedImageValue = null;
+    _cachedBytes = null; // Important: free memory
   }
 
   void _parseBinding() {
@@ -231,18 +237,27 @@ class _CyberImageState extends State<CyberImage> {
     return false;
   }
 
+  // ⭐ Cached visibility check
   bool _isVisible() {
+    if (_cachedVisibility != null) return _cachedVisibility!;
+
     if (_visibilityBoundRow != null && _visibilityBoundField != null) {
-      return _parseBool(_visibilityBoundRow![_visibilityBoundField!]);
+      _cachedVisibility = _parseBool(
+        _visibilityBoundRow![_visibilityBoundField!],
+      );
+    } else {
+      _cachedVisibility = _parseBool(widget.isVisible);
     }
-    return _parseBool(widget.isVisible);
+
+    return _cachedVisibility!;
   }
 
-  /// Parse fit value to BoxFit
+  // ⭐ Cached fit parsing
   BoxFit _parseFit() {
+    if (_cachedFit != null) return _cachedFit!;
+
     dynamic fitValue;
 
-    // Get fit value from binding or direct value
     if (_fitBoundRow != null && _fitBoundField != null) {
       try {
         fitValue = _fitBoundRow![_fitBoundField!];
@@ -252,54 +267,66 @@ class _CyberImageState extends State<CyberImage> {
     } else if (widget.fit != null && widget.fit is! CyberBindingExpression) {
       fitValue = widget.fit;
     } else {
-      return BoxFit.cover; // Default
+      _cachedFit = BoxFit.cover;
+      return _cachedFit!;
     }
 
-    // If already BoxFit, return it
     if (fitValue is BoxFit) {
-      return fitValue;
+      _cachedFit = fitValue;
+      return _cachedFit!;
     }
 
-    // Parse string to BoxFit
     if (fitValue is String) {
       final fitString = fitValue.toLowerCase().trim();
 
       switch (fitString) {
         case 'fill':
-          return BoxFit.fill;
+          _cachedFit = BoxFit.fill;
+          break;
         case 'contain':
-          return BoxFit.contain;
+          _cachedFit = BoxFit.contain;
+          break;
         case 'cover':
-          return BoxFit.cover;
+          _cachedFit = BoxFit.cover;
+          break;
         case 'fitwidth':
         case 'fit_width':
         case 'width':
-          return BoxFit.fitWidth;
+          _cachedFit = BoxFit.fitWidth;
+          break;
         case 'fitheight':
         case 'fit_height':
         case 'height':
-          return BoxFit.fitHeight;
+          _cachedFit = BoxFit.fitHeight;
+          break;
         case 'center':
         case 'none':
-          return BoxFit.none;
+          _cachedFit = BoxFit.none;
+          break;
         case 'scaledown':
         case 'scale_down':
         case 'scale':
-          return BoxFit.scaleDown;
+          _cachedFit = BoxFit.scaleDown;
+          break;
         default:
-          return BoxFit.cover;
+          _cachedFit = BoxFit.cover;
       }
+      return _cachedFit!;
     }
 
-    return BoxFit.cover; // Default
+    _cachedFit = BoxFit.cover;
+    return _cachedFit!;
   }
 
   void _onBindingChanged() {
     if (_isUpdating) return;
+
+    // ⭐ Invalidate caches
+    _clearCaches();
+
     setState(() {});
   }
 
-  /// Get current image value
   String? _getCurrentValue() {
     if (widget.text is CyberBindingExpression) {
       final expr = widget.text as CyberBindingExpression;
@@ -326,18 +353,21 @@ class _CyberImageState extends State<CyberImage> {
     return rawValue?.toString();
   }
 
-  /// Update image value
   void _updateValue(String? newValue) {
     if (!widget.enabled) return;
 
     _isUpdating = true;
 
-    // Update binding
+    // ⭐ Clear image cache when value changes
+    if (_cachedImageValue != newValue) {
+      _cachedImageValue = null;
+      _cachedBytes = null;
+    }
+
     if (_boundRow != null && _boundField != null) {
       _boundRow![_boundField!] = newValue ?? '';
     }
 
-    // Callbacks
     widget.onChanged?.call(newValue ?? '');
     widget.onLeaver?.call(newValue);
 
@@ -346,7 +376,6 @@ class _CyberImageState extends State<CyberImage> {
     });
   }
 
-  /// Check if can upload
   bool _canUpload() {
     if (widget.isUpload is CyberBindingExpression) {
       final expr = widget.isUpload as CyberBindingExpression;
@@ -359,7 +388,6 @@ class _CyberImageState extends State<CyberImage> {
     return _parseBool(widget.isUpload);
   }
 
-  /// Check if can view
   bool _canView() {
     if (widget.isView is CyberBindingExpression) {
       final expr = widget.isView as CyberBindingExpression;
@@ -372,7 +400,6 @@ class _CyberImageState extends State<CyberImage> {
     return _parseBool(widget.isView);
   }
 
-  /// Check if can delete
   bool _canDelete() {
     if (widget.isDelete is CyberBindingExpression) {
       final expr = widget.isDelete as CyberBindingExpression;
@@ -385,7 +412,6 @@ class _CyberImageState extends State<CyberImage> {
     return _parseBool(widget.isDelete);
   }
 
-  /// Handle image tap
   Future<void> _handleImageTap() async {
     if (!widget.enabled) return;
 
@@ -396,20 +422,16 @@ class _CyberImageState extends State<CyberImage> {
     final canView = _canView();
     final canDelete = _canDelete();
 
-    // Nếu không có action nào thì return
     if (!canUpload && !canView && !canDelete) return;
 
-    // Nếu chỉ có view và có ảnh thì view luôn
     if (canView && hasImage && !canUpload && !canDelete) {
       await _viewImage(imageValue);
       return;
     }
 
-    // Show bottom sheet với options
     await _showOptionsBottomSheet(hasImage, canUpload, canView, canDelete);
   }
 
-  /// Show options bottom sheet
   Future<void> _showOptionsBottomSheet(
     bool hasImage,
     bool canUpload,
@@ -450,7 +472,6 @@ class _CyberImageState extends State<CyberImage> {
     );
   }
 
-  /// Capture from camera
   Future<void> _captureFromCamera() async {
     setState(() => _isLoading = true);
 
@@ -484,7 +505,6 @@ class _CyberImageState extends State<CyberImage> {
     }
   }
 
-  /// Pick from gallery
   Future<void> _pickFromGallery() async {
     setState(() => _isLoading = true);
 
@@ -518,13 +538,11 @@ class _CyberImageState extends State<CyberImage> {
     }
   }
 
-  /// Convert file to base64
   Future<String> _fileToBase64(File file) async {
     final bytes = await file.readAsBytes();
     return 'data:image/jpeg;base64,${base64Encode(bytes)}';
   }
 
-  /// View image fullscreen
   Future<void> _viewImage(String imageValue) async {
     await Navigator.of(context).push(
       MaterialPageRoute(
@@ -537,7 +555,6 @@ class _CyberImageState extends State<CyberImage> {
     );
   }
 
-  /// Delete image with confirmation
   Future<void> _deleteImage() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -569,12 +586,18 @@ class _CyberImageState extends State<CyberImage> {
       return const SizedBox.shrink();
     }
 
+    // ⭐ Optimized ListenableBuilder
+    final listeners = <Listenable>[];
+    if (_boundRow != null) listeners.add(_boundRow!);
+    if (_fitBoundRow != null && _fitBoundRow != _boundRow) {
+      listeners.add(_fitBoundRow!);
+    }
+
     Widget buildImage() {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Label
           if (widget.isShowLabel &&
               widget.label != null &&
               widget.label!.isNotEmpty)
@@ -591,18 +614,9 @@ class _CyberImageState extends State<CyberImage> {
                     ),
               ),
             ),
-
-          // Image container
           _buildImageContainer(),
         ],
       );
-    }
-
-    // Wrap with ListenableBuilder if has binding
-    final listeners = <Listenable>[];
-    if (_boundRow != null) listeners.add(_boundRow!);
-    if (_fitBoundRow != null && _fitBoundRow != _boundRow) {
-      listeners.add(_fitBoundRow!);
     }
 
     if (listeners.isNotEmpty) {
@@ -629,7 +643,6 @@ class _CyberImageState extends State<CyberImage> {
       imageWidget = _buildPlaceholder();
     }
 
-    // Wrap with GestureDetector
     return GestureDetector(
       onTap: widget.enabled ? _handleImageTap : null,
       child: Container(
@@ -658,46 +671,86 @@ class _CyberImageState extends State<CyberImage> {
     );
   }
 
+  // ⭐ Get cached decoded bytes
+  Uint8List? _getDecodedBytes(String imageValue) {
+    // Return cached if same image
+    if (_cachedImageValue == imageValue && _cachedBytes != null) {
+      return _cachedBytes;
+    }
+
+    // Decode and cache
+    if (imageValue.startsWith('data:image')) {
+      try {
+        final base64String = imageValue.split(',').last;
+        _cachedBytes = base64Decode(base64String);
+        _cachedImageValue = imageValue;
+        return _cachedBytes;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    // Try decode without prefix
+    try {
+      _cachedBytes = base64Decode(imageValue);
+      _cachedImageValue = imageValue;
+      return _cachedBytes;
+    } catch (e) {
+      return null;
+    }
+  }
+
   Widget _buildImageWidget(String imageValue) {
     final boxFit = _parseFit();
 
     try {
+      // Asset image
       if (imageValue.startsWith('assets/') ||
           imageValue.startsWith('asset/') ||
           imageValue.contains('assets/')) {
         return Image.asset(
           imageValue,
           fit: boxFit,
-          width: double.infinity,
-          height: double.infinity,
-          errorBuilder: (context, error, stackTrace) {
-            return widget.errorWidget ?? _buildErrorWidget();
-          },
-        );
-      }
-      // Check if base64
-      if (imageValue.startsWith('data:image')) {
-        final base64String = imageValue.split(',').last;
-        final bytes = base64Decode(base64String);
-        return Image.memory(
-          bytes,
-          fit: boxFit,
-          width: double.infinity,
-          height: double.infinity,
+          cacheWidth: widget.maxWidth, // ⭐ Memory constraint
+          cacheHeight: widget.maxHeight,
           errorBuilder: (context, error, stackTrace) {
             return widget.errorWidget ?? _buildErrorWidget();
           },
         );
       }
 
-      // Check if URL
+      // Base64 image - ⭐ Use cached bytes
+      if (imageValue.startsWith('data:image') ||
+          !imageValue.startsWith('http://') &&
+              !imageValue.startsWith('https://') &&
+              !imageValue.startsWith('/') &&
+              !imageValue.contains('\\')) {
+        final bytes = _getDecodedBytes(imageValue);
+        if (bytes == null) {
+          return widget.errorWidget ?? _buildErrorWidget();
+        }
+
+        return Image.memory(
+          bytes,
+          fit: boxFit,
+          cacheWidth: widget.maxWidth, // ⭐ Memory constraint
+          cacheHeight: widget.maxHeight,
+          errorBuilder: (context, error, stackTrace) {
+            return widget.errorWidget ?? _buildErrorWidget();
+          },
+        );
+      }
+
+      // Network image - ⭐ With memory management
       if (imageValue.startsWith('http://') ||
           imageValue.startsWith('https://')) {
         return CachedNetworkImage(
           imageUrl: imageValue,
           fit: boxFit,
-          width: double.infinity,
-          height: double.infinity,
+          memCacheWidth: widget.maxWidth, // ⭐ Limit memory cache
+          memCacheHeight: widget.maxHeight, // ⭐ Prevent OOM
+          maxWidthDiskCache: widget.maxWidth,
+          maxHeightDiskCache: widget.maxHeight,
           placeholder: (context, url) => _buildLoading(),
           errorWidget: (context, url, error) {
             return widget.errorWidget ?? _buildErrorWidget();
@@ -705,34 +758,20 @@ class _CyberImageState extends State<CyberImage> {
         );
       }
 
-      // Check if local file path
+      // Local file
       if (imageValue.startsWith('/') || imageValue.contains('\\')) {
         return Image.file(
           File(imageValue),
           fit: boxFit,
-          width: double.infinity,
-          height: double.infinity,
+          cacheWidth: widget.maxWidth,
+          cacheHeight: widget.maxHeight,
           errorBuilder: (context, error, stackTrace) {
             return widget.errorWidget ?? _buildErrorWidget();
           },
         );
       }
 
-      // Try to decode as base64 without prefix
-      try {
-        final bytes = base64Decode(imageValue);
-        return Image.memory(
-          bytes,
-          fit: boxFit,
-          width: double.infinity,
-          height: double.infinity,
-          errorBuilder: (context, error, stackTrace) {
-            return widget.errorWidget ?? _buildErrorWidget();
-          },
-        );
-      } catch (e) {
-        return widget.errorWidget ?? _buildErrorWidget();
-      }
+      return widget.errorWidget ?? _buildErrorWidget();
     } catch (e) {
       return widget.errorWidget ?? _buildErrorWidget();
     }
@@ -776,7 +815,7 @@ class _CyberImageState extends State<CyberImage> {
   }
 }
 
-/// Image options bottom sheet
+// Image options sheet - unchanged
 class _ImageOptionsSheet extends StatelessWidget {
   final bool hasImage;
   final bool canUpload;
@@ -815,7 +854,6 @@ class _ImageOptionsSheet extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Handle bar
             Container(
               margin: const EdgeInsets.symmetric(vertical: 12),
               width: 40,
@@ -825,8 +863,6 @@ class _ImageOptionsSheet extends StatelessWidget {
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-
-            // Title
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
@@ -843,10 +879,7 @@ class _ImageOptionsSheet extends StatelessWidget {
                 ],
               ),
             ),
-
             const Divider(height: 1),
-
-            // Options
             if (canUpload) ...[
               _buildOption(
                 icon: uploadIcon ?? Icons.camera_alt,
@@ -863,7 +896,6 @@ class _ImageOptionsSheet extends StatelessWidget {
                 onTap: onGallery,
               ),
             ],
-
             if (canView && hasImage)
               _buildOption(
                 icon: viewIcon ?? Icons.visibility,
@@ -872,7 +904,6 @@ class _ImageOptionsSheet extends StatelessWidget {
                 subtitle: 'Xem toàn màn hình',
                 onTap: onView,
               ),
-
             if (canDelete && hasImage)
               _buildOption(
                 icon: deleteIcon ?? Icons.delete,
@@ -881,7 +912,6 @@ class _ImageOptionsSheet extends StatelessWidget {
                 subtitle: 'Xóa ảnh hiện tại',
                 onTap: onDelete,
               ),
-
             const SizedBox(height: 16),
           ],
         ),
@@ -939,8 +969,8 @@ class _ImageOptionsSheet extends StatelessWidget {
   }
 }
 
-/// Fullscreen image viewer
-class _FullscreenImageViewer extends StatelessWidget {
+// ⭐ Optimized fullscreen viewer
+class _FullscreenImageViewer extends StatefulWidget {
   final String imageValue;
   final bool isCircle;
 
@@ -948,6 +978,40 @@ class _FullscreenImageViewer extends StatelessWidget {
     required this.imageValue,
     required this.isCircle,
   });
+
+  @override
+  State<_FullscreenImageViewer> createState() => _FullscreenImageViewerState();
+}
+
+class _FullscreenImageViewerState extends State<_FullscreenImageViewer> {
+  Uint8List? _cachedBytes;
+
+  @override
+  void dispose() {
+    _cachedBytes = null; // ⭐ Clear cache on dispose
+    super.dispose();
+  }
+
+  Uint8List? _getDecodedBytes() {
+    if (_cachedBytes != null) return _cachedBytes;
+
+    if (widget.imageValue.startsWith('data:image')) {
+      try {
+        final base64String = widget.imageValue.split(',').last;
+        _cachedBytes = base64Decode(base64String);
+        return _cachedBytes;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    try {
+      _cachedBytes = base64Decode(widget.imageValue);
+      return _cachedBytes;
+    } catch (e) {
+      return null;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -973,18 +1037,27 @@ class _FullscreenImageViewer extends StatelessWidget {
 
   Widget _buildImage() {
     try {
-      // Check if base64
-      if (imageValue.startsWith('data:image')) {
-        final base64String = imageValue.split(',').last;
-        final bytes = base64Decode(base64String);
-        return Image.memory(bytes, fit: BoxFit.contain);
+      // Base64 - ⭐ Use cached bytes
+      if (widget.imageValue.startsWith('data:image') ||
+          !widget.imageValue.startsWith('http://') &&
+              !widget.imageValue.startsWith('https://') &&
+              !widget.imageValue.startsWith('/') &&
+              !widget.imageValue.contains('\\')) {
+        final bytes = _getDecodedBytes();
+        if (bytes != null) {
+          return Image.memory(
+            bytes,
+            fit: BoxFit.contain,
+            // ⭐ No size constraints for fullscreen
+          );
+        }
       }
 
-      // Check if URL
-      if (imageValue.startsWith('http://') ||
-          imageValue.startsWith('https://')) {
+      // Network image
+      if (widget.imageValue.startsWith('http://') ||
+          widget.imageValue.startsWith('https://')) {
         return CachedNetworkImage(
-          imageUrl: imageValue,
+          imageUrl: widget.imageValue,
           fit: BoxFit.contain,
           placeholder: (context, url) =>
               const Center(child: CircularProgressIndicator()),
@@ -993,18 +1066,13 @@ class _FullscreenImageViewer extends StatelessWidget {
         );
       }
 
-      // Check if local file path
-      if (imageValue.startsWith('/') || imageValue.contains('\\')) {
-        return Image.file(File(imageValue), fit: BoxFit.contain);
+      // Local file
+      if (widget.imageValue.startsWith('/') ||
+          widget.imageValue.contains('\\')) {
+        return Image.file(File(widget.imageValue), fit: BoxFit.contain);
       }
 
-      // Try to decode as base64 without prefix
-      try {
-        final bytes = base64Decode(imageValue);
-        return Image.memory(bytes, fit: BoxFit.contain);
-      } catch (e) {
-        return const Icon(Icons.broken_image, size: 64, color: Colors.white);
-      }
+      return const Icon(Icons.broken_image, size: 64, color: Colors.white);
     } catch (e) {
       return const Icon(Icons.broken_image, size: 64, color: Colors.white);
     }
