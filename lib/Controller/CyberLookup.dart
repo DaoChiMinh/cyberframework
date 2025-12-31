@@ -56,30 +56,82 @@ class _CyberLookupState extends State<CyberLookup> {
   String? _visibilityBoundField;
   bool _isUpdating = false;
 
+  // ✅ Cache để tránh tính toán lại
+  String? _cachedDisplayValue;
+  dynamic _cachedTextValue;
+  bool? _cachedIsVisible;
+  bool? _cachedIsCheckEmpty;
+  int _cacheVersion = 0;
+
   @override
   void initState() {
     super.initState();
     _parseBindings();
     _parseVisibilityBinding();
-    if (_boundTextRow != null) _boundTextRow!.addListener(_onBindingChanged);
-    if (_boundDisplayRow != null && _boundDisplayRow != _boundTextRow) {
-      _boundDisplayRow!.addListener(_onBindingChanged);
-    }
-    if (_visibilityBoundRow != null && _visibilityBoundRow != _boundTextRow) {
-      _visibilityBoundRow!.addListener(_onBindingChanged);
+    _setupListeners();
+  }
+
+  @override
+  void didUpdateWidget(CyberLookup oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // ✅ Invalidate cache khi widget properties thay đổi
+    if (oldWidget.text != widget.text ||
+        oldWidget.display != widget.display ||
+        oldWidget.isVisible != widget.isVisible ||
+        oldWidget.isCheckEmpty != widget.isCheckEmpty) {
+      _invalidateCache();
+      _removeListeners();
+      _parseBindings();
+      _parseVisibilityBinding();
+      _setupListeners();
     }
   }
 
   @override
   void dispose() {
-    if (_boundTextRow != null) _boundTextRow!.removeListener(_onBindingChanged);
+    _removeListeners();
+    _invalidateCache();
+    super.dispose();
+  }
+
+  /// ✅ Setup listeners một lần duy nhất
+  void _setupListeners() {
+    if (_boundTextRow != null) {
+      _boundTextRow!.addListener(_onBindingChanged);
+    }
+    if (_boundDisplayRow != null && _boundDisplayRow != _boundTextRow) {
+      _boundDisplayRow!.addListener(_onBindingChanged);
+    }
+    if (_visibilityBoundRow != null &&
+        _visibilityBoundRow != _boundTextRow &&
+        _visibilityBoundRow != _boundDisplayRow) {
+      _visibilityBoundRow!.addListener(_onBindingChanged);
+    }
+  }
+
+  /// ✅ Remove listeners an toàn
+  void _removeListeners() {
+    if (_boundTextRow != null) {
+      _boundTextRow!.removeListener(_onBindingChanged);
+    }
     if (_boundDisplayRow != null && _boundDisplayRow != _boundTextRow) {
       _boundDisplayRow!.removeListener(_onBindingChanged);
     }
-    if (_visibilityBoundRow != null && _visibilityBoundRow != _boundTextRow) {
+    if (_visibilityBoundRow != null &&
+        _visibilityBoundRow != _boundTextRow &&
+        _visibilityBoundRow != _boundDisplayRow) {
       _visibilityBoundRow!.removeListener(_onBindingChanged);
     }
-    super.dispose();
+  }
+
+  /// ✅ Invalidate cache
+  void _invalidateCache() {
+    _cachedDisplayValue = null;
+    _cachedTextValue = null;
+    _cachedIsVisible = null;
+    _cachedIsCheckEmpty = null;
+    _cacheVersion++;
   }
 
   void _parseBindings() {
@@ -87,11 +139,18 @@ class _CyberLookupState extends State<CyberLookup> {
       final expr = widget.text as CyberBindingExpression;
       _boundTextRow = expr.row;
       _boundTextField = expr.fieldName;
+    } else {
+      _boundTextRow = null;
+      _boundTextField = null;
     }
+
     if (widget.display is CyberBindingExpression) {
       final expr = widget.display as CyberBindingExpression;
       _boundDisplayRow = expr.row;
       _boundDisplayField = expr.fieldName;
+    } else {
+      _boundDisplayRow = null;
+      _boundDisplayField = null;
     }
   }
 
@@ -126,23 +185,38 @@ class _CyberLookupState extends State<CyberLookup> {
     return true;
   }
 
+  /// ✅ Cache isCheckEmpty
   bool _isCheckEmpty() {
-    return _parseBool(widget.isCheckEmpty);
+    _cachedIsCheckEmpty ??= _parseBool(widget.isCheckEmpty);
+    return _cachedIsCheckEmpty!;
   }
 
+  /// ✅ Cache isVisible
   bool _isVisible() {
+    if (_cachedIsVisible != null) return _cachedIsVisible!;
+
     if (_visibilityBoundRow != null && _visibilityBoundField != null) {
-      return _parseBool(_visibilityBoundRow![_visibilityBoundField!]);
+      _cachedIsVisible = _parseBool(
+        _visibilityBoundRow![_visibilityBoundField!],
+      );
+    } else {
+      _cachedIsVisible = _parseBool(widget.isVisible);
     }
-    return _parseBool(widget.isVisible);
+
+    return _cachedIsVisible!;
   }
 
+  /// ✅ Check mounted trước khi setState
   void _onBindingChanged() {
-    if (_isUpdating) return;
+    if (_isUpdating || !mounted) return;
+    _invalidateCache();
     setState(() {});
   }
 
+  /// ✅ Cache getCurrentTextValue
   dynamic _getCurrentTextValue() {
+    if (_cachedTextValue != null) return _cachedTextValue;
+
     if (widget.text is CyberBindingExpression) {
       final expr = widget.text as CyberBindingExpression;
       if (_boundTextRow != expr.row || _boundTextField != expr.fieldName) {
@@ -150,19 +224,26 @@ class _CyberLookupState extends State<CyberLookup> {
         _boundTextField = expr.fieldName;
       }
     }
+
     if (_boundTextRow != null && _boundTextField != null) {
       try {
-        return _boundTextRow![_boundTextField!];
+        _cachedTextValue = _boundTextRow![_boundTextField!];
       } catch (e) {
-        return null;
+        _cachedTextValue = null;
       }
     } else if (widget.text != null && widget.text is! CyberBindingExpression) {
-      return widget.text;
+      _cachedTextValue = widget.text;
+    } else {
+      _cachedTextValue = null;
     }
-    return null;
+
+    return _cachedTextValue;
   }
 
+  /// ✅ Cache getCurrentDisplayValue
   String _getCurrentDisplayValue() {
+    if (_cachedDisplayValue != null) return _cachedDisplayValue!;
+
     if (widget.display is CyberBindingExpression) {
       final expr = widget.display as CyberBindingExpression;
       if (_boundDisplayRow != expr.row ||
@@ -171,17 +252,22 @@ class _CyberLookupState extends State<CyberLookup> {
         _boundDisplayField = expr.fieldName;
       }
     }
+
     if (_boundDisplayRow != null && _boundDisplayField != null) {
       try {
-        return _boundDisplayRow![_boundDisplayField!]?.toString() ?? '';
+        _cachedDisplayValue =
+            _boundDisplayRow![_boundDisplayField!]?.toString() ?? '';
       } catch (e) {
-        return '';
+        _cachedDisplayValue = '';
       }
     } else if (widget.display != null &&
         widget.display is! CyberBindingExpression) {
-      return widget.display?.toString() ?? '';
+      _cachedDisplayValue = widget.display?.toString() ?? '';
+    } else {
+      _cachedDisplayValue = '';
     }
-    return '';
+
+    return _cachedDisplayValue!;
   }
 
   String _getParamValue(dynamic param) {
@@ -196,8 +282,10 @@ class _CyberLookupState extends State<CyberLookup> {
   }
 
   void _updateValues(dynamic textValue, String displayValue) {
-    if (!widget.enabled) return;
+    if (!widget.enabled || !mounted) return;
+
     _isUpdating = true;
+
     if (_boundTextRow != null && _boundTextField != null) {
       final originalValue = _boundTextRow![_boundTextField!];
       if (originalValue is String && textValue != null) {
@@ -210,23 +298,37 @@ class _CyberLookupState extends State<CyberLookup> {
         _boundTextRow![_boundTextField!] = textValue;
       }
     }
+
     if (_boundDisplayRow != null && _boundDisplayField != null) {
       _boundDisplayRow![_boundDisplayField!] = displayValue;
     }
+
     widget.onChanged?.call(textValue);
+
     _isUpdating = false;
-    setState(() {});
-    if (widget.onLeaver != null) {
-      Future.delayed(Duration.zero, () => widget.onLeaver!(_boundDisplayRow!));
+    _invalidateCache();
+
+    if (mounted) {
+      setState(() {});
+    }
+
+    if (widget.onLeaver != null && _boundDisplayRow != null) {
+      Future.delayed(Duration.zero, () {
+        if (mounted) {
+          widget.onLeaver!(_boundDisplayRow!);
+        }
+      });
     }
   }
 
   Future<void> _showLookup() async {
-    if (!widget.enabled) return;
+    if (!widget.enabled || !mounted) return;
+
     final tbName = _getParamValue(widget.tbName);
     final strFilter = _getParamValue(widget.strFilter);
     final displayField = _getParamValue(widget.displayField);
     final displayValue = _getParamValue(widget.displayValue);
+
     if (tbName.isEmpty || displayField.isEmpty || displayValue.isEmpty) return;
 
     final result = await showModalBottomSheet<Map<String, dynamic>>(
@@ -242,7 +344,7 @@ class _CyberLookupState extends State<CyberLookup> {
       ),
     );
 
-    if (result != null) {
+    if (result != null && mounted) {
       _updateValues(
         result[displayValue],
         result[displayField]?.toString() ?? '',
@@ -255,9 +357,13 @@ class _CyberLookupState extends State<CyberLookup> {
     if (!_isVisible()) {
       return const SizedBox.shrink();
     }
+
+    // ✅ Cache display text để tránh tính toán lại
+    final displayText = _getCurrentDisplayValue();
+    final hasValue = displayText.isNotEmpty;
+    final checkEmpty = _isCheckEmpty();
+
     Widget buildLookup() {
-      final displayText = _getCurrentDisplayValue();
-      final hasValue = displayText.isNotEmpty;
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -280,7 +386,7 @@ class _CyberLookupState extends State<CyberLookup> {
                           fontWeight: FontWeight.w500,
                         ),
                   ),
-                  if (_isCheckEmpty())
+                  if (checkEmpty)
                     const Text(
                       ' *',
                       style: TextStyle(
@@ -298,7 +404,6 @@ class _CyberLookupState extends State<CyberLookup> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               decoration: BoxDecoration(
-                // ✅ Background đồng bộ, bỏ border
                 color: widget.enabled
                     ? (widget.backgroundColor ?? const Color(0xFFF5F5F5))
                     : const Color(0xFFE0E0E0),
@@ -345,20 +450,32 @@ class _CyberLookupState extends State<CyberLookup> {
       );
     }
 
+    // ✅ Chỉ merge listeners khi cần thiết
     final listeners = <Listenable>[];
     if (_boundTextRow != null) listeners.add(_boundTextRow!);
     if (_boundDisplayRow != null && _boundDisplayRow != _boundTextRow) {
       listeners.add(_boundDisplayRow!);
     }
-    if (listeners.isNotEmpty) {
-      return ListenableBuilder(
-        listenable: Listenable.merge(listeners),
-        builder: (context, child) => buildLookup(),
-      );
+    if (_visibilityBoundRow != null &&
+        _visibilityBoundRow != _boundTextRow &&
+        _visibilityBoundRow != _boundDisplayRow) {
+      listeners.add(_visibilityBoundRow!);
     }
-    return buildLookup();
+
+    if (listeners.isEmpty) {
+      return buildLookup();
+    }
+
+    return ListenableBuilder(
+      listenable: Listenable.merge(listeners),
+      builder: (context, child) => buildLookup(),
+    );
   }
 }
+
+// ============================================================================
+// LOOKUP BOTTOM SHEET - OPTIMIZED
+// ============================================================================
 
 class _LookupBottomSheet extends StatefulWidget {
   final String tbName;
@@ -387,6 +504,9 @@ class _LookupBottomSheetState extends State<_LookupBottomSheet> {
   bool _isMultiSelect = false;
   final Set<int> _selectedIndices = {};
 
+  // ✅ Timer thay vì Future.delayed để có thể cancel
+  Timer? _searchDebounceTimer;
+
   @override
   void initState() {
     super.initState();
@@ -396,10 +516,15 @@ class _LookupBottomSheetState extends State<_LookupBottomSheet> {
   @override
   void dispose() {
     _searchController.dispose();
+    _searchDebounceTimer?.cancel();
+    _selectedIndices.clear();
+    _dataTable = null; // ✅ Clear data để giải phóng RAM
     super.dispose();
   }
 
   Future<void> _loadData({String? searchText}) async {
+    if (!mounted) return;
+
     setState(() {
       _isLoading = true;
       _selectedIndices.clear();
@@ -414,47 +539,65 @@ class _LookupBottomSheetState extends State<_LookupBottomSheet> {
         showLoading: false,
       );
 
+      // ✅ Check mounted sau await
+      if (!mounted) return;
+
       if (response.isValid()) {
         CyberDataset? ds = response.toCyberDataset();
         if (ds != null) {
           CyberDataTable? dt = ds[0];
 
           bool hasIschon = dt!.containerColumn("ischon");
-          setState(() {
-            _dataTable = dt;
-            _isMultiSelect = hasIschon;
-            _isLoading = false;
-          });
+
+          if (mounted) {
+            setState(() {
+              _dataTable = dt;
+              _isMultiSelect = hasIschon;
+              _isLoading = false;
+            });
+          }
         } else {
+          if (mounted) {
+            setState(() {
+              _dataTable = CyberDataTable(tableName: widget.tbName);
+              _isLoading = false;
+            });
+          }
+        }
+      } else {
+        if (mounted) {
           setState(() {
             _dataTable = CyberDataTable(tableName: widget.tbName);
             _isLoading = false;
           });
         }
-      } else {
+      }
+    } catch (e) {
+      if (mounted) {
         setState(() {
           _dataTable = CyberDataTable(tableName: widget.tbName);
           _isLoading = false;
         });
       }
-    } catch (e) {
-      setState(() {
-        _dataTable = CyberDataTable(tableName: widget.tbName);
-        _isLoading = false;
-      });
     }
   }
 
+  /// ✅ FIX: Dùng Timer thay vì Future.delayed
   void _onSearch(String value) {
-    Future.delayed(Duration(milliseconds: 800), () {
+    _searchDebounceTimer?.cancel();
+
+    _searchDebounceTimer = Timer(const Duration(milliseconds: 800), () {
+      if (!mounted) return;
       if (_searchController.text == value &&
-          (value == "" || value.length > 3)) {
+          (value.isEmpty || value.length > 3)) {
         _loadData(searchText: value);
       }
     });
   }
 
   void _toggleSelection(int index) {
+    if (!mounted) return;
+
     setState(() {
       if (_selectedIndices.contains(index)) {
         _selectedIndices.remove(index);
@@ -465,6 +608,8 @@ class _LookupBottomSheetState extends State<_LookupBottomSheet> {
   }
 
   void _onSelectRow(CyberDataRow row) {
+    if (!mounted) return;
+
     Navigator.pop(context, {
       widget.displayField: row[widget.displayField],
       widget.displayValue: row[widget.displayValue],
@@ -472,15 +617,19 @@ class _LookupBottomSheetState extends State<_LookupBottomSheet> {
   }
 
   void _onConfirmMultiSelect() {
+    if (!mounted) return;
+
     if (_selectedIndices.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Vui lòng chọn ít nhất 1 mục')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng chọn ít nhất 1 mục')),
+      );
       return;
     }
-    List<String> displayValues = [];
-    List<String> textValues = [];
+
+    final displayValues = <String>[];
+    final textValues = <String>[];
     final sortedIndices = _selectedIndices.toList()..sort();
+
     for (var index in sortedIndices) {
       final row = _dataTable![index];
       final displayVal = row[widget.displayField]?.toString() ?? '';
@@ -488,6 +637,7 @@ class _LookupBottomSheetState extends State<_LookupBottomSheet> {
       if (displayVal.isNotEmpty) displayValues.add(displayVal);
       if (textVal.isNotEmpty) textValues.add(textVal);
     }
+
     Navigator.pop(context, {
       widget.displayField: displayValues.join(';'),
       widget.displayValue: textValues.join(';'),
@@ -498,14 +648,14 @@ class _LookupBottomSheetState extends State<_LookupBottomSheet> {
   Widget build(BuildContext context) {
     return Container(
       height: MediaQuery.of(context).size.height * 0.9,
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(
         children: [
           Container(
-            margin: EdgeInsets.only(top: 8),
+            margin: const EdgeInsets.only(top: 8),
             width: 40,
             height: 4,
             decoration: BoxDecoration(
@@ -520,7 +670,10 @@ class _LookupBottomSheetState extends State<_LookupBottomSheet> {
                 Expanded(
                   child: Text(
                     _isMultiSelect ? 'Chọn nhiều mục' : 'Tìm kiếm',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 if (_isMultiSelect && _selectedIndices.isNotEmpty)
@@ -528,7 +681,7 @@ class _LookupBottomSheetState extends State<_LookupBottomSheet> {
                     padding: const EdgeInsets.only(right: 8),
                     child: Text(
                       'Đã chọn: ${_selectedIndices.length}',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 14,
                         color: Colors.blue,
                         fontWeight: FontWeight.w500,
@@ -536,7 +689,7 @@ class _LookupBottomSheetState extends State<_LookupBottomSheet> {
                     ),
                   ),
                 IconButton(
-                  icon: Icon(Icons.close),
+                  icon: const Icon(Icons.close),
                   onPressed: () => Navigator.pop(context),
                 ),
               ],
@@ -548,10 +701,10 @@ class _LookupBottomSheetState extends State<_LookupBottomSheet> {
               controller: _searchController,
               decoration: InputDecoration(
                 hintText: 'Nhập từ khóa tìm kiếm...',
-                prefixIcon: Icon(Icons.search),
+                prefixIcon: const Icon(Icons.search),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
-                        icon: Icon(Icons.clear),
+                        icon: const Icon(Icons.clear),
                         onPressed: () {
                           _searchController.clear();
                           _onSearch('');
@@ -561,7 +714,7 @@ class _LookupBottomSheetState extends State<_LookupBottomSheet> {
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
-                contentPadding: EdgeInsets.symmetric(
+                contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16,
                   vertical: 12,
                 ),
@@ -569,117 +722,112 @@ class _LookupBottomSheetState extends State<_LookupBottomSheet> {
               onChanged: _onSearch,
             ),
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           Expanded(
             child: _isLoading
-                ? Center(child: CircularProgressIndicator())
+                ? const Center(child: CircularProgressIndicator())
                 : _dataTable == null || _dataTable!.rowCount == 0
-                ? Center(
+                ? const Center(
                     child: Text(
                       'Không có dữ liệu',
                       style: TextStyle(color: Colors.grey),
                     ),
                   )
-                : ListView.separated(
-                    itemCount: _dataTable!.rowCount,
-                    separatorBuilder: (context, index) => Divider(
-                      height: 1,
-                      thickness: 1,
-                      color: Colors.grey[200],
-                    ),
-                    itemBuilder: (context, index) {
-                      final row = _dataTable![index];
-                      final displayText =
-                          row[widget.displayField]?.toString() ?? '';
-                      final valueText =
-                          row[widget.displayValue]?.toString() ?? '';
-                      final isSelected = _isMultiSelect
-                          ? _selectedIndices.contains(index)
-                          : valueText == widget.currentTextValue?.toString();
-
-                      if (_isMultiSelect) {
-                        return CheckboxListTile(
-                          value: _selectedIndices.contains(index),
-                          onChanged: (checked) => _toggleSelection(index),
-                          title: Text(
-                            displayText,
-                            style: TextStyle(
-                              fontWeight: isSelected
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
-                            ),
-                          ),
-                          subtitle: Text(
-                            valueText,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                          selected: isSelected,
-                          selectedTileColor: Colors.blue[50],
-                          controlAffinity: ListTileControlAffinity.leading,
-                        );
-                      }
-                      return ListTile(
-                        selected: isSelected,
-                        selectedTileColor: Colors.blue[50],
-                        title: Text(
-                          displayText,
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        subtitle: Text(
-                          valueText,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                        onTap: () => _onSelectRow(row),
-                      );
-                    },
-                  ),
+                : _buildListView(),
           ),
-          if (_isMultiSelect) ...[
-            Container(
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: Offset(0, -5),
-                  ),
-                ],
-              ),
-              child: SafeArea(
-                top: false,
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton(
-                    onPressed: _onConfirmMultiSelect,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: Text(
-                      'Xác nhận (${_selectedIndices.length})',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
+          if (_isMultiSelect) _buildConfirmButton(),
+        ],
+      ),
+    );
+  }
+
+  /// ✅ Extract ListView builder để dễ maintain
+  Widget _buildListView() {
+    return ListView.separated(
+      // ✅ Cache extent để cải thiện performance
+      cacheExtent: 500,
+      itemCount: _dataTable!.rowCount,
+      separatorBuilder: (context, index) =>
+          Divider(height: 1, thickness: 1, color: Colors.grey[200]),
+      itemBuilder: (context, index) {
+        final row = _dataTable![index];
+        final displayText = row[widget.displayField]?.toString() ?? '';
+        final valueText = row[widget.displayValue]?.toString() ?? '';
+        final isSelected = _isMultiSelect
+            ? _selectedIndices.contains(index)
+            : valueText == widget.currentTextValue?.toString();
+
+        if (_isMultiSelect) {
+          return CheckboxListTile(
+            value: _selectedIndices.contains(index),
+            onChanged: (checked) => _toggleSelection(index),
+            title: Text(
+              displayText,
+              style: TextStyle(
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
             ),
-          ],
+            subtitle: Text(
+              valueText,
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            ),
+            selected: isSelected,
+            selectedTileColor: Colors.blue[50],
+            controlAffinity: ListTileControlAffinity.leading,
+          );
+        }
+
+        return ListTile(
+          selected: isSelected,
+          selectedTileColor: Colors.blue[50],
+          title: Text(
+            displayText,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          subtitle: Text(
+            valueText,
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          ),
+          onTap: () => _onSelectRow(row),
+        );
+      },
+    );
+  }
+
+  /// ✅ Extract confirm button để dễ maintain
+  Widget _buildConfirmButton() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -5),
+          ),
         ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: ElevatedButton(
+            onPressed: _onConfirmMultiSelect,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: Text(
+              'Xác nhận (${_selectedIndices.length})',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ),
       ),
     );
   }
