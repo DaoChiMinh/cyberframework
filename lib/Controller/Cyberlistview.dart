@@ -1,5 +1,6 @@
 import 'package:cyberframework/cyberframework.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:flutter/cupertino.dart';
 
 typedef FutureDataCallback =
     Future<CyberDataTable> Function(
@@ -486,39 +487,75 @@ class _CyberListViewState extends State<CyberListView> {
 
   Widget _buildSearchBar() {
     return Container(
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      color: CupertinoColors.systemGroupedBackground.resolveFrom(context),
       child: Row(
         children: [
           Expanded(
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Tìm kiếm...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          _onSearchChanged('');
-                        },
-                      )
-                    : null,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Container(
+              height: 36,
+              decoration: BoxDecoration(
+                color: CupertinoColors.systemFill.resolveFrom(context),
+                borderRadius: BorderRadius.circular(10),
               ),
-              onChanged: (value) {
-                Future.delayed(
-                  Duration(milliseconds: widget.searchDebounceTime),
-                  () {
-                    if (_searchController.text == value) {
-                      _onSearchChanged(value);
-                    }
-                  },
-                );
-              },
+              child: TextField(
+                controller: _searchController,
+                style: const TextStyle(fontSize: 16),
+                decoration: InputDecoration(
+                  hintText: 'Tìm kiếm',
+                  hintStyle: TextStyle(
+                    color: CupertinoColors.systemGrey.resolveFrom(context),
+                    fontSize: 16,
+                  ),
+                  prefixIcon: Padding(
+                    padding: const EdgeInsets.only(left: 8, right: 4),
+                    child: Icon(
+                      CupertinoIcons.search,
+                      color: CupertinoColors.systemGrey.resolveFrom(context),
+                      size: 20,
+                    ),
+                  ),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? GestureDetector(
+                          onTap: () {
+                            _searchController.clear();
+                            _onSearchChanged('');
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: Icon(
+                              CupertinoIcons.xmark_circle_fill,
+                              color: CupertinoColors.systemGrey.resolveFrom(
+                                context,
+                              ),
+                              size: 18,
+                            ),
+                          ),
+                        )
+                      : null,
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 8,
+                  ),
+                  isDense: true,
+                ),
+                onChanged: (value) {
+                  if (mounted) {
+                    setState(() {}); // Để update suffixIcon
+                  }
+                  Future.delayed(
+                    Duration(milliseconds: widget.searchDebounceTime),
+                    () {
+                      if (_searchController.text == value) {
+                        _onSearchChanged(value);
+                      }
+                    },
+                  );
+                },
+              ),
             ),
           ),
           if (widget.dtToolbarActions != null &&
