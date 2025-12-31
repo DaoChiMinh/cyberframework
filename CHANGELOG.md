@@ -1,3 +1,5 @@
+## 0.0.49
+fix hiệu năng listview
 ## 0.0.48
 fix hiệu năng
 ## 0.0.47

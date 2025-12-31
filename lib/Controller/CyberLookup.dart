@@ -72,7 +72,6 @@ class _CyberLookupState extends State<CyberLookup> {
   dynamic _cachedTextValue;
   bool? _cachedIsVisible;
   bool? _cachedIsCheckEmpty;
-  int _cacheVersion = 0;
 
   @override
   void initState() {
@@ -108,7 +107,6 @@ class _CyberLookupState extends State<CyberLookup> {
     _cachedTextValue = null;
     _cachedIsVisible = null;
     _cachedIsCheckEmpty = null;
-    _cacheVersion++;
   }
 
   void _parseBindings() {
