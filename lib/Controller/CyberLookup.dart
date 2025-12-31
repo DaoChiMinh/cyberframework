@@ -13,6 +13,13 @@ class CyberLookup extends StatefulWidget {
   final TextStyle? textStyle;
   final IconData? icon;
   final bool enabled;
+
+  /// ✅ NEW: Read-only mode
+  final bool readOnly;
+
+  /// ✅ NEW: Allow clear button
+  final bool allowClear;
+
   final Function(dynamic)? onLeaver;
   final ValueChanged<dynamic>? onChanged;
   final Color? backgroundColor;
@@ -20,6 +27,8 @@ class CyberLookup extends StatefulWidget {
   final bool isShowLabel;
   final dynamic isVisible;
   final dynamic isCheckEmpty;
+  final int lookupPageSize;
+
   const CyberLookup({
     super.key,
     this.text,
@@ -34,6 +43,8 @@ class CyberLookup extends StatefulWidget {
     this.textStyle,
     this.icon,
     this.enabled = true,
+    this.readOnly = false,
+    this.allowClear = true,
     this.onLeaver,
     this.onChanged,
     this.backgroundColor,
@@ -41,6 +52,7 @@ class CyberLookup extends StatefulWidget {
     this.isShowLabel = true,
     this.isVisible = true,
     this.isCheckEmpty = false,
+    this.lookupPageSize = 50,
   });
 
   @override
@@ -54,9 +66,8 @@ class _CyberLookupState extends State<CyberLookup> {
   String? _boundDisplayField;
   CyberDataRow? _visibilityBoundRow;
   String? _visibilityBoundField;
-  bool _isUpdating = false;
 
-  // ✅ Cache để tránh tính toán lại
+  // ✅ Smart cache with version tracking
   String? _cachedDisplayValue;
   dynamic _cachedTextValue;
   bool? _cachedIsVisible;
@@ -68,64 +79,30 @@ class _CyberLookupState extends State<CyberLookup> {
     super.initState();
     _parseBindings();
     _parseVisibilityBinding();
-    _setupListeners();
   }
 
   @override
   void didUpdateWidget(CyberLookup oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    // ✅ Invalidate cache khi widget properties thay đổi
     if (oldWidget.text != widget.text ||
         oldWidget.display != widget.display ||
         oldWidget.isVisible != widget.isVisible ||
         oldWidget.isCheckEmpty != widget.isCheckEmpty) {
+      // ✅ FIX 3.1: Chỉ invalidate khi widget properties thay đổi
       _invalidateCache();
-      _removeListeners();
       _parseBindings();
       _parseVisibilityBinding();
-      _setupListeners();
     }
   }
 
   @override
   void dispose() {
-    _removeListeners();
     _invalidateCache();
     super.dispose();
   }
 
-  /// ✅ Setup listeners một lần duy nhất
-  void _setupListeners() {
-    if (_boundTextRow != null) {
-      _boundTextRow!.addListener(_onBindingChanged);
-    }
-    if (_boundDisplayRow != null && _boundDisplayRow != _boundTextRow) {
-      _boundDisplayRow!.addListener(_onBindingChanged);
-    }
-    if (_visibilityBoundRow != null &&
-        _visibilityBoundRow != _boundTextRow &&
-        _visibilityBoundRow != _boundDisplayRow) {
-      _visibilityBoundRow!.addListener(_onBindingChanged);
-    }
-  }
-
-  /// ✅ Remove listeners an toàn
-  void _removeListeners() {
-    if (_boundTextRow != null) {
-      _boundTextRow!.removeListener(_onBindingChanged);
-    }
-    if (_boundDisplayRow != null && _boundDisplayRow != _boundTextRow) {
-      _boundDisplayRow!.removeListener(_onBindingChanged);
-    }
-    if (_visibilityBoundRow != null &&
-        _visibilityBoundRow != _boundTextRow &&
-        _visibilityBoundRow != _boundDisplayRow) {
-      _visibilityBoundRow!.removeListener(_onBindingChanged);
-    }
-  }
-
-  /// ✅ Invalidate cache
+  /// ✅ FIX 3.1: Smart invalidation
   void _invalidateCache() {
     _cachedDisplayValue = null;
     _cachedTextValue = null;
@@ -172,48 +149,48 @@ class _CyberLookupState extends State<CyberLookup> {
     _visibilityBoundField = null;
   }
 
-  bool _parseBool(dynamic value) {
-    if (value == null) return true;
+  /// ✅ FIX 3.2: _parseBool với default values khác nhau
+  bool _parseBool(dynamic value, {required bool defaultValue}) {
+    if (value == null) return defaultValue;
     if (value is bool) return value;
     if (value is int) return value != 0;
     if (value is String) {
       final lower = value.toLowerCase().trim();
       if (lower == "1" || lower == "true") return true;
       if (lower == "0" || lower == "false") return false;
-      return true;
+      return defaultValue;
     }
-    return true;
+    return defaultValue;
   }
 
-  /// ✅ Cache isCheckEmpty
+  /// ✅ FIX 3.2: isCheckEmpty default = false
   bool _isCheckEmpty() {
-    _cachedIsCheckEmpty ??= _parseBool(widget.isCheckEmpty);
+    _cachedIsCheckEmpty ??= _parseBool(
+      widget.isCheckEmpty,
+      defaultValue: false, // ✅ Default false cho isCheckEmpty
+    );
     return _cachedIsCheckEmpty!;
   }
 
-  /// ✅ Cache isVisible
+  /// ✅ FIX 3.2: isVisible default = true
   bool _isVisible() {
     if (_cachedIsVisible != null) return _cachedIsVisible!;
 
     if (_visibilityBoundRow != null && _visibilityBoundField != null) {
       _cachedIsVisible = _parseBool(
         _visibilityBoundRow![_visibilityBoundField!],
+        defaultValue: true, // ✅ Default true cho isVisible
       );
     } else {
-      _cachedIsVisible = _parseBool(widget.isVisible);
+      _cachedIsVisible = _parseBool(
+        widget.isVisible,
+        defaultValue: true, // ✅ Default true
+      );
     }
 
     return _cachedIsVisible!;
   }
 
-  /// ✅ Check mounted trước khi setState
-  void _onBindingChanged() {
-    if (_isUpdating || !mounted) return;
-    _invalidateCache();
-    setState(() {});
-  }
-
-  /// ✅ Cache getCurrentTextValue
   dynamic _getCurrentTextValue() {
     if (_cachedTextValue != null) return _cachedTextValue;
 
@@ -240,7 +217,6 @@ class _CyberLookupState extends State<CyberLookup> {
     return _cachedTextValue;
   }
 
-  /// ✅ Cache getCurrentDisplayValue
   String _getCurrentDisplayValue() {
     if (_cachedDisplayValue != null) return _cachedDisplayValue!;
 
@@ -281,10 +257,9 @@ class _CyberLookupState extends State<CyberLookup> {
     return param?.toString() ?? '';
   }
 
+  /// ✅ FIX 3.4: Removed _isUpdating flag
   void _updateValues(dynamic textValue, String displayValue) {
     if (!widget.enabled || !mounted) return;
-
-    _isUpdating = true;
 
     if (_boundTextRow != null && _boundTextField != null) {
       final originalValue = _boundTextRow![_boundTextField!];
@@ -305,12 +280,8 @@ class _CyberLookupState extends State<CyberLookup> {
 
     widget.onChanged?.call(textValue);
 
-    _isUpdating = false;
+    // ✅ FIX 3.1: Invalidate cache sau khi update
     _invalidateCache();
-
-    if (mounted) {
-      setState(() {});
-    }
 
     if (widget.onLeaver != null && _boundDisplayRow != null) {
       Future.delayed(Duration.zero, () {
@@ -321,8 +292,15 @@ class _CyberLookupState extends State<CyberLookup> {
     }
   }
 
+  /// ✅ FIX 4.3: Clear values
+  void _clearValues() {
+    if (!widget.enabled || widget.readOnly || !mounted) return;
+
+    _updateValues(null, '');
+  }
+
   Future<void> _showLookup() async {
-    if (!widget.enabled || !mounted) return;
+    if (!widget.enabled || widget.readOnly || !mounted) return;
 
     final tbName = _getParamValue(widget.tbName);
     final strFilter = _getParamValue(widget.strFilter);
@@ -341,6 +319,7 @@ class _CyberLookupState extends State<CyberLookup> {
         displayField: displayField,
         displayValue: displayValue,
         currentTextValue: _getCurrentTextValue(),
+        pageSize: widget.lookupPageSize,
       ),
     );
 
@@ -354,16 +333,24 @@ class _CyberLookupState extends State<CyberLookup> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_isVisible()) {
-      return const SizedBox.shrink();
-    }
+    Widget buildLookupWidget() {
+      // ✅ FIX 3.1: KHÔNG invalidate cache mỗi build
+      // Cache chỉ được invalidate khi:
+      // - didUpdateWidget
+      // - _updateValues
+      // - ListenableBuilder notify (tự động rebuild)
 
-    // ✅ Cache display text để tránh tính toán lại
-    final displayText = _getCurrentDisplayValue();
-    final hasValue = displayText.isNotEmpty;
-    final checkEmpty = _isCheckEmpty();
+      if (!_isVisible()) {
+        return const SizedBox.shrink();
+      }
 
-    Widget buildLookup() {
+      final displayText = _getCurrentDisplayValue();
+      final hasValue = displayText.isNotEmpty;
+      final checkEmpty = _isCheckEmpty();
+
+      // ✅ FIX 4.3: Determine if widget is interactive
+      final isInteractive = widget.enabled && !widget.readOnly;
+
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -399,12 +386,12 @@ class _CyberLookupState extends State<CyberLookup> {
               ),
             ),
           InkWell(
-            onTap: widget.enabled ? _showLookup : null,
+            onTap: isInteractive ? _showLookup : null,
             borderRadius: BorderRadius.circular(8),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               decoration: BoxDecoration(
-                color: widget.enabled
+                color: isInteractive
                     ? (widget.backgroundColor ?? const Color(0xFFF5F5F5))
                     : const Color(0xFFE0E0E0),
                 borderRadius: BorderRadius.circular(8),
@@ -414,7 +401,7 @@ class _CyberLookupState extends State<CyberLookup> {
                   if (widget.icon != null) ...[
                     Icon(
                       widget.icon,
-                      color: widget.enabled
+                      color: isInteractive
                           ? Colors.grey[600]
                           : Colors.grey[400],
                       size: 20,
@@ -430,16 +417,29 @@ class _CyberLookupState extends State<CyberLookup> {
                           TextStyle(
                             fontSize: 16,
                             color: hasValue
-                                ? (widget.enabled
-                                      ? Colors.black87
-                                      : Colors.grey)
+                                ? (isInteractive ? Colors.black87 : Colors.grey)
                                 : Colors.grey[500],
                           ),
                     ),
                   ),
+                  // ✅ FIX 4.3: Clear button
+                  if (widget.allowClear && hasValue && isInteractive) ...[
+                    const SizedBox(width: 8),
+                    InkWell(
+                      onTap: _clearValues,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Icon(
+                        Icons.clear,
+                        color: Colors.grey[600],
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                  ],
+                  // ✅ Search icon
                   Icon(
                     Icons.search,
-                    color: widget.enabled ? Colors.grey[600] : Colors.grey[400],
+                    color: isInteractive ? Colors.grey[600] : Colors.grey[400],
                     size: 20,
                   ),
                 ],
@@ -450,7 +450,7 @@ class _CyberLookupState extends State<CyberLookup> {
       );
     }
 
-    // ✅ Chỉ merge listeners khi cần thiết
+    // ✅ Chỉ dùng ListenableBuilder khi có binding
     final listeners = <Listenable>[];
     if (_boundTextRow != null) listeners.add(_boundTextRow!);
     if (_boundDisplayRow != null && _boundDisplayRow != _boundTextRow) {
@@ -463,18 +463,22 @@ class _CyberLookupState extends State<CyberLookup> {
     }
 
     if (listeners.isEmpty) {
-      return buildLookup();
+      return buildLookupWidget();
     }
 
     return ListenableBuilder(
       listenable: Listenable.merge(listeners),
-      builder: (context, child) => buildLookup(),
+      builder: (context, child) {
+        // ✅ FIX 3.1: Invalidate cache khi listenable notify
+        _invalidateCache();
+        return buildLookupWidget();
+      },
     );
   }
 }
 
 // ============================================================================
-// LOOKUP BOTTOM SHEET - OPTIMIZED
+// LOOKUP BOTTOM SHEET - VIRTUAL PAGING
 // ============================================================================
 
 class _LookupBottomSheet extends StatefulWidget {
@@ -483,6 +487,7 @@ class _LookupBottomSheet extends StatefulWidget {
   final String displayField;
   final String displayValue;
   final dynamic currentTextValue;
+  final int pageSize;
 
   const _LookupBottomSheet({
     required this.tbName,
@@ -490,6 +495,7 @@ class _LookupBottomSheet extends StatefulWidget {
     required this.displayField,
     required this.displayValue,
     this.currentTextValue,
+    this.pageSize = 50,
   });
 
   @override
@@ -498,91 +504,153 @@ class _LookupBottomSheet extends StatefulWidget {
 
 class _LookupBottomSheetState extends State<_LookupBottomSheet> {
   final TextEditingController _searchController = TextEditingController();
-  CyberDataTable? _dataTable;
+  late ScrollController _scrollController;
+
+  final List<CyberDataRow> _rows = [];
   bool _isLoading = false;
+  bool _isLoadingMore = false;
+  bool _hasMoreData = true;
+  int _currentPage = 0;
+  String _currentSearchText = '';
 
   bool _isMultiSelect = false;
   final Set<int> _selectedIndices = {};
 
-  // ✅ Timer thay vì Future.delayed để có thể cancel
   Timer? _searchDebounceTimer;
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _scrollController = ScrollController();
+    _scrollController.addListener(_onScroll);
+    _loadInitialData();
   }
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
     _searchController.dispose();
     _searchDebounceTimer?.cancel();
     _selectedIndices.clear();
-    _dataTable = null; // ✅ Clear data để giải phóng RAM
+    _rows.clear();
     super.dispose();
   }
 
-  Future<void> _loadData({String? searchText}) async {
+  Future<void> _loadInitialData() async {
     if (!mounted) return;
+
+    _currentPage = 0;
 
     setState(() {
       _isLoading = true;
+      _rows.clear();
       _selectedIndices.clear();
+      _hasMoreData = true;
     });
 
+    await _loadPage(_currentPage);
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (!mounted || _isLoadingMore || !_hasMoreData) return;
+
+    setState(() {
+      _isLoadingMore = true;
+    });
+
+    final nextPage = _currentPage + 1;
+    await _loadPage(nextPage);
+
+    if (mounted) {
+      setState(() {
+        _currentPage = nextPage;
+        _isLoadingMore = false;
+      });
+    }
+  }
+
+  Future<void> _loadPage(int pageIndex) async {
+    if (!mounted) return;
+
     try {
-      final filter = searchText ?? '';
+      final filter = _currentSearchText;
 
       final response = await context.callApi(
         functionName: "CP_W10SysListoDir",
-        parameter: "1#0#$filter#${widget.strFilter}#${widget.tbName}#01#dungnt",
+        parameter:
+            "$pageIndex#${widget.pageSize}#$filter#${widget.strFilter}#${widget.tbName}#01#dungnt",
         showLoading: false,
       );
 
-      // ✅ Check mounted sau await
       if (!mounted) return;
 
       if (response.isValid()) {
-        CyberDataset? ds = response.toCyberDataset();
+        final ds = response.toCyberDataset();
         if (ds != null) {
-          CyberDataTable? dt = ds[0];
+          final dt = ds[0];
 
-          bool hasIschon = dt!.containerColumn("ischon");
+          if (dt != null) {
+            final hasIschon = dt.containerColumn("ischon");
+            final newRows = dt.rows;
 
-          if (mounted) {
-            setState(() {
-              _dataTable = dt;
-              _isMultiSelect = hasIschon;
-              _isLoading = false;
-            });
+            if (mounted) {
+              setState(() {
+                if (pageIndex == 0) {
+                  _rows.clear();
+                  _isMultiSelect = hasIschon;
+                }
+                _rows.addAll(newRows);
+                _hasMoreData = newRows.length >= widget.pageSize;
+              });
+            }
+          } else {
+            if (mounted) {
+              setState(() {
+                _hasMoreData = false;
+              });
+            }
           }
         } else {
           if (mounted) {
             setState(() {
-              _dataTable = CyberDataTable(tableName: widget.tbName);
-              _isLoading = false;
+              _hasMoreData = false;
             });
           }
         }
       } else {
         if (mounted) {
           setState(() {
-            _dataTable = CyberDataTable(tableName: widget.tbName);
-            _isLoading = false;
+            _hasMoreData = false;
           });
         }
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _dataTable = CyberDataTable(tableName: widget.tbName);
-          _isLoading = false;
+          _hasMoreData = false;
         });
       }
     }
   }
 
-  /// ✅ FIX: Dùng Timer thay vì Future.delayed
+  void _onScroll() {
+    if (!mounted) return;
+
+    final position = _scrollController.position;
+    final threshold = position.maxScrollExtent * 0.9;
+
+    if (position.pixels >= threshold) {
+      _loadMore();
+    }
+  }
+
   void _onSearch(String value) {
     _searchDebounceTimer?.cancel();
 
@@ -590,9 +658,18 @@ class _LookupBottomSheetState extends State<_LookupBottomSheet> {
       if (!mounted) return;
       if (_searchController.text == value &&
           (value.isEmpty || value.length > 3)) {
-        _loadData(searchText: value);
+        _currentSearchText = value;
+        _loadInitialData();
       }
     });
+  }
+
+  Future<void> _refresh() async {
+    if (!mounted) return;
+
+    _currentSearchText = '';
+    _searchController.clear();
+    await _loadInitialData();
   }
 
   void _toggleSelection(int index) {
@@ -631,7 +708,9 @@ class _LookupBottomSheetState extends State<_LookupBottomSheet> {
     final sortedIndices = _selectedIndices.toList()..sort();
 
     for (var index in sortedIndices) {
-      final row = _dataTable![index];
+      if (index >= _rows.length) continue;
+
+      final row = _rows[index];
       final displayVal = row[widget.displayField]?.toString() ?? '';
       final textVal = row[widget.displayValue]?.toString() ?? '';
       if (displayVal.isNotEmpty) displayValues.add(displayVal);
@@ -654,103 +733,131 @@ class _LookupBottomSheetState extends State<_LookupBottomSheet> {
       ),
       child: Column(
         children: [
-          Container(
-            margin: const EdgeInsets.only(top: 8),
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey[300],
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _isMultiSelect ? 'Chọn nhiều mục' : 'Tìm kiếm',
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                if (_isMultiSelect && _selectedIndices.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: Text(
-                      'Đã chọn: ${_selectedIndices.length}',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Colors.blue,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.pop(context),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Nhập từ khóa tìm kiếm...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          _onSearch('');
-                        },
-                      )
-                    : null,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-              ),
-              onChanged: _onSearch,
-            ),
-          ),
+          _buildHandle(),
+          _buildHeader(),
+          _buildSearchBar(),
           const SizedBox(height: 16),
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _dataTable == null || _dataTable!.rowCount == 0
-                ? const Center(
-                    child: Text(
-                      'Không có dữ liệu',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  )
-                : _buildListView(),
-          ),
+          Expanded(child: _buildContent()),
           if (_isMultiSelect) _buildConfirmButton(),
         ],
       ),
     );
   }
 
-  /// ✅ Extract ListView builder để dễ maintain
+  Widget _buildHandle() {
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      width: 40,
+      height: 4,
+      decoration: BoxDecoration(
+        color: Colors.grey[300],
+        borderRadius: BorderRadius.circular(2),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              _isMultiSelect ? 'Chọn nhiều mục' : 'Tìm kiếm',
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+          ),
+          if (_isMultiSelect && _selectedIndices.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Text(
+                'Đã chọn: ${_selectedIndices.length}',
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Colors.blue,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: TextField(
+        controller: _searchController,
+        decoration: InputDecoration(
+          hintText: 'Nhập từ khóa tìm kiếm...',
+          prefixIcon: const Icon(Icons.search),
+          suffixIcon: _searchController.text.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.clear),
+                  onPressed: () {
+                    _searchController.clear();
+                    _onSearch('');
+                  },
+                )
+              : null,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 12,
+          ),
+        ),
+        onChanged: _onSearch,
+      ),
+    );
+  }
+
+  Widget _buildContent() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_rows.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.inbox, size: 64, color: Colors.grey),
+            const SizedBox(height: 16),
+            Text(
+              _currentSearchText.isNotEmpty
+                  ? 'Không tìm thấy kết quả cho "$_currentSearchText"'
+                  : 'Không có dữ liệu',
+              style: const TextStyle(fontSize: 16, color: Colors.grey),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(onRefresh: _refresh, child: _buildListView());
+  }
+
   Widget _buildListView() {
     return ListView.separated(
-      // ✅ Cache extent để cải thiện performance
+      controller: _scrollController,
       cacheExtent: 500,
-      itemCount: _dataTable!.rowCount,
+      itemCount: _rows.length + (_isLoadingMore ? 1 : 0),
       separatorBuilder: (context, index) =>
           Divider(height: 1, thickness: 1, color: Colors.grey[200]),
       itemBuilder: (context, index) {
-        final row = _dataTable![index];
+        if (index >= _rows.length) {
+          return const Padding(
+            padding: EdgeInsets.all(16),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        final row = _rows[index];
         final displayText = row[widget.displayField]?.toString() ?? '';
         final valueText = row[widget.displayValue]?.toString() ?? '';
         final isSelected = _isMultiSelect
@@ -794,7 +901,6 @@ class _LookupBottomSheetState extends State<_LookupBottomSheet> {
     );
   }
 
-  /// ✅ Extract confirm button để dễ maintain
   Widget _buildConfirmButton() {
     return Container(
       padding: const EdgeInsets.all(16),
