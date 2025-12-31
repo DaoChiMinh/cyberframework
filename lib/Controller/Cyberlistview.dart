@@ -677,18 +677,21 @@ class _CyberListViewState extends State<CyberListView> {
       },
     );
 
+    // ✅ Wrap với SlidableAutoCloseBehavior để tự động đóng khi scroll hoặc tap
+    final wrappedListView = SlidableAutoCloseBehavior(child: listView);
+
     if (_useShrinkWrap) {
-      return listView;
+      return wrappedListView;
     }
 
-    return RefreshIndicator(onRefresh: _refresh, child: listView);
+    return RefreshIndicator(onRefresh: _refresh, child: wrappedListView);
   }
 
   /// ✅ FIX: Build Horizontal ListView WITHOUT AnimatedBuilder
   Widget _buildHorizontalList() {
     final rows = _workingRows;
 
-    return ListView.separated(
+    final listView = ListView.separated(
       controller: _scrollController,
       scrollDirection: Axis.horizontal,
       padding: widget.padding ?? const EdgeInsets.all(8),
@@ -714,6 +717,9 @@ class _CyberListViewState extends State<CyberListView> {
         return KeyedSubtree(key: ValueKey(row.identityKey), child: itemWidget);
       },
     );
+
+    // ✅ Wrap với SlidableAutoCloseBehavior
+    return SlidableAutoCloseBehavior(child: listView);
   }
 
   /// ✅ FIX: Build GridView WITHOUT AnimatedBuilder
@@ -807,9 +813,20 @@ class _CyberListViewState extends State<CyberListView> {
   Widget _buildItem(CyberDataRow row, int index) {
     return InkWell(
       onTap: (widget.onItemTap != null || widget.isClickToScreen)
-          ? () => _handleItemTap(row, index)
-          : null,
-      onLongPress: () => _handleItemLongPress(row, index),
+          ? () {
+              // ✅ Đóng tất cả Slidable đang mở trước khi xử lý tap
+              Slidable.of(context)?.close();
+              _handleItemTap(row, index);
+            }
+          : () {
+              // ✅ Đóng Slidable ngay cả khi không có handler
+              Slidable.of(context)?.close();
+            },
+      onLongPress: () {
+        // ✅ Đóng Slidable trước khi show menu
+        Slidable.of(context)?.close();
+        _handleItemLongPress(row, index);
+      },
       child: widget.itemBuilder(context, row, index),
     );
   }
@@ -854,6 +871,10 @@ class _CyberListViewState extends State<CyberListView> {
   Widget _buildSlidableItem(CyberDataRow row, int index) {
     return Slidable(
       key: Key('item_${row.hashCode}_$index'),
+
+      // ✅ Tự động đóng khi scroll
+      closeOnScroll: true,
+
       endActionPane: ActionPane(
         motion: const DrawerMotion(),
         extentRatio:
@@ -863,9 +884,20 @@ class _CyberListViewState extends State<CyberListView> {
       ),
       child: InkWell(
         onTap: (widget.onItemTap != null || widget.isClickToScreen)
-            ? () => _handleItemTap(row, index)
-            : null,
-        onLongPress: () => _handleItemLongPress(row, index),
+            ? () {
+                // ✅ Đóng Slidable hiện tại trước khi xử lý tap
+                Slidable.of(context)?.close();
+                _handleItemTap(row, index);
+              }
+            : () {
+                // ✅ Đóng Slidable ngay cả khi không có handler
+                Slidable.of(context)?.close();
+              },
+        onLongPress: () {
+          // ✅ Đóng Slidable trước khi show menu
+          Slidable.of(context)?.close();
+          _handleItemLongPress(row, index);
+        },
         child: widget.itemBuilder(context, row, index),
       ),
     );
