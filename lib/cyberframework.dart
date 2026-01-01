@@ -21,7 +21,8 @@ export 'package:cyberframework/Module/Data/cyberdataset.dart';
 
 export 'package:cyberframework/Module/Info/deviceinfo.dart';
 export 'package:cyberframework/Module/Info/userinfo.dart';
-//cybercameracontroller
+//cybercheckboxcontroller
+export 'package:cyberframework/Controller/cybercheckboxcontroller.dart';
 export 'package:cyberframework/Controller/cybercameracontroller.dart';
 export 'package:cyberframework/Controller/cyberimagecontroller.dart';
 export 'package:cyberframework/Controller/cyberwebviewcontroller.dart';
