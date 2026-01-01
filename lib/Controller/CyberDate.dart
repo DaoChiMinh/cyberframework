@@ -20,6 +20,22 @@ class CyberDate extends StatefulWidget {
   final TextStyle? labelStyle;
   final dynamic isVisible;
   final dynamic isCheckEmpty;
+
+  /// Controller for programmatic control of the date value
+  final CyberDateController? controller;
+
+  /// Initial value when no controller is provided
+  final DateTime? initialValue;
+
+  /// Date formatter (if null, use format string)
+  final DateFormat? formatter;
+
+  /// Validator function
+  final String? Function(DateTime?)? validator;
+
+  /// Error text to display
+  final String? errorText;
+
   const CyberDate({
     super.key,
     this.text,
@@ -40,6 +56,11 @@ class CyberDate extends StatefulWidget {
     this.labelStyle,
     this.isVisible = true,
     this.isCheckEmpty = false,
+    this.controller,
+    this.initialValue,
+    this.formatter,
+    this.validator,
+    this.errorText,
   });
 
   @override
@@ -59,15 +80,21 @@ class _CyberDateState extends State<CyberDate> {
   String? _visibilityBoundField;
   bool _isUpdating = false;
 
+  String? _validationError;
+
   @override
   void initState() {
     super.initState();
+
     _focusNode = FocusNode();
     _setupDateFormat();
     _setupDateRange();
     _parseBinding();
     _parseVisibilityBinding();
-    _updateController();
+    _updateTextController();
+
+    // Listen to controller if provided
+    widget.controller?.addListener(_onControllerChanged);
 
     if (_boundRow != null) {
       _boundRow!.addListener(_onBindingChanged);
@@ -75,6 +102,7 @@ class _CyberDateState extends State<CyberDate> {
     if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
       _visibilityBoundRow!.addListener(_onBindingChanged);
     }
+
     _focusNode.addListener(() {
       if (_focusNode.hasFocus && widget.enabled) {
         _showDatePicker();
@@ -83,31 +111,121 @@ class _CyberDateState extends State<CyberDate> {
   }
 
   @override
+  void didUpdateWidget(CyberDate oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // ✅ 1. Handle controller swap/changes
+    if (oldWidget.controller != widget.controller) {
+      // Remove listener from old controller
+      oldWidget.controller?.removeListener(_onControllerChanged);
+
+      // Add listener to new controller
+      widget.controller?.addListener(_onControllerChanged);
+
+      // Update display with new controller value
+      _onControllerChanged();
+    }
+
+    // ✅ 2. Handle binding changes
+    if (oldWidget.text != widget.text) {
+      // Remove listener from old binding
+      if (_boundRow != null) {
+        _boundRow!.removeListener(_onBindingChanged);
+      }
+
+      // Parse new binding
+      _parseBinding();
+
+      // Add listener to new binding
+      if (_boundRow != null) {
+        _boundRow!.addListener(_onBindingChanged);
+      }
+
+      // Update display with new binding value
+      _onBindingChanged();
+    }
+
+    // ✅ 3. Handle visibility binding changes
+    if (oldWidget.isVisible != widget.isVisible) {
+      // Remove listener from old visibility binding
+      if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
+        _visibilityBoundRow!.removeListener(_onBindingChanged);
+      }
+
+      // Parse new visibility binding
+      _parseVisibilityBinding();
+
+      // Add listener to new visibility binding
+      if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
+        _visibilityBoundRow!.addListener(_onBindingChanged);
+      }
+    }
+
+    // ✅ 4. Handle date format changes
+    if (oldWidget.format != widget.format ||
+        oldWidget.formatter != widget.formatter) {
+      _setupDateFormat();
+      _updateTextController();
+    }
+
+    // ✅ 5. Handle date range changes
+    if (oldWidget.minDate != widget.minDate ||
+        oldWidget.maxDate != widget.maxDate) {
+      _setupDateRange();
+      _validate();
+    }
+
+    // ✅ 6. Handle validator changes
+    if (oldWidget.validator != widget.validator) {
+      _validate();
+    }
+
+    // ✅ 7. Handle error text changes
+    if (oldWidget.errorText != widget.errorText) {
+      setState(() {}); // Trigger rebuild to show new error
+    }
+
+    // ✅ 8. Handle enabled state changes
+    if (oldWidget.enabled != widget.enabled) {
+      setState(() {}); // Trigger rebuild
+    }
+  }
+
+  @override
   void dispose() {
+    // ✅ Remove all listeners
+    widget.controller?.removeListener(_onControllerChanged);
+
     if (_boundRow != null) {
       _boundRow!.removeListener(_onBindingChanged);
     }
     if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
       _visibilityBoundRow!.removeListener(_onBindingChanged);
     }
+
     _textController.dispose();
     _focusNode.dispose();
     super.dispose();
   }
 
   void _setupDateFormat() {
-    try {
-      _dateFormat = DateFormat(widget.format);
-    } catch (e) {
-      //debugPrint('Invalid date format: ${widget.format}, using default');
-      _dateFormat = DateFormat('dd/MM/yyyy');
+    if (widget.formatter != null) {
+      _dateFormat = widget.formatter!;
+    } else {
+      try {
+        _dateFormat = DateFormat(widget.format);
+      } catch (e) {
+        // ✅ Fallback to global config if available
+        // _dateFormat = CyberAppConfig.dateFormat ?? DateFormat('dd/MM/yyyy');
+        _dateFormat = DateFormat('dd/MM/yyyy');
+      }
     }
   }
 
   void _setupDateRange() {
     final now = DateTime.now();
-    _minDate = widget.minDate ?? DateTime(now.year - 20, 1, 1);
-    _maxDate = widget.maxDate ?? DateTime(now.year + 20, 12, 31);
+    _minDate = widget.minDate ?? DateTime(now.year - 100, 1, 1);
+    _maxDate = widget.maxDate ?? DateTime(now.year + 100, 12, 31);
   }
 
   void _parseBinding() {
@@ -170,36 +288,91 @@ class _CyberDateState extends State<CyberDate> {
     return _parseBool(widget.isVisible);
   }
 
-  void _updateController() {
-    DateTime? value = _getCurrentValue();
+  void _updateTextController() {
+    final value = _getCurrentValue();
     final displayValue = value != null ? _formatDate(value) : '';
-
     _textController = TextEditingController(text: displayValue);
   }
 
-  void _onBindingChanged() {
-    if (_isUpdating || _boundRow == null || _boundField == null) return;
+  /// ✅ Handle controller value changes
+  void _onControllerChanged() {
+    if (_isUpdating) return;
+
+    _isUpdating = true;
 
     final value = _getCurrentValue();
     final displayValue = value != null ? _formatDate(value) : '';
 
+    // Update text display
     if (_textController.text != displayValue) {
       _textController.text = displayValue;
     }
-  }
 
-  DateTime? _getCurrentValue() {
-    dynamic rawValue;
-
+    // Sync controller value to binding
     if (_boundRow != null && _boundField != null) {
-      rawValue = _boundRow![_boundField!];
-    } else if (widget.text != null) {
-      rawValue = widget.text;
-    } else {
-      return null;
+      if (_boundRow![_boundField!] != value) {
+        _boundRow![_boundField!] = value;
+      }
     }
 
-    // ✅ Convert sang DateTime
+    // Validate
+    _validate();
+
+    _isUpdating = false;
+
+    // Trigger rebuild
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  /// Handle binding value changes
+  void _onBindingChanged() {
+    if (_isUpdating || _boundRow == null || _boundField == null) return;
+
+    _isUpdating = true;
+
+    final value = _getCurrentValue();
+    final displayValue = value != null ? _formatDate(value) : '';
+
+    // Update text display
+    if (_textController.text != displayValue) {
+      _textController.text = displayValue;
+    }
+
+    // Sync binding to controller
+    if (widget.controller != null && widget.controller!.value != value) {
+      widget.controller!.setSilently(value);
+    }
+
+    // Validate
+    _validate();
+
+    _isUpdating = false;
+
+    // Trigger rebuild
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  /// ✅ Single source of truth for current value
+  DateTime? _getCurrentValue() {
+    // Priority: Controller > Binding > Initial value
+    if (widget.controller != null) {
+      return widget.controller!.value;
+    } else if (_boundRow != null && _boundField != null) {
+      final rawValue = _boundRow![_boundField!];
+      return _parseDateTime(rawValue);
+    } else if (widget.initialValue != null) {
+      return widget.initialValue;
+    } else if (widget.text != null && widget.text is! CyberBindingExpression) {
+      return _parseDateTime(widget.text);
+    }
+    return null;
+  }
+
+  DateTime? _parseDateTime(dynamic rawValue) {
     if (rawValue is DateTime) return rawValue;
     if (rawValue is String) {
       try {
@@ -212,7 +385,6 @@ class _CyberDateState extends State<CyberDate> {
         }
       }
     }
-
     return null;
   }
 
@@ -220,25 +392,66 @@ class _CyberDateState extends State<CyberDate> {
     return _dateFormat.format(date);
   }
 
+  /// ✅ Validation logic
+  void _validate() {
+    final value = _getCurrentValue();
+
+    // Custom validator
+    if (widget.validator != null) {
+      _validationError = widget.validator!(value);
+      return;
+    }
+
+    // Built-in validation
+    if (value != null) {
+      if (value.isBefore(_minDate)) {
+        _validationError = 'Ngày phải sau ${_formatDate(_minDate)}';
+        return;
+      }
+      if (value.isAfter(_maxDate)) {
+        _validationError = 'Ngày phải trước ${_formatDate(_maxDate)}';
+        return;
+      }
+    }
+
+    // Required validation
+    if (_isCheckEmpty() && value == null) {
+      _validationError = 'Vui lòng chọn ngày';
+      return;
+    }
+
+    _validationError = null;
+  }
+
   void _updateValue(DateTime newDate) {
     _isUpdating = true;
 
-    // ✅ Update binding
-    if (_boundRow != null && _boundField != null) {
+    // ✅ Update controller/binding
+    if (widget.controller != null) {
+      widget.controller!.value = newDate;
+    } else if (_boundRow != null && _boundField != null) {
       _boundRow![_boundField!] = newDate;
     }
 
-    // ✅ Update display
+    // Update display
     _textController.text = _formatDate(newDate);
 
-    // ✅ Callback
+    // Validate
+    _validate();
+
+    // Callback
     widget.onChanged?.call(newDate);
 
     _isUpdating = false;
+
+    // Trigger rebuild
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _showDatePicker() async {
-    // Unfocus để tránh keyboard hiện lên
+    // Unfocus to avoid keyboard
     _focusNode.unfocus();
 
     final currentValue = _getCurrentValue() ?? DateTime.now();
@@ -266,13 +479,16 @@ class _CyberDateState extends State<CyberDate> {
     if (!_isVisible()) {
       return const SizedBox.shrink();
     }
+
+    final currentError = widget.errorText ?? _validationError;
+
     Widget textField = TextField(
       controller: _textController,
       focusNode: _focusNode,
-      readOnly: true, // ✅ Read-only, chỉ mở picker
+      readOnly: true,
       enabled: widget.enabled,
       style: widget.style,
-      decoration: widget.decoration ?? _buildDecoration(),
+      decoration: widget.decoration ?? _buildDecoration(currentError),
       onTap: widget.enabled ? _showDatePicker : null,
     );
 
@@ -311,10 +527,27 @@ class _CyberDateState extends State<CyberDate> {
             ),
           ),
           textField,
+          // ✅ Error text display
+          if (currentError != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 4.0, top: 4.0),
+              child: Text(
+                currentError,
+                style: const TextStyle(fontSize: 12, color: Colors.red),
+              ),
+            ),
         ],
       );
     } else {
       finalWidget = textField;
+    }
+
+    // ✅ Listen to controller for reactive updates
+    if (widget.controller != null) {
+      return ListenableBuilder(
+        listenable: widget.controller!,
+        builder: (context, child) => finalWidget,
+      );
     }
 
     if (_boundRow != null) {
@@ -327,7 +560,9 @@ class _CyberDateState extends State<CyberDate> {
     return finalWidget;
   }
 
-  InputDecoration _buildDecoration() {
+  InputDecoration _buildDecoration(String? errorText) {
+    final hasError = errorText != null;
+
     return InputDecoration(
       hintText: widget.hint ?? 'Chọn ngày',
       prefixIcon: widget.icon != null
@@ -340,15 +575,36 @@ class _CyberDateState extends State<CyberDate> {
             )
           : null,
 
-      // ✅ Bỏ border
-      border: InputBorder.none,
-      enabledBorder: InputBorder.none,
-      focusedBorder: InputBorder.none,
-      errorBorder: InputBorder.none,
+      // ✅ Border for error state
+      border: hasError
+          ? OutlineInputBorder(
+              borderSide: const BorderSide(color: Colors.red),
+              borderRadius: BorderRadius.circular(8),
+            )
+          : InputBorder.none,
+      enabledBorder: hasError
+          ? OutlineInputBorder(
+              borderSide: const BorderSide(color: Colors.red),
+              borderRadius: BorderRadius.circular(8),
+            )
+          : InputBorder.none,
+      focusedBorder: hasError
+          ? OutlineInputBorder(
+              borderSide: const BorderSide(color: Colors.red, width: 2),
+              borderRadius: BorderRadius.circular(8),
+            )
+          : InputBorder.none,
+      errorBorder: OutlineInputBorder(
+        borderSide: const BorderSide(color: Colors.red),
+        borderRadius: BorderRadius.circular(8),
+      ),
       disabledBorder: InputBorder.none,
-      focusedErrorBorder: InputBorder.none,
+      focusedErrorBorder: OutlineInputBorder(
+        borderSide: const BorderSide(color: Colors.red, width: 2),
+        borderRadius: BorderRadius.circular(8),
+      ),
 
-      // ✅ Background đồng bộ
+      // Background
       filled: true,
       fillColor: widget.enabled
           ? (widget.backgroundColor ?? const Color(0xFFF5F5F5))
@@ -359,7 +615,7 @@ class _CyberDateState extends State<CyberDate> {
   }
 }
 
-/// iOS-style Date Picker Bottom Sheet
+// ✅ iOS Date Picker remains the same
 class _IOSDatePickerSheet extends StatefulWidget {
   final DateTime initialDate;
   final DateTime minDate;
@@ -429,7 +685,6 @@ class _IOSDatePickerSheetState extends State<_IOSDatePickerSheet> {
     final daysInMonth = DateTime(_selectedYear, _selectedMonth + 1, 0).day;
     _days = List.generate(daysInMonth, (index) => index + 1);
 
-    // ✅ Adjust selected day if it exceeds days in month
     if (_selectedDay > daysInMonth) {
       _selectedDay = daysInMonth;
     }
@@ -446,7 +701,6 @@ class _IOSDatePickerSheetState extends State<_IOSDatePickerSheet> {
       _selectedMonth = _months[index];
       _updateDays();
 
-      // ✅ Update day scroll position if needed
       if (_selectedDay > _days.length) {
         _selectedDay = _days.last;
         _dayController.jumpToItem(_days.length - 1);
@@ -459,7 +713,6 @@ class _IOSDatePickerSheetState extends State<_IOSDatePickerSheet> {
       _selectedYear = _years[index];
       _updateDays();
 
-      // ✅ Update day scroll position if needed
       if (_selectedDay > _days.length) {
         _selectedDay = _days.last;
         _dayController.jumpToItem(_days.length - 1);
@@ -481,7 +734,6 @@ class _IOSDatePickerSheetState extends State<_IOSDatePickerSheet> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Handle bar
           Container(
             margin: const EdgeInsets.symmetric(vertical: 12),
             width: 40,
@@ -491,8 +743,6 @@ class _IOSDatePickerSheetState extends State<_IOSDatePickerSheet> {
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-
-          // Header
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
@@ -519,15 +769,11 @@ class _IOSDatePickerSheetState extends State<_IOSDatePickerSheet> {
               ],
             ),
           ),
-
           const Divider(height: 1),
-
-          // Picker
           SizedBox(
             height: 250,
             child: Row(
               children: [
-                // Day picker
                 Expanded(
                   child: _buildPicker(
                     controller: _dayController,
@@ -537,8 +783,6 @@ class _IOSDatePickerSheetState extends State<_IOSDatePickerSheet> {
                     onSelectedItemChanged: _onDayChanged,
                   ),
                 ),
-
-                // Month picker
                 Expanded(
                   child: _buildPicker(
                     controller: _monthController,
@@ -547,8 +791,6 @@ class _IOSDatePickerSheetState extends State<_IOSDatePickerSheet> {
                     onSelectedItemChanged: _onMonthChanged,
                   ),
                 ),
-
-                // Year picker
                 Expanded(
                   child: _buildPicker(
                     controller: _yearController,
@@ -560,7 +802,6 @@ class _IOSDatePickerSheetState extends State<_IOSDatePickerSheet> {
               ],
             ),
           ),
-
           const SizedBox(height: 16),
         ],
       ),
@@ -583,12 +824,11 @@ class _IOSDatePickerSheetState extends State<_IOSDatePickerSheet> {
           physics: const FixedExtentScrollPhysics(),
           onSelectedItemChanged: (index) {
             onSelectedItemChanged(index);
-            setPickerState(() {}); // ✅ Trigger rebuild to update styles
+            setPickerState(() {});
           },
           childDelegate: ListWheelChildBuilderDelegate(
             childCount: itemCount,
             builder: (context, index) {
-              // ✅ Check if this item is selected
               final isSelected =
                   controller.hasClients && controller.selectedItem == index;
 
