@@ -91,13 +91,6 @@ class CyberImageCacheManager {
     );
     _lruQueue.add(key);
     _currentMemoryBytes += size;
-
-    if (kDebugMode) {
-      print('🖼️ CyberImageCache: Added $key (${_formatBytes(size)})');
-      print(
-        '   Total: ${_cache.length} images, ${_formatBytes(_currentMemoryBytes)}',
-      );
-    }
   }
 
   /// Remove specific entry
@@ -106,12 +99,6 @@ class CyberImageCacheManager {
     if (entry != null) {
       _lruQueue.remove(key);
       _currentMemoryBytes -= entry.size;
-
-      if (kDebugMode) {
-        print(
-          '🗑️ CyberImageCache: Removed $key (${_formatBytes(entry.size)})',
-        );
-      }
     }
   }
 
@@ -120,10 +107,6 @@ class CyberImageCacheManager {
     _cache.clear();
     _lruQueue.clear();
     _currentMemoryBytes = 0;
-
-    if (kDebugMode) {
-      print('🧹 CyberImageCache: Cleared all');
-    }
   }
 
   /// Evict oldest (least recently used)
@@ -136,15 +119,6 @@ class CyberImageCacheManager {
     if (entry != null) {
       _lruQueue.removeAt(0);
       _currentMemoryBytes -= entry.size;
-
-      if (kDebugMode) {
-        print(
-          '♻️ CyberImageCache: Evicted $oldestKey (${_formatBytes(entry.size)})',
-        );
-        print(
-          '   Reason: ${_cache.length >= maxCacheSize ? "Size limit" : "Memory limit"}',
-        );
-      }
     }
   }
 
@@ -168,23 +142,6 @@ class CyberImageCacheManager {
     }
 
     return totalAccess / _cache.length;
-  }
-
-  String _formatBytes(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-  }
-
-  /// Debug: Print cache status
-  void printStatus() {
-    final stats = getStats();
-    print('📊 CyberImageCache Status:');
-    print('   Entries: ${stats.entryCount}/${stats.maxEntries}');
-    print(
-      '   Memory: ${_formatBytes(stats.totalBytes)}/${_formatBytes(stats.maxBytes)}',
-    );
-    print('   Hit Rate: ${(stats.hitRate * 100).toStringAsFixed(1)}%');
   }
 }
 
@@ -249,9 +206,6 @@ class CyberImageUtils {
 
       return base64Decode(cleanBase64);
     } catch (e) {
-      if (kDebugMode) {
-        print('❌ Error decoding base64: $e');
-      }
       return null;
     }
   }
