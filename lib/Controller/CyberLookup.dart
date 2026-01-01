@@ -1,42 +1,52 @@
 import 'package:cyberframework/cyberframework.dart';
 
+/// Widget RENDER UI và ĐIỀU KHIỂN LOOKUP
+/// Không sở hữu business logic, chỉ render và handle interactions
 class CyberLookup extends StatefulWidget {
+  // === CONTROLLER (nếu có thì KHÔNG có text/display) ===
+  final CyberLookupController? controller;
+
+  // === SIMPLE MODE (chỉ khi KHÔNG có controller) ===
   final dynamic text;
   final dynamic display;
+  final ValueChanged<dynamic>? onChanged;
+
+  // === LOOKUP PARAMETERS (chỉ dùng khi KHÔNG có controller) ===
   final dynamic tbName;
   final dynamic strFilter;
   final dynamic displayField;
   final dynamic displayValue;
+  final int lookupPageSize;
+
+  // === UI PROPERTIES ===
   final String? label;
   final String? hint;
   final TextStyle? labelStyle;
   final TextStyle? textStyle;
   final IconData? icon;
   final bool enabled;
-
-  /// ✅ NEW: Read-only mode
   final bool readOnly;
-
-  /// ✅ NEW: Allow clear button
   final bool allowClear;
-
-  final Function(dynamic)? onLeaver;
-  final ValueChanged<dynamic>? onChanged;
-  final Color? backgroundColor;
-  final Color? borderColor;
   final bool isShowLabel;
   final dynamic isVisible;
   final dynamic isCheckEmpty;
-  final int lookupPageSize;
+  final Color? backgroundColor;
+  final Color? borderColor;
+
+  // === CALLBACKS ===
+  final Function(dynamic)? onLeaver;
 
   const CyberLookup({
     super.key,
+    this.controller,
     this.text,
     this.display,
+    this.onChanged,
     this.tbName,
     this.strFilter,
     this.displayField,
     this.displayValue,
+    this.lookupPageSize = 50,
     this.label,
     this.hint,
     this.labelStyle,
@@ -45,89 +55,86 @@ class CyberLookup extends StatefulWidget {
     this.enabled = true,
     this.readOnly = false,
     this.allowClear = true,
-    this.onLeaver,
-    this.onChanged,
-    this.backgroundColor,
-    this.borderColor,
     this.isShowLabel = true,
     this.isVisible = true,
     this.isCheckEmpty = false,
-    this.lookupPageSize = 50,
-  });
+    this.backgroundColor,
+    this.borderColor,
+    this.onLeaver,
+  }) : // ✅ CRITICAL: Assert bắt buộc để catch lỗi kiến trúc
+       assert(
+         controller == null || (text == null && display == null),
+         'CyberLookup: KHÔNG được truyền đồng thời controller và text/display.\n'
+         'Nếu dùng controller thì bỏ text và display properties.\n'
+         'Nếu không dùng controller thì bỏ controller property.',
+       );
 
   @override
   State<CyberLookup> createState() => _CyberLookupState();
 }
 
 class _CyberLookupState extends State<CyberLookup> {
-  CyberDataRow? _boundTextRow;
-  String? _boundTextField;
-  CyberDataRow? _boundDisplayRow;
-  String? _boundDisplayField;
+  // === FLAG CHỐNG LOOP ===
+  bool _isInternalUpdate = false;
+
+  // === SIMPLE MODE STATE ===
+  dynamic _simpleTextValue;
+  String _simpleDisplayValue = '';
+
+  // === VISIBILITY BINDING ===
   CyberDataRow? _visibilityBoundRow;
   String? _visibilityBoundField;
-
-  // ✅ Smart cache with version tracking
-  String? _cachedDisplayValue;
-  dynamic _cachedTextValue;
-  bool? _cachedIsVisible;
-  bool? _cachedIsCheckEmpty;
 
   @override
   void initState() {
     super.initState();
-    _parseBindings();
+
+    // Parse visibility binding
     _parseVisibilityBinding();
+
+    // Simple mode: lấy giá trị ban đầu
+    if (widget.controller == null) {
+      _simpleTextValue = _extractValue(widget.text);
+      _simpleDisplayValue = _extractDisplayValue(widget.display);
+    }
+
+    // Lắng nghe controller nếu có
+    widget.controller?.addListener(_onControllerChanged);
   }
 
   @override
   void didUpdateWidget(CyberLookup oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    if (oldWidget.text != widget.text ||
-        oldWidget.display != widget.display ||
-        oldWidget.isVisible != widget.isVisible ||
-        oldWidget.isCheckEmpty != widget.isCheckEmpty) {
-      // ✅ FIX 3.1: Chỉ invalidate khi widget properties thay đổi
-      _invalidateCache();
-      _parseBindings();
+    // Nếu controller thay đổi
+    if (widget.controller != oldWidget.controller) {
+      oldWidget.controller?.removeListener(_onControllerChanged);
+      widget.controller?.addListener(_onControllerChanged);
+    }
+
+    // Parse visibility nếu thay đổi
+    if (widget.isVisible != oldWidget.isVisible) {
       _parseVisibilityBinding();
+    }
+
+    // Simple mode: sync từ properties
+    if (widget.controller == null) {
+      if (widget.text != oldWidget.text) {
+        _simpleTextValue = _extractValue(widget.text);
+      }
+      if (widget.display != oldWidget.display) {
+        _simpleDisplayValue = _extractDisplayValue(widget.display);
+      }
     }
   }
 
   @override
   void dispose() {
-    _invalidateCache();
+    widget.controller?.removeListener(_onControllerChanged);
     super.dispose();
   }
 
-  /// ✅ FIX 3.1: Smart invalidation
-  void _invalidateCache() {
-    _cachedDisplayValue = null;
-    _cachedTextValue = null;
-    _cachedIsVisible = null;
-    _cachedIsCheckEmpty = null;
-  }
-
-  void _parseBindings() {
-    if (widget.text is CyberBindingExpression) {
-      final expr = widget.text as CyberBindingExpression;
-      _boundTextRow = expr.row;
-      _boundTextField = expr.fieldName;
-    } else {
-      _boundTextRow = null;
-      _boundTextField = null;
-    }
-
-    if (widget.display is CyberBindingExpression) {
-      final expr = widget.display as CyberBindingExpression;
-      _boundDisplayRow = expr.row;
-      _boundDisplayField = expr.fieldName;
-    } else {
-      _boundDisplayRow = null;
-      _boundDisplayField = null;
-    }
-  }
+  // === VISIBILITY ===
 
   void _parseVisibilityBinding() {
     if (widget.isVisible == null) {
@@ -147,7 +154,6 @@ class _CyberLookupState extends State<CyberLookup> {
     _visibilityBoundField = null;
   }
 
-  /// ✅ FIX 3.2: _parseBool với default values khác nhau
   bool _parseBool(dynamic value, {required bool defaultValue}) {
     if (value == null) return defaultValue;
     if (value is bool) return value;
@@ -161,90 +167,48 @@ class _CyberLookupState extends State<CyberLookup> {
     return defaultValue;
   }
 
-  /// ✅ FIX 3.2: isCheckEmpty default = false
-  bool _isCheckEmpty() {
-    _cachedIsCheckEmpty ??= _parseBool(
-      widget.isCheckEmpty,
-      defaultValue: false, // ✅ Default false cho isCheckEmpty
-    );
-    return _cachedIsCheckEmpty!;
-  }
-
-  /// ✅ FIX 3.2: isVisible default = true
   bool _isVisible() {
-    if (_cachedIsVisible != null) return _cachedIsVisible!;
-
     if (_visibilityBoundRow != null && _visibilityBoundField != null) {
-      _cachedIsVisible = _parseBool(
+      return _parseBool(
         _visibilityBoundRow![_visibilityBoundField!],
-        defaultValue: true, // ✅ Default true cho isVisible
-      );
-    } else {
-      _cachedIsVisible = _parseBool(
-        widget.isVisible,
-        defaultValue: true, // ✅ Default true
+        defaultValue: true,
       );
     }
-
-    return _cachedIsVisible!;
+    return _parseBool(widget.isVisible, defaultValue: true);
   }
 
-  dynamic _getCurrentTextValue() {
-    if (_cachedTextValue != null) return _cachedTextValue;
+  // === SYNC CONTROLLER (ANTI-LOOP) ===
 
-    if (widget.text is CyberBindingExpression) {
-      final expr = widget.text as CyberBindingExpression;
-      if (_boundTextRow != expr.row || _boundTextField != expr.fieldName) {
-        _boundTextRow = expr.row;
-        _boundTextField = expr.fieldName;
-      }
-    }
+  void _onControllerChanged() {
+    if (!mounted || _isInternalUpdate) return;
+    setState(() {}); // Rebuild UI
+  }
 
-    if (_boundTextRow != null && _boundTextField != null) {
+  // === VALUE EXTRACTORS ===
+
+  dynamic _extractValue(dynamic value) {
+    if (value is CyberBindingExpression) {
       try {
-        _cachedTextValue = _boundTextRow![_boundTextField!];
+        return value.row[value.fieldName];
       } catch (e) {
-        _cachedTextValue = null;
+        return null;
       }
-    } else if (widget.text != null && widget.text is! CyberBindingExpression) {
-      _cachedTextValue = widget.text;
-    } else {
-      _cachedTextValue = null;
     }
-
-    return _cachedTextValue;
+    return value;
   }
 
-  String _getCurrentDisplayValue() {
-    if (_cachedDisplayValue != null) return _cachedDisplayValue!;
-
-    if (widget.display is CyberBindingExpression) {
-      final expr = widget.display as CyberBindingExpression;
-      if (_boundDisplayRow != expr.row ||
-          _boundDisplayField != expr.fieldName) {
-        _boundDisplayRow = expr.row;
-        _boundDisplayField = expr.fieldName;
-      }
-    }
-
-    if (_boundDisplayRow != null && _boundDisplayField != null) {
+  String _extractDisplayValue(dynamic value) {
+    if (value is CyberBindingExpression) {
       try {
-        _cachedDisplayValue =
-            _boundDisplayRow![_boundDisplayField!]?.toString() ?? '';
+        return value.row[value.fieldName]?.toString() ?? '';
       } catch (e) {
-        _cachedDisplayValue = '';
+        return '';
       }
-    } else if (widget.display != null &&
-        widget.display is! CyberBindingExpression) {
-      _cachedDisplayValue = widget.display?.toString() ?? '';
-    } else {
-      _cachedDisplayValue = '';
     }
-
-    return _cachedDisplayValue!;
+    return value?.toString() ?? '';
   }
 
-  String _getParamValue(dynamic param) {
+  String _extractParam(dynamic param) {
     if (param is CyberBindingExpression) {
       try {
         return param.row[param.fieldName]?.toString() ?? '';
@@ -255,57 +219,63 @@ class _CyberLookupState extends State<CyberLookup> {
     return param?.toString() ?? '';
   }
 
-  /// ✅ FIX 3.4: Removed _isUpdating flag
-  void _updateValues(dynamic textValue, String displayValue) {
-    if (!widget.enabled || !mounted) return;
+  // === ACTIONS ===
 
-    if (_boundTextRow != null && _boundTextField != null) {
-      final originalValue = _boundTextRow![_boundTextField!];
-      if (originalValue is String && textValue != null) {
-        _boundTextRow![_boundTextField!] = textValue.toString();
-      } else if (originalValue is int && textValue is int) {
-        _boundTextRow![_boundTextField!] = textValue;
-      } else if (originalValue is double && textValue is num) {
-        _boundTextRow![_boundTextField!] = textValue.toDouble();
-      } else {
-        _boundTextRow![_boundTextField!] = textValue;
+  /// ✅ CRITICAL: Clear action ĐI QUA CONTROLLER
+  /// Widget KHÔNG tự clear state, controller điều khiển
+  void _clearValues() {
+    if (!_isInteractive()) return;
+
+    if (widget.controller != null) {
+      // ✅ Controller mode: gọi controller.clear()
+      widget.controller!.clear();
+
+      // Callback sau khi clear
+      if (widget.onLeaver != null) {
+        Future.delayed(Duration.zero, () {
+          if (mounted) {
+            widget.onLeaver!(null);
+          }
+        });
+      }
+    } else {
+      // Simple mode: tự update state
+      setState(() {
+        _simpleTextValue = null;
+        _simpleDisplayValue = '';
+      });
+
+      widget.onChanged?.call(null);
+
+      if (widget.onLeaver != null) {
+        Future.delayed(Duration.zero, () {
+          if (mounted) {
+            widget.onLeaver!(null);
+          }
+        });
       }
     }
-
-    if (_boundDisplayRow != null && _boundDisplayField != null) {
-      _boundDisplayRow![_boundDisplayField!] = displayValue;
-    }
-
-    widget.onChanged?.call(textValue);
-
-    // ✅ FIX 3.1: Invalidate cache sau khi update
-    _invalidateCache();
-
-    if (widget.onLeaver != null && _boundDisplayRow != null) {
-      Future.delayed(Duration.zero, () {
-        if (mounted) {
-          widget.onLeaver!(_boundDisplayRow!);
-        }
-      });
-    }
   }
 
-  /// ✅ FIX 4.3: Clear values
-  void _clearValues() {
-    if (!widget.enabled || widget.readOnly || !mounted) return;
-
-    _updateValues(null, '');
-  }
-
+  /// ✅ CRITICAL: Set values ĐI QUA CONTROLLER
   Future<void> _showLookup() async {
-    if (!widget.enabled || widget.readOnly || !mounted) return;
+    if (!_isInteractive() || !mounted) return;
 
-    final tbName = _getParamValue(widget.tbName);
-    final strFilter = _getParamValue(widget.strFilter);
-    final displayField = _getParamValue(widget.displayField);
-    final displayValue = _getParamValue(widget.displayValue);
+    // Get lookup parameters
+    final tbName = widget.controller?.tbName ?? _extractParam(widget.tbName);
+    final strFilter =
+        widget.controller?.strFilter ?? _extractParam(widget.strFilter);
+    final displayField =
+        widget.controller?.displayFieldName ??
+        _extractParam(widget.displayField);
+    final valueField =
+        widget.controller?.valueFieldName ?? _extractParam(widget.displayValue);
+    final pageSize = widget.controller?.lookupPageSize ?? widget.lookupPageSize;
 
-    if (tbName.isEmpty || displayField.isEmpty || displayValue.isEmpty) return;
+    if (tbName.isEmpty || displayField.isEmpty || valueField.isEmpty) return;
+
+    // Get current value
+    final currentTextValue = widget.controller?.textValue ?? _simpleTextValue;
 
     final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
@@ -315,39 +285,84 @@ class _CyberLookupState extends State<CyberLookup> {
         tbName: tbName,
         strFilter: strFilter,
         displayField: displayField,
-        displayValue: displayValue,
-        currentTextValue: _getCurrentTextValue(),
-        pageSize: widget.lookupPageSize,
+        displayValue: valueField,
+        currentTextValue: currentTextValue,
+        pageSize: pageSize,
       ),
     );
 
     if (result != null && mounted) {
-      _updateValues(
-        result[displayValue],
-        result[displayField]?.toString() ?? '',
-      );
+      final textValue = result[valueField];
+      final displayValue = result[displayField]?.toString() ?? '';
+
+      if (widget.controller != null) {
+        // ✅ Controller mode: gọi controller.setValues()
+        widget.controller!.setValues(
+          textValue: textValue,
+          displayValue: displayValue,
+        );
+
+        // Callback sau khi set
+        if (widget.onLeaver != null) {
+          Future.delayed(Duration.zero, () {
+            if (mounted) {
+              widget.onLeaver!(textValue);
+            }
+          });
+        }
+      } else {
+        // Simple mode: tự update state
+        setState(() {
+          _simpleTextValue = textValue;
+          _simpleDisplayValue = displayValue;
+        });
+
+        widget.onChanged?.call(textValue);
+
+        if (widget.onLeaver != null) {
+          Future.delayed(Duration.zero, () {
+            if (mounted) {
+              widget.onLeaver!(textValue);
+            }
+          });
+        }
+      }
     }
+  }
+
+  // === HELPERS ===
+
+  bool _isInteractive() {
+    final effectiveEnabled = widget.controller?.enabled ?? widget.enabled;
+    return effectiveEnabled && !widget.readOnly;
+  }
+
+  String _getCurrentDisplayValue() {
+    return widget.controller?.displayValue ?? _simpleDisplayValue;
+  }
+
+  bool _hasValue() {
+    return _getCurrentDisplayValue().isNotEmpty;
+  }
+
+  bool _isCheckEmpty() {
+    if (widget.controller != null) {
+      return widget.controller!.isCheckEmpty;
+    }
+    return _parseBool(widget.isCheckEmpty, defaultValue: false);
   }
 
   @override
   Widget build(BuildContext context) {
     Widget buildLookupWidget() {
-      // ✅ FIX 3.1: KHÔNG invalidate cache mỗi build
-      // Cache chỉ được invalidate khi:
-      // - didUpdateWidget
-      // - _updateValues
-      // - ListenableBuilder notify (tự động rebuild)
-
       if (!_isVisible()) {
         return const SizedBox.shrink();
       }
 
       final displayText = _getCurrentDisplayValue();
-      final hasValue = displayText.isNotEmpty;
+      final hasValue = _hasValue();
       final checkEmpty = _isCheckEmpty();
-
-      // ✅ FIX 4.3: Determine if widget is interactive
-      final isInteractive = widget.enabled && !widget.readOnly;
+      final isInteractive = _isInteractive();
 
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -393,6 +408,9 @@ class _CyberLookupState extends State<CyberLookup> {
                     ? (widget.backgroundColor ?? const Color(0xFFF5F5F5))
                     : const Color(0xFFE0E0E0),
                 borderRadius: BorderRadius.circular(8),
+                border: widget.borderColor != null
+                    ? Border.all(color: widget.borderColor!)
+                    : null,
               ),
               child: Row(
                 children: [
@@ -410,6 +428,7 @@ class _CyberLookupState extends State<CyberLookup> {
                     child: Text(
                       hasValue ? displayText : (widget.hint ?? 'Chọn...'),
                       maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style:
                           widget.textStyle ??
                           TextStyle(
@@ -420,11 +439,10 @@ class _CyberLookupState extends State<CyberLookup> {
                           ),
                     ),
                   ),
-                  // ✅ FIX 4.3: Clear button
                   if (widget.allowClear && hasValue && isInteractive) ...[
                     const SizedBox(width: 8),
                     InkWell(
-                      onTap: _clearValues,
+                      onTap: _clearValues, // ✅ Gọi qua controller
                       borderRadius: BorderRadius.circular(12),
                       child: Icon(
                         Icons.clear,
@@ -434,7 +452,6 @@ class _CyberLookupState extends State<CyberLookup> {
                     ),
                     const SizedBox(width: 4),
                   ],
-                  // ✅ Search icon
                   Icon(
                     Icons.search,
                     color: isInteractive ? Colors.grey[600] : Colors.grey[400],
@@ -448,33 +465,19 @@ class _CyberLookupState extends State<CyberLookup> {
       );
     }
 
-    // ✅ Chỉ dùng ListenableBuilder khi có binding
-    final listeners = <Listenable>[];
-    if (_boundTextRow != null) listeners.add(_boundTextRow!);
-    if (_boundDisplayRow != null && _boundDisplayRow != _boundTextRow) {
-      listeners.add(_boundDisplayRow!);
-    }
-    if (_visibilityBoundRow != null &&
-        _visibilityBoundRow != _boundTextRow &&
-        _visibilityBoundRow != _boundDisplayRow) {
-      listeners.add(_visibilityBoundRow!);
+    // Chỉ dùng ListenableBuilder khi có visibility binding
+    if (_visibilityBoundRow != null) {
+      return ListenableBuilder(
+        listenable: _visibilityBoundRow!,
+        builder: (context, child) => buildLookupWidget(),
+      );
     }
 
-    if (listeners.isEmpty) {
-      return buildLookupWidget();
-    }
-
-    return ListenableBuilder(
-      listenable: Listenable.merge(listeners),
-      builder: (context, child) {
-        // ✅ FIX 3.1: Invalidate cache khi listenable notify
-        _invalidateCache();
-        return buildLookupWidget();
-      },
-    );
+    return buildLookupWidget();
   }
 }
 
+// _LookupBottomSheet giữ nguyên...
 // ============================================================================
 // LOOKUP BOTTOM SHEET - VIRTUAL PAGING
 // ============================================================================

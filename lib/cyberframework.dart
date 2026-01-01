@@ -21,7 +21,8 @@ export 'package:cyberframework/Module/Data/cyberdataset.dart';
 
 export 'package:cyberframework/Module/Info/deviceinfo.dart';
 export 'package:cyberframework/Module/Info/userinfo.dart';
-
+//cyberlookupcontroller
+export 'package:cyberframework/Controller/cyberlookupcontroller.dart';
 export 'package:cyberframework/Controller/cybertextcontroller.dart';
 export 'package:cyberframework/Controller/cybertimecontroller.dart';
 export 'package:cyberframework/Controller/cyberdatecontroller.dart';
