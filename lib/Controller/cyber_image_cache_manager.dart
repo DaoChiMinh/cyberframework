@@ -37,6 +37,41 @@ class CyberImageCacheManager {
     return entry.bytes;
   }
 
+  /// ⭐ Get or put - lazy load pattern
+  /// Nếu có trong cache -> trả về ngay
+  /// Nếu chưa có -> gọi valueFactory, cache rồi trả về
+  Uint8List? getOrPut(String key, Uint8List? Function() valueFactory) {
+    // Try get from cache first
+    final cached = get(key);
+    if (cached != null) {
+      return cached;
+    }
+
+    // Cache miss - create and cache
+    final bytes = valueFactory();
+    if (bytes != null) {
+      put(key, bytes);
+      return bytes;
+    }
+
+    return null;
+  }
+
+  /// ⭐ SINGLE SOURCE OF TRUTH - Decode base64 và cache
+  /// Đây là method DUY NHẤT để decode base64 trong app
+  /// Widgets KHÔNG ĐƯỢC decode riêng!
+  Uint8List? getOrDecodeBase64(String base64String) {
+    // 1. Decode base64 (chỉ 1 chỗ decode trong toàn app!)
+    final decoded = CyberImageUtils.decodeBase64(base64String);
+    if (decoded == null) return null;
+
+    // 2. Hash từ DECODED BYTES
+    final key = CyberImageUtils.hashBytes(decoded);
+
+    // 3. Check cache hoặc put
+    return getOrPut(key, () => decoded);
+  }
+
   /// Put image bytes into cache
   void put(String key, Uint8List bytes) {
     final size = bytes.length;

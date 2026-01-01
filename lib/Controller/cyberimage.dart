@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'package:cyberframework/Controller/cyber_fullscreen_image_viewer.dart';
 import 'package:cyberframework/Controller/cyber_image_cache_manager.dart';
 import 'package:cyberframework/cyberframework.dart';
@@ -92,8 +91,7 @@ class _CyberImageState extends State<CyberImage> {
   bool _isUpdating = false;
   bool _isLoading = false;
 
-  // ⭐ Chỉ cache hash, KHÔNG cache full base64 string!
-  String? _currentImageHash;
+  // ⭐ Cache visibility và fit để tránh re-parse
   bool? _cachedVisibility;
   BoxFit? _cachedFit;
 
@@ -114,7 +112,6 @@ class _CyberImageState extends State<CyberImage> {
 
     if (oldWidget.text != widget.text) {
       bindingsChanged = true;
-      _currentImageHash = null; // Invalidate
     }
     if (oldWidget.isVisible != widget.isVisible) {
       bindingsChanged = true;
@@ -176,7 +173,6 @@ class _CyberImageState extends State<CyberImage> {
   void _clearCaches() {
     _cachedVisibility = null;
     _cachedFit = null;
-    _currentImageHash = null;
     // ⭐ Không cần clear global cache - nó tự quản lý
   }
 
@@ -362,11 +358,6 @@ class _CyberImageState extends State<CyberImage> {
     if (!widget.enabled) return;
 
     _isUpdating = true;
-
-    // ⭐ Invalidate hash when value changes
-    if (_currentImageHash != null) {
-      _currentImageHash = null;
-    }
 
     if (_boundRow != null && _boundField != null) {
       _boundRow![_boundField!] = newValue ?? '';
@@ -696,26 +687,11 @@ class _CyberImageState extends State<CyberImage> {
   }
 
   /// ⭐ Get bytes from global cache using HASH
+  /// ⭐ Get image bytes with global cache
+  /// KHÔNG decode riêng - ủy thác cho cache manager!
   Uint8List? _getImageBytes(String imageValue) {
-    // Generate hash from image value
-    final hash = CyberImageUtils.hashBase64(imageValue);
-
-    // Try get from global cache
-    final cached = _cacheManager.get(hash);
-    if (cached != null) {
-      _currentImageHash = hash;
-      return cached;
-    }
-
-    // Decode and put into cache
-    final bytes = CyberImageUtils.decodeBase64(imageValue);
-    if (bytes != null) {
-      _cacheManager.put(hash, bytes);
-      _currentImageHash = hash;
-      return bytes;
-    }
-
-    return null;
+    // ✅ Cache manager decode + cache tập trung
+    return _cacheManager.getOrDecodeBase64(imageValue);
   }
 
   Widget _buildImageWidget(String imageValue) {

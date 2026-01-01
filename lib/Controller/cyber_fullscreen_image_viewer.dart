@@ -111,26 +111,10 @@ class _CyberFullscreenImageViewerState
   }
 
   /// ⭐ Get bytes from GLOBAL cache (reuse from CyberImage)
+  /// KHÔNG decode riêng - ủy thác cho cache manager!
   Uint8List? _getBytesFromCache() {
-    // Generate same hash as CyberImage
-    final hash = CyberImageUtils.hashBase64(widget.imageValue);
-
-    // Get from global cache (already decoded by CyberImage!)
-    var bytes = _cacheManager.get(hash);
-
-    if (bytes != null) {
-      return bytes;
-    }
-
-    // Cache miss? Decode and cache
-    // (This happens if user directly opens fullscreen without showing thumbnail)
-    bytes = CyberImageUtils.decodeBase64(widget.imageValue);
-    if (bytes != null) {
-      _cacheManager.put(hash, bytes);
-      return bytes;
-    }
-
-    return null;
+    // ✅ Cache manager decode + cache tập trung
+    return _cacheManager.getOrDecodeBase64(widget.imageValue);
   }
 
   Widget _buildErrorWidget() {
