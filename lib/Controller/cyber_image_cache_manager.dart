@@ -32,7 +32,7 @@ class CyberImageCacheManager {
     _lruQueue.add(key); // Move to end (most recent)
 
     entry.lastAccessTime = DateTime.now();
-    entry.accessCount++;
+    //entry.accessCount++;
 
     return entry.bytes;
   }
@@ -137,9 +137,9 @@ class CyberImageCacheManager {
     if (_cache.isEmpty) return 0.0;
 
     int totalAccess = 0;
-    for (final entry in _cache.values) {
-      totalAccess += entry.accessCount;
-    }
+    // for (final entry in _cache.values) {
+    //   totalAccess += entry.accessCount;
+    // }
 
     return totalAccess / _cache.length;
   }
@@ -149,13 +149,13 @@ class _CacheEntry {
   final Uint8List bytes;
   final int size;
   DateTime lastAccessTime;
-  int accessCount;
+  //int accessCount;
 
   _CacheEntry({
     required this.bytes,
     required this.size,
     required this.lastAccessTime,
-    this.accessCount = 1,
+    //this.accessCount = 1,
   });
 }
 
