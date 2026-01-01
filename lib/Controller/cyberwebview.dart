@@ -1,27 +1,34 @@
-import 'package:flutter/material.dart';
+import 'package:cyberframework/cyberframework.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 class CyberWebView extends StatefulWidget {
+  final CyberWebViewController? controller;
   final String? url;
+  final String? html;
   final double? width;
   final double? height;
   final bool enableJavaScript;
   final bool enableZoom;
   final EdgeInsets? margin;
   final EdgeInsets? padding;
-  final bool clearCacheOnDispose; // Mới: tự động xóa cache khi dispose
+  final bool clearCacheOnDispose;
 
   const CyberWebView({
     super.key,
+    this.controller,
     this.url,
+    this.html,
     this.width,
     this.height,
     this.enableJavaScript = true,
     this.enableZoom = true,
     this.margin,
     this.padding,
-    this.clearCacheOnDispose = true, // Mặc định xóa cache
-  });
+    this.clearCacheOnDispose = true,
+  }) : assert(
+         controller == null || (url == null && html == null),
+         'CyberWebView: không được dùng controller cùng với url/html trực tiếp',
+       );
 
   @override
   State<CyberWebView> createState() => CyberWebViewState();
@@ -29,19 +36,42 @@ class CyberWebView extends StatefulWidget {
 
 class CyberWebViewState extends State<CyberWebView>
     with WidgetsBindingObserver {
-  WebViewController? _controller;
+  WebViewController? _webViewController;
+  CyberWebViewController? _internalController;
+
   bool _isLoading = true;
   bool _isDisposed = false;
+
+  // Track để tránh reload không cần thiết (ở widget level)
+  String? _lastLoadedUrl;
+  String? _lastLoadedHtml;
+
+  CyberWebViewController get _effectiveController =>
+      widget.controller ?? _internalController!;
 
   @override
   void initState() {
     super.initState();
+
+    // Tạo internal controller nếu cần
+    if (widget.controller == null) {
+      _internalController = CyberWebViewController();
+
+      // Set initial value từ widget params
+      if (widget.url != null) {
+        _internalController!.setUrlInternal(widget.url);
+      } else if (widget.html != null) {
+        _internalController!.setHtmlInternal(widget.html);
+      }
+    }
+
     WidgetsBinding.instance.addObserver(this);
     _initializeWebView();
+    _effectiveController.addListener(_onControllerChanged);
   }
 
   void _initializeWebView() {
-    _controller = WebViewController()
+    _webViewController = WebViewController()
       ..setJavaScriptMode(
         widget.enableJavaScript
             ? JavaScriptMode.unrestricted
@@ -65,22 +95,106 @@ class CyberWebViewState extends State<CyberWebView>
           },
         ),
       )
-      // Tối ưu bộ nhớ cache
       ..enableZoom(widget.enableZoom);
 
-    _loadUrl(widget.url);
+    _loadFromController();
+  }
+
+  void _onControllerChanged() {
+    if (!mounted || _isDisposed) return;
+
+    // Chỉ reload nếu thực sự cần (check ở widget level)
+    final url = _effectiveController.url;
+    final html = _effectiveController.html;
+
+    bool needsReload = false;
+    if (url != null && _lastLoadedUrl != url) {
+      needsReload = true;
+    } else if (html != null && _lastLoadedHtml != html) {
+      needsReload = true;
+    } else if (url == null &&
+        html == null &&
+        (_lastLoadedUrl != null || _lastLoadedHtml != null)) {
+      needsReload = true;
+    }
+
+    if (needsReload) {
+      _loadFromController();
+    }
+
+    // Update enabled state
+    if (mounted) {
+      setState(() {}); // Rebuild để apply enabled state
+    }
+  }
+
+  void _loadFromController() {
+    final url = _effectiveController.url;
+    final html = _effectiveController.html;
+
+    // Guard: tránh reload nếu đã load rồi
+    if (url != null) {
+      if (_lastLoadedUrl == url) return;
+      _loadUrl(url);
+      _lastLoadedUrl = url;
+      _lastLoadedHtml = null;
+    } else if (html != null) {
+      if (_lastLoadedHtml == html) return;
+      _loadHtml(html);
+      _lastLoadedHtml = html;
+      _lastLoadedUrl = null;
+    } else {
+      // Clear
+      if (_lastLoadedUrl == null && _lastLoadedHtml == null) return;
+      _loadUrl('about:blank');
+      _lastLoadedUrl = null;
+      _lastLoadedHtml = null;
+    }
   }
 
   @override
   void didUpdateWidget(CyberWebView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.url != widget.url) {
-      _loadUrl(widget.url);
+
+    // Nếu controller thay đổi
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller?.removeListener(_onControllerChanged);
+
+      if (widget.controller == null && _internalController == null) {
+        _internalController = CyberWebViewController();
+        if (widget.url != null) {
+          _internalController!.setUrlInternal(widget.url);
+        } else if (widget.html != null) {
+          _internalController!.setHtmlInternal(widget.html);
+        }
+      }
+
+      _effectiveController.addListener(_onControllerChanged);
+      _loadFromController();
+    }
+
+    // Nếu dùng internal controller, update từ widget params
+    if (widget.controller == null) {
+      bool needsReload = false;
+
+      if (oldWidget.url != widget.url && widget.url != null) {
+        _internalController!.setUrlInternal(widget.url);
+        needsReload = true;
+      }
+
+      if (oldWidget.html != widget.html && widget.html != null) {
+        _internalController!.setHtmlInternal(widget.html);
+        needsReload = true;
+      }
+
+      if (needsReload) {
+        _loadFromController();
+      }
     }
 
     // Cập nhật JavaScript mode nếu thay đổi
     if (oldWidget.enableJavaScript != widget.enableJavaScript) {
-      _controller?.setJavaScriptMode(
+      _webViewController?.setJavaScriptMode(
         widget.enableJavaScript
             ? JavaScriptMode.unrestricted
             : JavaScriptMode.disabled,
@@ -90,79 +204,94 @@ class CyberWebViewState extends State<CyberWebView>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Tạm dừng web content khi app ở background để tiết kiệm RAM
-    if (_controller != null && !_isDisposed) {
+    if (_webViewController != null && !_isDisposed) {
       switch (state) {
         case AppLifecycleState.paused:
         case AppLifecycleState.inactive:
-          // WebView tự động pause khi app không active
-          break;
-        case AppLifecycleState.resumed:
-          // WebView tự động resume
-          break;
         case AppLifecycleState.detached:
         case AppLifecycleState.hidden:
+          break;
+        case AppLifecycleState.resumed:
           break;
       }
     }
   }
 
-  void _loadUrl(String? url) {
-    if (url == null || url.isEmpty || _isDisposed) return;
+  void _loadUrl(String url) {
+    if (_isDisposed || _webViewController == null) return;
+    if (url.isEmpty) return;
 
     String finalUrl = url;
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    if (url != 'about:blank' &&
+        !url.startsWith('http://') &&
+        !url.startsWith('https://')) {
       finalUrl = 'https://$url';
     }
 
-    _controller?.loadRequest(Uri.parse(finalUrl));
+    _webViewController!.loadRequest(Uri.parse(finalUrl));
+  }
+
+  void _loadHtml(String html) {
+    if (_isDisposed || _webViewController == null) return;
+    if (html.isEmpty) return;
+
+    _webViewController!.loadHtmlString(html);
   }
 
   @override
   void dispose() {
     _isDisposed = true;
+    _effectiveController.removeListener(_onControllerChanged);
     WidgetsBinding.instance.removeObserver(this);
 
-    // Cleanup WebView để giải phóng bộ nhớ
     _cleanupWebView();
+    _internalController?.dispose();
 
     super.dispose();
   }
 
   Future<void> _cleanupWebView() async {
-    if (_controller != null) {
+    if (_webViewController != null) {
       try {
-        // Dừng loading nếu đang load
-        // Load blank page để giải phóng tài nguyên web content
-        await _controller!.loadRequest(Uri.parse('about:blank'));
+        await _webViewController!.loadRequest(Uri.parse('about:blank'));
 
-        // Xóa cache nếu được cấu hình
         if (widget.clearCacheOnDispose) {
-          await _controller!.clearCache();
-          await _controller!.clearLocalStorage();
+          await _webViewController!.clearCache();
+          await _webViewController!.clearLocalStorage();
         }
-        await Future.delayed(Duration(milliseconds: 50));
+
+        await Future.delayed(const Duration(milliseconds: 50));
       } catch (e) {
         debugPrint('Error cleaning up WebView: $e');
       }
 
-      _controller = null;
+      _webViewController = null;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (widget.url == null || widget.url!.isEmpty) {
-      return const Center(child: Text('No URL provided'));
+    final url = _effectiveController.url;
+    final html = _effectiveController.html;
+    final enabled = _effectiveController.enabled;
+
+    if (url == null && html == null) {
+      return const Center(child: Text('No content to display'));
     }
 
-    if (_controller == null) {
+    if (_webViewController == null) {
       return const Center(child: CircularProgressIndicator());
     }
 
     Widget webView = Stack(
       children: [
-        WebViewWidget(controller: _controller!),
+        AbsorbPointer(
+          absorbing: !enabled,
+          child: Opacity(
+            opacity: enabled ? 1.0 : 0.5,
+            child: WebViewWidget(controller: _webViewController!),
+          ),
+        ),
         if (_isLoading)
           Container(
             color: Colors.white.withAlpha(80),
@@ -192,53 +321,52 @@ class CyberWebViewState extends State<CyberWebView>
 
   // Public methods
   Future<void> reload() async {
-    if (_controller != null && !_isDisposed) {
-      await _controller!.reload();
+    if (_webViewController != null && !_isDisposed) {
+      await _webViewController!.reload();
     }
   }
 
   Future<void> goBack() async {
-    if (_controller != null && !_isDisposed) {
-      await _controller!.goBack();
+    if (_webViewController != null && !_isDisposed) {
+      await _webViewController!.goBack();
     }
   }
 
   Future<void> goForward() async {
-    if (_controller != null && !_isDisposed) {
-      await _controller!.goForward();
+    if (_webViewController != null && !_isDisposed) {
+      await _webViewController!.goForward();
     }
   }
 
   Future<bool> canGoBack() async {
-    if (_controller != null && !_isDisposed) {
-      return await _controller!.canGoBack();
+    if (_webViewController != null && !_isDisposed) {
+      return await _webViewController!.canGoBack();
     }
     return false;
   }
 
   Future<bool> canGoForward() async {
-    if (_controller != null && !_isDisposed) {
-      return await _controller!.canGoForward();
+    if (_webViewController != null && !_isDisposed) {
+      return await _webViewController!.canGoForward();
     }
     return false;
   }
 
+  @Deprecated('Use controller.loadUrl() instead')
   void loadUrl(String url) {
-    _loadUrl(url);
+    _effectiveController.loadUrl(url);
   }
 
-  // Thêm method để clear cache thủ công
   Future<void> clearCache() async {
-    if (_controller != null && !_isDisposed) {
-      await _controller!.clearCache();
-      await _controller!.clearLocalStorage();
+    if (_webViewController != null && !_isDisposed) {
+      await _webViewController!.clearCache();
+      await _webViewController!.clearLocalStorage();
     }
   }
 
-  // Thêm method để stop loading
   Future<void> stopLoading() async {
-    if (_controller != null && !_isDisposed) {
-      await _controller!.loadRequest(Uri.parse('about:blank'));
+    if (_webViewController != null && !_isDisposed) {
+      await _webViewController!.loadRequest(Uri.parse('about:blank'));
     }
   }
 }
