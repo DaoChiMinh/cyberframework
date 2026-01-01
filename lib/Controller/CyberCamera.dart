@@ -1,396 +1,16 @@
-import 'dart:io';
-import 'package:flutter/material.dart';
-import 'package:camera/camera.dart';
-import 'package:flutter_image_compress/flutter_image_compress.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as path;
-import 'dart:convert';
-
-/// Result data sau khi chụp ảnh
-class CyberCameraResult {
-  final File file;
-  final String fileName;
-  final int fileSize;
-  final bool isCompressed;
-  final int? quality;
-
-  CyberCameraResult({
-    required this.file,
-    required this.fileName,
-    required this.fileSize,
-    this.isCompressed = false,
-    this.quality,
-  });
-
-  /// Get file as bytes
-  Future<List<int>> getBytes() async {
-    return await file.readAsBytes();
-  }
-
-  /// Get base64 string
-  Future<String> getBase64() async {
-    final bytes = await getBytes();
-    return base64Encode(bytes);
-  }
-}
-
-/// Callback khi chụp ảnh thành công
-typedef OnCaptureImage = void Function(CyberCameraResult result);
-
-/// Callback khi có lỗi
-typedef OnCameraError = void Function(String error);
-
-// ============================================================================
-// CONTROL - CyberCamera (Inline camera control)
-// ============================================================================
-
-/// CyberCamera - Camera control có thể add vào màn hình
-/// Tap vào preview để chụp ảnh
-class CyberCamera extends StatefulWidget {
-  /// Callback khi chụp ảnh thành công
-  final OnCaptureImage onCapture;
-
-  /// Callback khi có lỗi
-  final OnCameraError? onError;
-
-  /// Chiều cao của camera view
-  final double? height;
-
-  /// Border radius
-  final double borderRadius;
-
-  /// Có nén ảnh hay không
-  final bool enableCompression;
-
-  /// Chất lượng nén (0-100)
-  final int compressionQuality;
-
-  /// Kích thước max sau khi nén (width)
-  final int? maxWidth;
-
-  /// Kích thước max sau khi nén (height)
-  final int? maxHeight;
-
-  /// Hiển thị overlay khi tap
-  final bool showTapOverlay;
-
-  /// Text hướng dẫn
-  final String? hintText;
-
-  /// Camera mặc định (back/front)
-  final CameraLensDirection defaultCamera;
-
-  const CyberCamera({
-    super.key,
-    required this.onCapture,
-    this.onError,
-    this.height = 300,
-    this.borderRadius = 12.0,
-    this.enableCompression = true,
-    this.compressionQuality = 85,
-    this.maxWidth = 1920,
-    this.maxHeight = 1920,
-    this.showTapOverlay = true,
-    this.hintText,
-    this.defaultCamera = CameraLensDirection.back,
-  });
-
-  @override
-  State<CyberCamera> createState() => _CyberCameraState();
-}
-
-class _CyberCameraState extends State<CyberCamera> {
-  CameraController? _controller;
-  List<CameraDescription>? _cameras;
-  bool _isInitialized = false;
-  bool _isCapturing = false;
-  int _currentCameraIndex = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _initializeCamera();
-  }
-
-  @override
-  void dispose() {
-    _controller?.dispose();
-    super.dispose();
-  }
-
-  Future<void> _initializeCamera() async {
-    try {
-      _cameras = await availableCameras();
-
-      if (_cameras == null || _cameras!.isEmpty) {
-        _handleError('Không tìm thấy camera');
-        return;
-      }
-
-      // Find default camera
-      _currentCameraIndex = _cameras!.indexWhere(
-        (camera) => camera.lensDirection == widget.defaultCamera,
-      );
-
-      if (_currentCameraIndex == -1) {
-        _currentCameraIndex = 0;
-      }
-
-      await _initController(_cameras![_currentCameraIndex]);
-    } catch (e) {
-      _handleError('Lỗi khởi tạo camera: $e');
-    }
-  }
-
-  Future<void> _initController(CameraDescription camera) async {
-    _controller?.dispose();
-
-    _controller = CameraController(
-      camera,
-      ResolutionPreset.high,
-      enableAudio: false,
-    );
-
-    try {
-      await _controller!.initialize();
-      if (mounted) {
-        setState(() {
-          _isInitialized = true;
-        });
-      }
-    } catch (e) {
-      _handleError('Lỗi khởi tạo controller: $e');
-    }
-  }
-
-  Future<void> _switchCamera() async {
-    if (_cameras == null || _cameras!.length < 2) return;
-
-    setState(() {
-      _isInitialized = false;
-      _currentCameraIndex = (_currentCameraIndex + 1) % _cameras!.length;
-    });
-
-    await _initController(_cameras![_currentCameraIndex]);
-  }
-
-  Future<void> _captureImage() async {
-    if (_controller == null ||
-        !_controller!.value.isInitialized ||
-        _isCapturing) {
-      return;
-    }
-
-    setState(() {
-      _isCapturing = true;
-    });
-
-    try {
-      final XFile image = await _controller!.takePicture();
-      await _processImage(image);
-    } catch (e) {
-      _handleError('Lỗi khi chụp ảnh: $e');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isCapturing = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _processImage(XFile xFile) async {
-    try {
-      File imageFile = File(xFile.path);
-
-      // Nén ảnh nếu enable
-      if (widget.enableCompression) {
-        final compressedFile = await _compressImage(imageFile);
-        if (compressedFile != null) {
-          imageFile = compressedFile;
-        }
-      }
-
-      final fileSize = await imageFile.length();
-      final fileName = path.basename(imageFile.path);
-
-      final result = CyberCameraResult(
-        file: imageFile,
-        fileName: fileName,
-        fileSize: fileSize,
-        isCompressed: widget.enableCompression,
-        quality: widget.enableCompression ? widget.compressionQuality : null,
-      );
-
-      widget.onCapture(result);
-    } catch (e) {
-      _handleError('Lỗi xử lý ảnh: $e');
-    }
-  }
-
-  Future<File?> _compressImage(File file) async {
-    try {
-      final dir = await getTemporaryDirectory();
-      final targetPath = path.join(
-        dir.path,
-        'compressed_${DateTime.now().millisecondsSinceEpoch}.jpg',
-      );
-
-      final result = await FlutterImageCompress.compressAndGetFile(
-        file.absolute.path,
-        targetPath,
-        quality: widget.compressionQuality,
-        minWidth: widget.maxWidth ?? 1920,
-        minHeight: widget.maxHeight ?? 1920,
-      );
-
-      if (result == null) return null;
-
-      return File(result.path);
-    } catch (e) {
-      //debugPrint('Error compressing image: $e');
-      return null;
-    }
-  }
-
-  void _handleError(String error) {
-    //debugPrint('CyberCamera Error: $error');
-    widget.onError?.call(error);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: widget.height,
-      decoration: BoxDecoration(
-        color: Colors.black,
-        borderRadius: BorderRadius.circular(widget.borderRadius),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(widget.borderRadius),
-        child: Stack(
-          children: [
-            // Camera Preview
-            if (_isInitialized && _controller != null)
-              Positioned.fill(
-                child: GestureDetector(
-                  onTap: widget.showTapOverlay ? _captureImage : null,
-                  child: CameraPreview(_controller!),
-                ),
-              )
-            else
-              Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircularProgressIndicator(color: Colors.white),
-                    SizedBox(height: 16),
-                    Text(
-                      'Đang khởi tạo camera...',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ],
-                ),
-              ),
-
-            // Tap overlay
-            if (widget.showTapOverlay && _isInitialized)
-              Positioned.fill(
-                child: GestureDetector(
-                  onTap: _captureImage,
-                  child: Container(
-                    color: Colors.transparent,
-                    child: Center(
-                      child: widget.hintText != null
-                          ? Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.6),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                widget.hintText!,
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            )
-                          : null,
-                    ),
-                  ),
-                ),
-              ),
-
-            // Capture overlay effect
-            if (_isCapturing)
-              Positioned.fill(
-                child: Container(
-                  color: Colors.white.withValues(alpha: 0.5),
-                  child: Center(
-                    child: Icon(
-                      Icons.camera_alt,
-                      size: 64,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-
-            // Control buttons
-            if (_isInitialized)
-              Positioned(top: 8, right: 8, child: _buildControlButtons()),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildControlButtons() {
-    return Column(
-      children: [
-        // Switch camera button
-        if (_cameras != null && _cameras!.length > 1)
-          Container(
-            margin: EdgeInsets.only(bottom: 8),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.5),
-              shape: BoxShape.circle,
-            ),
-            child: IconButton(
-              icon: Icon(Icons.flip_camera_ios, color: Colors.white),
-              onPressed: _switchCamera,
-            ),
-          ),
-
-        // Manual capture button
-        if (!widget.showTapOverlay)
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.5),
-              shape: BoxShape.circle,
-            ),
-            child: IconButton(
-              icon: Icon(Icons.camera_alt, color: Colors.white, size: 28),
-              onPressed: _captureImage,
-            ),
-          ),
-      ],
-    );
-  }
-}
-
 // ============================================================================
 // VIEW - CyberCameraView (Full screen camera)
 // ============================================================================
 
-/// CyberCameraView - Màn hình camera full screen
-/// Show như popup, chụp xong tự động đóng và trả về data
+import 'package:camera/camera.dart';
+import 'package:cyberframework/cyberframework.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:path/path.dart' as path;
+
+/// CyberCameraView - Màn hình camera full screen với controller
 class CyberCameraView {
   final BuildContext context;
+  final CyberCameraController? controller;
   final bool enableCompression;
   final int compressionQuality;
   final int? maxWidth;
@@ -401,6 +21,7 @@ class CyberCameraView {
 
   CyberCameraView({
     required this.context,
+    this.controller,
     this.enableCompression = true,
     this.compressionQuality = 85,
     this.maxWidth = 1920,
@@ -415,6 +36,7 @@ class CyberCameraView {
     final result = await Navigator.of(context).push<CyberCameraResult>(
       MaterialPageRoute(
         builder: (context) => _CyberCameraScreen(
+          controller: controller,
           enableCompression: enableCompression,
           compressionQuality: compressionQuality,
           maxWidth: maxWidth,
@@ -433,6 +55,7 @@ class CyberCameraView {
 
 /// Camera Screen Widget
 class _CyberCameraScreen extends StatefulWidget {
+  final CyberCameraController? controller;
   final bool enableCompression;
   final int compressionQuality;
   final int? maxWidth;
@@ -442,6 +65,7 @@ class _CyberCameraScreen extends StatefulWidget {
   final OnCameraError? onError;
 
   const _CyberCameraScreen({
+    this.controller,
     required this.enableCompression,
     required this.compressionQuality,
     this.maxWidth,
@@ -456,21 +80,58 @@ class _CyberCameraScreen extends StatefulWidget {
 }
 
 class _CyberCameraScreenState extends State<_CyberCameraScreen> {
-  CameraController? _controller;
+  CyberCameraController? _internalController;
+  CameraController? _cameraController;
   List<CameraDescription>? _cameras;
   bool _isInitialized = false;
   bool _isCapturing = false;
   int _currentCameraIndex = 0;
 
+  CyberCameraController get _effectiveController =>
+      widget.controller ?? _internalController!;
+
   @override
   void initState() {
     super.initState();
+
+    if (widget.controller == null) {
+      _internalController = CyberCameraController();
+    }
+
     _initializeCamera();
+    _effectiveController.addListener(_onControllerChanged);
+  }
+
+  void _onControllerChanged() {
+    if (!mounted) return;
+
+    final action = _effectiveController.pendingAction;
+    if (action != CyberCameraAction.none) {
+      _handlePendingAction(action);
+      return;
+    }
+
+    setState(() {});
+  }
+
+  void _handlePendingAction(CyberCameraAction action) {
+    switch (action) {
+      case CyberCameraAction.capture:
+        _captureImage();
+        break;
+      case CyberCameraAction.switchCamera:
+        _switchCamera();
+        break;
+      case CyberCameraAction.none:
+        break;
+    }
   }
 
   @override
   void dispose() {
-    _controller?.dispose();
+    _effectiveController.removeListener(_onControllerChanged);
+    _cameraController?.dispose();
+    _internalController?.dispose();
     super.dispose();
   }
 
@@ -498,16 +159,16 @@ class _CyberCameraScreenState extends State<_CyberCameraScreen> {
   }
 
   Future<void> _initController(CameraDescription camera) async {
-    _controller?.dispose();
+    _cameraController?.dispose();
 
-    _controller = CameraController(
+    _cameraController = CameraController(
       camera,
       ResolutionPreset.high,
       enableAudio: false,
     );
 
     try {
-      await _controller!.initialize();
+      await _cameraController!.initialize();
       if (mounted) {
         setState(() {
           _isInitialized = true;
@@ -520,6 +181,7 @@ class _CyberCameraScreenState extends State<_CyberCameraScreen> {
 
   Future<void> _switchCamera() async {
     if (_cameras == null || _cameras!.length < 2) return;
+    if (!_effectiveController.enabled) return;
 
     setState(() {
       _isInitialized = false;
@@ -530,9 +192,10 @@ class _CyberCameraScreenState extends State<_CyberCameraScreen> {
   }
 
   Future<void> _captureImage() async {
-    if (_controller == null ||
-        !_controller!.value.isInitialized ||
-        _isCapturing) {
+    if (_cameraController == null ||
+        !_cameraController!.value.isInitialized ||
+        _isCapturing ||
+        !_effectiveController.enabled) {
       return;
     }
 
@@ -541,7 +204,7 @@ class _CyberCameraScreenState extends State<_CyberCameraScreen> {
     });
 
     try {
-      final XFile image = await _controller!.takePicture();
+      final XFile image = await _cameraController!.takePicture();
       final result = await _processImage(image);
 
       if (result != null && mounted) {
@@ -605,18 +268,20 @@ class _CyberCameraScreenState extends State<_CyberCameraScreen> {
 
       return File(result.path);
     } catch (e) {
-      //debugPrint('Error compressing image: $e');
+      debugPrint('Error compressing image: $e');
       return null;
     }
   }
 
   void _handleError(String error) {
-    //debugPrint('CyberCameraView Error: $error');
+    debugPrint('CyberCameraView Error: $error');
     widget.onError?.call(error);
   }
 
   @override
   Widget build(BuildContext context) {
+    final isEnabled = _effectiveController.enabled;
+
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -635,121 +300,126 @@ class _CyberCameraScreenState extends State<_CyberCameraScreen> {
             ),
         ],
       ),
-      body: Stack(
-        children: [
-          // Camera Preview
-          if (_isInitialized && _controller != null)
-            Positioned.fill(
-              child: GestureDetector(
-                onTap: _captureImage,
-                child: CameraPreview(_controller!),
-              ),
-            )
-          else
-            Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(color: Colors.white),
-                  SizedBox(height: 16),
-                  Text(
-                    'Đang khởi tạo camera...',
-                    style: TextStyle(color: Colors.white),
+      body: AbsorbPointer(
+        absorbing: !isEnabled,
+        child: Opacity(
+          opacity: isEnabled ? 1.0 : 0.5,
+          child: Stack(
+            children: [
+              // Camera Preview
+              if (_isInitialized && _cameraController != null)
+                Positioned.fill(
+                  child: GestureDetector(
+                    onTap: _captureImage,
+                    child: CameraPreview(_cameraController!),
                   ),
-                ],
-              ),
-            ),
-
-          // Capture overlay effect
-          if (_isCapturing)
-            Positioned.fill(
-              child: Container(
-                color: Colors.white.withValues(alpha: 0.5),
-                child: Center(
-                  child: Icon(Icons.camera_alt, size: 64, color: Colors.white),
-                ),
-              ),
-            ),
-
-          // Bottom controls
-          if (_isInitialized)
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: Container(
-                padding: EdgeInsets.symmetric(vertical: 32),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withValues(alpha: 0.7),
+                )
+              else
+                Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(color: Colors.white),
+                      SizedBox(height: 16),
+                      Text(
+                        'Đang khởi tạo camera...',
+                        style: TextStyle(color: Colors.white),
+                      ),
                     ],
                   ),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    // Gallery button (optional)
-                    SizedBox(width: 60),
 
-                    // Capture button
-                    GestureDetector(
-                      onTap: _captureImage,
-                      child: Container(
-                        width: 70,
-                        height: 70,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 4),
-                        ),
-                        child: Container(
-                          margin: EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
+              // Capture overlay effect
+              if (_isCapturing)
+                Positioned.fill(
+                  child: Container(
+                    color: Colors.white.withValues(alpha: 0.5),
+                    child: Center(
+                      child: Icon(
+                        Icons.camera_alt,
+                        size: 64,
+                        color: Colors.white,
                       ),
                     ),
-
-                    // Settings button (optional)
-                    SizedBox(width: 60),
-                  ],
-                ),
-              ),
-            ),
-
-          // Hint text
-          if (_isInitialized)
-            Positioned(
-              top: 16,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.6),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    'Nhấn vào màn hình để chụp',
-                    style: TextStyle(color: Colors.white, fontSize: 14),
                   ),
                 ),
-              ),
-            ),
-        ],
+
+              // Bottom controls
+              if (_isInitialized)
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    padding: EdgeInsets.symmetric(vertical: 32),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.7),
+                        ],
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        SizedBox(width: 60),
+
+                        // Capture button
+                        GestureDetector(
+                          onTap: _captureImage,
+                          child: Container(
+                            width: 70,
+                            height: 70,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 4),
+                            ),
+                            child: Container(
+                              margin: EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        SizedBox(width: 60),
+                      ],
+                    ),
+                  ),
+                ),
+
+              // Hint text
+              if (_isInitialized)
+                Positioned(
+                  top: 16,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.6),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'Nhấn vào màn hình để chụp',
+                        style: TextStyle(color: Colors.white, fontSize: 14),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
-}
-
-/// Extension for base64 encoding
-
-extension Base64Extension on List<int> {
-  String base64Encode() => base64.encode(this);
 }

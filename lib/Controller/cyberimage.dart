@@ -2,8 +2,9 @@ import 'package:cyberframework/Controller/cyber_fullscreen_image_viewer.dart';
 import 'package:cyberframework/Controller/cyber_image_cache_manager.dart';
 import 'package:cyberframework/cyberframework.dart';
 
-/// CyberImage - Production ready với proper memory management
+/// CyberImage - Production ready với controller pattern
 class CyberImage extends StatefulWidget {
+  final CyberImageController? controller;
   final dynamic text;
   final String? label;
   final dynamic isUpload;
@@ -18,7 +19,7 @@ class CyberImage extends StatefulWidget {
   final TextStyle? labelStyle;
   final bool isShowLabel;
 
-  /// ⭐ Callbacks thay vì direct modal
+  /// ⭐ Callbacks
   final ValueChanged<String>? onChanged;
   final Function(dynamic)? onLeaver;
   final VoidCallback? onUploadRequested;
@@ -41,6 +42,7 @@ class CyberImage extends StatefulWidget {
 
   const CyberImage({
     super.key,
+    this.controller,
     this.text,
     this.label,
     this.isUpload = false,
@@ -72,14 +74,20 @@ class CyberImage extends StatefulWidget {
     this.viewIcon,
     this.deleteIcon,
     this.isCircle = false,
-  });
+  }) : assert(
+         controller == null || text == null,
+         'CyberImage: không được dùng controller cùng với text/binding trực tiếp',
+       );
 
   @override
   State<CyberImage> createState() => _CyberImageState();
 }
 
 class _CyberImageState extends State<CyberImage> {
-  // Binding references
+  // Internal controller nếu không có từ bên ngoài
+  CyberImageController? _internalController;
+
+  // Binding references (giữ cho backward compatible)
   CyberDataRow? _boundRow;
   String? _boundField;
   CyberDataRow? _visibilityBoundRow;
@@ -91,23 +99,130 @@ class _CyberImageState extends State<CyberImage> {
   bool _isUpdating = false;
   bool _isLoading = false;
 
-  // ⭐ Cache visibility và fit để tránh re-parse
+  // Cache
   bool? _cachedVisibility;
   BoxFit? _cachedFit;
 
-  // ⭐ Global cache manager
+  // Track để tránh reload
+  String? _lastLoadedValue;
+
+  // Global cache manager
   final _cacheManager = CyberImageCacheManager();
+
+  CyberImageController get _effectiveController =>
+      widget.controller ?? _internalController!;
 
   @override
   void initState() {
     super.initState();
+
+    // Tạo internal controller nếu cần
+    if (widget.controller == null) {
+      _internalController = CyberImageController();
+
+      // Set initial value từ binding hoặc text
+      final initialValue = _getInitialValue();
+      if (initialValue != null) {
+        _internalController!.setUrlInternal(initialValue);
+        _lastLoadedValue = initialValue;
+      }
+    }
+
     _initializeBindings();
+    _effectiveController.addListener(_onControllerChanged);
+  }
+
+  String? _getInitialValue() {
+    if (widget.text is CyberBindingExpression) {
+      final expr = widget.text as CyberBindingExpression;
+      try {
+        final value = expr.row[expr.fieldName];
+        return value?.toString();
+      } catch (e) {
+        return null;
+      }
+    } else if (widget.text != null && widget.text is! CyberBindingExpression) {
+      return widget.text.toString();
+    }
+    return null;
+  }
+
+  void _onControllerChanged() {
+    if (!mounted || _isUpdating) return;
+
+    // Handle pending actions
+    final action = _effectiveController.pendingAction;
+    if (action != CyberImageAction.none) {
+      _handlePendingAction(action);
+      return;
+    }
+
+    // Handle URL change
+    final newUrl = _effectiveController.imageUrl;
+    if (_lastLoadedValue != newUrl) {
+      _lastLoadedValue = newUrl;
+
+      // Sync to binding if exists
+      if (_boundRow != null && _boundField != null && !_isUpdating) {
+        _isUpdating = true;
+        _boundRow![_boundField!] = newUrl ?? '';
+        _isUpdating = false;
+      }
+
+      if (mounted) {
+        setState(() {});
+      }
+    }
+
+    // Handle enabled state change
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _handlePendingAction(CyberImageAction action) {
+    if (!mounted) return;
+
+    switch (action) {
+      case CyberImageAction.upload:
+        final hasImage =
+            _lastLoadedValue != null && _lastLoadedValue!.isNotEmpty;
+        _showOptionsBottomSheet(hasImage, true, false, false);
+        break;
+      case CyberImageAction.view:
+        if (_lastLoadedValue != null && _lastLoadedValue!.isNotEmpty) {
+          _viewImage(_lastLoadedValue!);
+        }
+        break;
+      case CyberImageAction.delete:
+        _deleteImage();
+        break;
+      case CyberImageAction.none:
+        break;
+    }
   }
 
   @override
   void didUpdateWidget(CyberImage oldWidget) {
     super.didUpdateWidget(oldWidget);
 
+    // Controller changed
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller?.removeListener(_onControllerChanged);
+
+      if (widget.controller == null && _internalController == null) {
+        _internalController = CyberImageController();
+        final initialValue = _getInitialValue();
+        if (initialValue != null) {
+          _internalController!.setUrlInternal(initialValue);
+          _lastLoadedValue = initialValue;
+        }
+      }
+
+      _effectiveController.addListener(_onControllerChanged);
+    }
+
+    // Bindings changed
     bool bindingsChanged = false;
 
     if (oldWidget.text != widget.text) {
@@ -125,13 +240,24 @@ class _CyberImageState extends State<CyberImage> {
     if (bindingsChanged) {
       _removeAllListeners();
       _initializeBindings();
+
+      // Update internal controller from new binding
+      if (widget.controller == null) {
+        final newValue = _getInitialValue();
+        if (newValue != _internalController!.imageUrl) {
+          _internalController!.setUrlInternal(newValue);
+          _lastLoadedValue = newValue;
+        }
+      }
     }
   }
 
   @override
   void dispose() {
+    _effectiveController.removeListener(_onControllerChanged);
     _removeAllListeners();
     _clearCaches();
+    _internalController?.dispose();
     super.dispose();
   }
 
@@ -173,7 +299,6 @@ class _CyberImageState extends State<CyberImage> {
   void _clearCaches() {
     _cachedVisibility = null;
     _cachedFit = null;
-    // ⭐ Không cần clear global cache - nó tự quản lý
   }
 
   void _parseBinding() {
@@ -324,11 +449,42 @@ class _CyberImageState extends State<CyberImage> {
 
   void _onBindingChanged() {
     if (_isUpdating) return;
+
+    // Sync binding value to controller
+    final currentBindingValue = _getCurrentValueFromBinding();
+    if (currentBindingValue != _effectiveController.imageUrl) {
+      _isUpdating = true;
+      _effectiveController.setUrlInternal(currentBindingValue);
+      _lastLoadedValue = currentBindingValue;
+      _isUpdating = false;
+    }
+
     _clearCaches();
-    setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  String? _getCurrentValueFromBinding() {
+    if (_boundRow != null && _boundField != null) {
+      try {
+        final value = _boundRow![_boundField!];
+        return value?.toString();
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
   }
 
   String? _getCurrentValue() {
+    // Ưu tiên controller
+    final controllerValue = _effectiveController.imageUrl;
+    if (controllerValue != null && controllerValue.isNotEmpty) {
+      return controllerValue;
+    }
+
+    // Fallback to binding
     if (widget.text is CyberBindingExpression) {
       final expr = widget.text as CyberBindingExpression;
       if (_boundRow != expr.row || _boundField != expr.fieldName) {
@@ -355,13 +511,23 @@ class _CyberImageState extends State<CyberImage> {
   }
 
   void _updateValue(String? newValue) {
-    if (!widget.enabled) return;
+    if (!_effectiveController.enabled || !widget.enabled) return;
 
     _isUpdating = true;
 
+    // Update controller
+    if (newValue == null || newValue.isEmpty) {
+      _effectiveController.setUrlInternal(null);
+    } else {
+      _effectiveController.setUrlInternal(newValue);
+    }
+
+    // Update binding
     if (_boundRow != null && _boundField != null) {
       _boundRow![_boundField!] = newValue ?? '';
     }
+
+    _lastLoadedValue = newValue;
 
     widget.onChanged?.call(newValue ?? '');
     widget.onLeaver?.call(newValue);
@@ -407,9 +573,8 @@ class _CyberImageState extends State<CyberImage> {
     return _parseBool(widget.isDelete);
   }
 
-  /// ⭐ Handle tap - callback pattern thay vì direct modal
   Future<void> _handleImageTap() async {
-    if (!widget.enabled) return;
+    if (!_effectiveController.enabled || !widget.enabled) return;
 
     final imageValue = _getCurrentValue();
     final hasImage = imageValue != null && imageValue.isNotEmpty;
@@ -427,9 +592,7 @@ class _CyberImageState extends State<CyberImage> {
       return;
     }
 
-    // Show options - NHƯNG check context còn mounted
     if (!mounted) return;
-
     await _showOptionsBottomSheet(hasImage, canUpload, canView, canDelete);
   }
 
@@ -439,7 +602,6 @@ class _CyberImageState extends State<CyberImage> {
     bool canView,
     bool canDelete,
   ) async {
-    // ⭐ Check if safe to show modal
     if (!mounted) return;
 
     try {
@@ -477,7 +639,9 @@ class _CyberImageState extends State<CyberImage> {
           },
         ),
       );
-    } catch (e) {}
+    } catch (e) {
+      debugPrint('Error showing bottom sheet: $e');
+    }
   }
 
   Future<void> _captureFromCamera() async {
@@ -647,6 +811,7 @@ class _CyberImageState extends State<CyberImage> {
   Widget _buildImageContainer() {
     final imageValue = _getCurrentValue();
     final hasImage = imageValue != null && imageValue.isNotEmpty;
+    final isEnabled = _effectiveController.enabled && widget.enabled;
 
     Widget imageWidget;
 
@@ -659,38 +824,37 @@ class _CyberImageState extends State<CyberImage> {
     }
 
     return GestureDetector(
-      onTap: widget.enabled ? _handleImageTap : null,
-      child: Container(
-        width: widget.width ?? double.infinity,
-        height: widget.height,
-        decoration: BoxDecoration(
-          color: widget.backgroundColor ?? Colors.grey[100],
-          border: widget.borderColor != null
-              ? Border.all(
-                  color: widget.borderColor!,
-                  width: widget.borderWidth,
-                )
-              : null,
-          borderRadius: widget.isCircle
-              ? null
-              : BorderRadius.circular(widget.borderRadius),
-          shape: widget.isCircle ? BoxShape.circle : BoxShape.rectangle,
-        ),
-        child: ClipRRect(
-          borderRadius: widget.isCircle
-              ? BorderRadius.circular(widget.height ?? 200)
-              : BorderRadius.circular(widget.borderRadius),
-          child: imageWidget,
+      onTap: isEnabled ? _handleImageTap : null,
+      child: Opacity(
+        opacity: isEnabled ? 1.0 : 0.5,
+        child: Container(
+          width: widget.width ?? double.infinity,
+          height: widget.height,
+          decoration: BoxDecoration(
+            color: widget.backgroundColor ?? Colors.grey[100],
+            border: widget.borderColor != null
+                ? Border.all(
+                    color: widget.borderColor!,
+                    width: widget.borderWidth,
+                  )
+                : null,
+            borderRadius: widget.isCircle
+                ? null
+                : BorderRadius.circular(widget.borderRadius),
+            shape: widget.isCircle ? BoxShape.circle : BoxShape.rectangle,
+          ),
+          child: ClipRRect(
+            borderRadius: widget.isCircle
+                ? BorderRadius.circular(widget.height ?? 200)
+                : BorderRadius.circular(widget.borderRadius),
+            child: imageWidget,
+          ),
         ),
       ),
     );
   }
 
-  /// ⭐ Get bytes from global cache using HASH
-  /// ⭐ Get image bytes with global cache
-  /// KHÔNG decode riêng - ủy thác cho cache manager!
   Uint8List? _getImageBytes(String imageValue) {
-    // ✅ Cache manager decode + cache tập trung
     return _cacheManager.getOrDecodeBase64(imageValue);
   }
 
@@ -743,7 +907,7 @@ class _CyberImageState extends State<CyberImage> {
         );
       }
 
-      // ⭐ Base64 - use global cache with HASH
+      // Base64
       final bytes = _getImageBytes(imageValue);
       if (bytes == null) {
         return widget.errorWidget ?? _buildErrorWidget();
