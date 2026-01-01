@@ -1,0 +1,223 @@
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
+
+/// Global Image Cache Manager với LRU eviction
+/// Quản lý tập trung memory cho tất cả CyberImage
+class CyberImageCacheManager {
+  static final CyberImageCacheManager _instance =
+      CyberImageCacheManager._internal();
+  factory CyberImageCacheManager() => _instance;
+  CyberImageCacheManager._internal();
+
+  // ⭐ Cache entries với metadata
+  final Map<String, _CacheEntry> _cache = {};
+
+  // ⭐ LRU queue để track usage
+  final List<String> _lruQueue = [];
+
+  // ⭐ Configurable limits
+  int maxCacheSize = 20; // Max 20 images trong memory
+  int maxMemoryBytes = 50 * 1024 * 1024; // Max 50MB total
+
+  int _currentMemoryBytes = 0;
+
+  /// Get image bytes by key (hash)
+  Uint8List? get(String key) {
+    final entry = _cache[key];
+    if (entry == null) return null;
+
+    // ⭐ Update LRU
+    _lruQueue.remove(key);
+    _lruQueue.add(key); // Move to end (most recent)
+
+    entry.lastAccessTime = DateTime.now();
+    entry.accessCount++;
+
+    return entry.bytes;
+  }
+
+  /// Put image bytes into cache
+  void put(String key, Uint8List bytes) {
+    final size = bytes.length;
+
+    // ⭐ Check if need eviction
+    while (_cache.length >= maxCacheSize ||
+        _currentMemoryBytes + size > maxMemoryBytes) {
+      if (_lruQueue.isEmpty) break;
+      _evictOldest();
+    }
+
+    // Add to cache
+    _cache[key] = _CacheEntry(
+      bytes: bytes,
+      size: size,
+      lastAccessTime: DateTime.now(),
+    );
+    _lruQueue.add(key);
+    _currentMemoryBytes += size;
+
+    if (kDebugMode) {
+      print('🖼️ CyberImageCache: Added $key (${_formatBytes(size)})');
+      print(
+        '   Total: ${_cache.length} images, ${_formatBytes(_currentMemoryBytes)}',
+      );
+    }
+  }
+
+  /// Remove specific entry
+  void remove(String key) {
+    final entry = _cache.remove(key);
+    if (entry != null) {
+      _lruQueue.remove(key);
+      _currentMemoryBytes -= entry.size;
+
+      if (kDebugMode) {
+        print(
+          '🗑️ CyberImageCache: Removed $key (${_formatBytes(entry.size)})',
+        );
+      }
+    }
+  }
+
+  /// Clear all cache
+  void clear() {
+    _cache.clear();
+    _lruQueue.clear();
+    _currentMemoryBytes = 0;
+
+    if (kDebugMode) {
+      print('🧹 CyberImageCache: Cleared all');
+    }
+  }
+
+  /// Evict oldest (least recently used)
+  void _evictOldest() {
+    if (_lruQueue.isEmpty) return;
+
+    final oldestKey = _lruQueue.first;
+    final entry = _cache.remove(oldestKey);
+
+    if (entry != null) {
+      _lruQueue.removeAt(0);
+      _currentMemoryBytes -= entry.size;
+
+      if (kDebugMode) {
+        print(
+          '♻️ CyberImageCache: Evicted $oldestKey (${_formatBytes(entry.size)})',
+        );
+        print(
+          '   Reason: ${_cache.length >= maxCacheSize ? "Size limit" : "Memory limit"}',
+        );
+      }
+    }
+  }
+
+  /// Get cache statistics
+  CacheStats getStats() {
+    return CacheStats(
+      entryCount: _cache.length,
+      totalBytes: _currentMemoryBytes,
+      maxEntries: maxCacheSize,
+      maxBytes: maxMemoryBytes,
+      hitRate: _calculateHitRate(),
+    );
+  }
+
+  double _calculateHitRate() {
+    if (_cache.isEmpty) return 0.0;
+
+    int totalAccess = 0;
+    for (final entry in _cache.values) {
+      totalAccess += entry.accessCount;
+    }
+
+    return totalAccess / _cache.length;
+  }
+
+  String _formatBytes(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  /// Debug: Print cache status
+  void printStatus() {
+    final stats = getStats();
+    print('📊 CyberImageCache Status:');
+    print('   Entries: ${stats.entryCount}/${stats.maxEntries}');
+    print(
+      '   Memory: ${_formatBytes(stats.totalBytes)}/${_formatBytes(stats.maxBytes)}',
+    );
+    print('   Hit Rate: ${(stats.hitRate * 100).toStringAsFixed(1)}%');
+  }
+}
+
+class _CacheEntry {
+  final Uint8List bytes;
+  final int size;
+  DateTime lastAccessTime;
+  int accessCount;
+
+  _CacheEntry({
+    required this.bytes,
+    required this.size,
+    required this.lastAccessTime,
+    this.accessCount = 1,
+  });
+}
+
+class CacheStats {
+  final int entryCount;
+  final int totalBytes;
+  final int maxEntries;
+  final int maxBytes;
+  final double hitRate;
+
+  CacheStats({
+    required this.entryCount,
+    required this.totalBytes,
+    required this.maxEntries,
+    required this.maxBytes,
+    required this.hitRate,
+  });
+
+  double get usagePercent => (entryCount / maxEntries * 100);
+  double get memoryPercent => (totalBytes / maxBytes * 100);
+}
+
+/// Utilities for image hashing
+class CyberImageUtils {
+  /// ⭐ Generate hash from base64 string (không giữ full string)
+  static String hashBase64(String base64String) {
+    // Chỉ hash, không store full string
+    final bytes = utf8.encode(base64String);
+    final digest = sha256.convert(bytes);
+    return digest.toString();
+  }
+
+  /// ⭐ Generate hash from bytes
+  static String hashBytes(Uint8List bytes) {
+    final digest = sha256.convert(bytes);
+    return digest.toString();
+  }
+
+  /// Decode base64 với error handling
+  static Uint8List? decodeBase64(String base64String) {
+    try {
+      String cleanBase64 = base64String;
+
+      // Remove data URI prefix if exists
+      if (cleanBase64.startsWith('data:image')) {
+        cleanBase64 = cleanBase64.split(',').last;
+      }
+
+      return base64Decode(cleanBase64);
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error decoding base64: $e');
+      }
+      return null;
+    }
+  }
+}

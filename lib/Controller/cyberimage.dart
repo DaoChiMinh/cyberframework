@@ -1,6 +1,9 @@
+import 'dart:typed_data';
+import 'package:cyberframework/Controller/cyber_fullscreen_image_viewer.dart';
+import 'package:cyberframework/Controller/cyber_image_cache_manager.dart';
 import 'package:cyberframework/cyberframework.dart';
 
-/// CyberImage - Optimized version with memory management
+/// CyberImage - Production ready với proper memory management
 class CyberImage extends StatefulWidget {
   final dynamic text;
   final String? label;
@@ -15,8 +18,14 @@ class CyberImage extends StatefulWidget {
   final Widget? errorWidget;
   final TextStyle? labelStyle;
   final bool isShowLabel;
+
+  /// ⭐ Callbacks thay vì direct modal
   final ValueChanged<String>? onChanged;
   final Function(dynamic)? onLeaver;
+  final VoidCallback? onUploadRequested;
+  final VoidCallback? onViewRequested;
+  final VoidCallback? onDeleteRequested;
+
   final Color? backgroundColor;
   final Color? borderColor;
   final double borderWidth;
@@ -48,6 +57,9 @@ class CyberImage extends StatefulWidget {
     this.isShowLabel = true,
     this.onChanged,
     this.onLeaver,
+    this.onUploadRequested,
+    this.onViewRequested,
+    this.onDeleteRequested,
     this.backgroundColor,
     this.borderColor,
     this.borderWidth = 2.0,
@@ -80,11 +92,13 @@ class _CyberImageState extends State<CyberImage> {
   bool _isUpdating = false;
   bool _isLoading = false;
 
-  // ⭐ Performance caches
+  // ⭐ Chỉ cache hash, KHÔNG cache full base64 string!
+  String? _currentImageHash;
   bool? _cachedVisibility;
   BoxFit? _cachedFit;
-  String? _cachedImageValue;
-  Uint8List? _cachedBytes; // Cache decoded base64
+
+  // ⭐ Global cache manager
+  final _cacheManager = CyberImageCacheManager();
 
   @override
   void initState() {
@@ -96,11 +110,11 @@ class _CyberImageState extends State<CyberImage> {
   void didUpdateWidget(CyberImage oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    // ⭐ Check if bindings changed
     bool bindingsChanged = false;
 
     if (oldWidget.text != widget.text) {
       bindingsChanged = true;
+      _currentImageHash = null; // Invalidate
     }
     if (oldWidget.isVisible != widget.isVisible) {
       bindingsChanged = true;
@@ -120,11 +134,10 @@ class _CyberImageState extends State<CyberImage> {
   @override
   void dispose() {
     _removeAllListeners();
-    _clearCaches(); // ⭐ Clear all caches
+    _clearCaches();
     super.dispose();
   }
 
-  // ⭐ Initialize all bindings and listeners
   void _initializeBindings() {
     _parseBinding();
     _parseVisibilityBinding();
@@ -132,7 +145,6 @@ class _CyberImageState extends State<CyberImage> {
     _addAllListeners();
   }
 
-  // ⭐ Add all listeners (no duplicates)
   void _addAllListeners() {
     if (_boundRow != null) {
       _boundRow!.addListener(_onBindingChanged);
@@ -147,7 +159,6 @@ class _CyberImageState extends State<CyberImage> {
     }
   }
 
-  // ⭐ Remove all listeners safely
   void _removeAllListeners() {
     if (_boundRow != null) {
       _boundRow!.removeListener(_onBindingChanged);
@@ -162,12 +173,11 @@ class _CyberImageState extends State<CyberImage> {
     }
   }
 
-  // ⭐ Clear all caches
   void _clearCaches() {
     _cachedVisibility = null;
     _cachedFit = null;
-    _cachedImageValue = null;
-    _cachedBytes = null; // Important: free memory
+    _currentImageHash = null;
+    // ⭐ Không cần clear global cache - nó tự quản lý
   }
 
   void _parseBinding() {
@@ -237,7 +247,6 @@ class _CyberImageState extends State<CyberImage> {
     return false;
   }
 
-  // ⭐ Cached visibility check
   bool _isVisible() {
     if (_cachedVisibility != null) return _cachedVisibility!;
 
@@ -252,7 +261,6 @@ class _CyberImageState extends State<CyberImage> {
     return _cachedVisibility!;
   }
 
-  // ⭐ Cached fit parsing
   BoxFit _parseFit() {
     if (_cachedFit != null) return _cachedFit!;
 
@@ -320,10 +328,7 @@ class _CyberImageState extends State<CyberImage> {
 
   void _onBindingChanged() {
     if (_isUpdating) return;
-
-    // ⭐ Invalidate caches
     _clearCaches();
-
     setState(() {});
   }
 
@@ -358,10 +363,9 @@ class _CyberImageState extends State<CyberImage> {
 
     _isUpdating = true;
 
-    // ⭐ Clear image cache when value changes
-    if (_cachedImageValue != newValue) {
-      _cachedImageValue = null;
-      _cachedBytes = null;
+    // ⭐ Invalidate hash when value changes
+    if (_currentImageHash != null) {
+      _currentImageHash = null;
     }
 
     if (_boundRow != null && _boundField != null) {
@@ -412,6 +416,7 @@ class _CyberImageState extends State<CyberImage> {
     return _parseBool(widget.isDelete);
   }
 
+  /// ⭐ Handle tap - callback pattern thay vì direct modal
   Future<void> _handleImageTap() async {
     if (!widget.enabled) return;
 
@@ -424,10 +429,15 @@ class _CyberImageState extends State<CyberImage> {
 
     if (!canUpload && !canView && !canDelete) return;
 
+    // Simple case: chỉ view
     if (canView && hasImage && !canUpload && !canDelete) {
+      widget.onViewRequested?.call();
       await _viewImage(imageValue);
       return;
     }
+
+    // Show options - NHƯNG check context còn mounted
+    if (!mounted) return;
 
     await _showOptionsBottomSheet(hasImage, canUpload, canView, canDelete);
   }
@@ -438,41 +448,50 @@ class _CyberImageState extends State<CyberImage> {
     bool canView,
     bool canDelete,
   ) async {
-    await showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _ImageOptionsSheet(
-        hasImage: hasImage,
-        canUpload: canUpload,
-        canView: canView,
-        canDelete: canDelete,
-        uploadIcon: widget.uploadIcon,
-        viewIcon: widget.viewIcon,
-        deleteIcon: widget.deleteIcon,
-        onCamera: () async {
-          Navigator.pop(context);
-          await _captureFromCamera();
-        },
-        onGallery: () async {
-          Navigator.pop(context);
-          await _pickFromGallery();
-        },
-        onView: () async {
-          Navigator.pop(context);
-          final imageValue = _getCurrentValue();
-          if (imageValue != null && imageValue.isNotEmpty) {
-            await _viewImage(imageValue);
-          }
-        },
-        onDelete: () async {
-          Navigator.pop(context);
-          await _deleteImage();
-        },
-      ),
-    );
+    // ⭐ Check if safe to show modal
+    if (!mounted) return;
+
+    try {
+      await showModalBottomSheet(
+        context: context,
+        backgroundColor: Colors.transparent,
+        builder: (context) => _ImageOptionsSheet(
+          hasImage: hasImage,
+          canUpload: canUpload,
+          canView: canView,
+          canDelete: canDelete,
+          uploadIcon: widget.uploadIcon,
+          viewIcon: widget.viewIcon,
+          deleteIcon: widget.deleteIcon,
+          onCamera: () async {
+            Navigator.pop(context);
+            await _captureFromCamera();
+          },
+          onGallery: () async {
+            Navigator.pop(context);
+            await _pickFromGallery();
+          },
+          onView: () async {
+            Navigator.pop(context);
+            final imageValue = _getCurrentValue();
+            if (imageValue != null && imageValue.isNotEmpty) {
+              widget.onViewRequested?.call();
+              await _viewImage(imageValue);
+            }
+          },
+          onDelete: () async {
+            Navigator.pop(context);
+            widget.onDeleteRequested?.call();
+            await _deleteImage();
+          },
+        ),
+      );
+    } catch (e) {}
   }
 
   Future<void> _captureFromCamera() async {
+    widget.onUploadRequested?.call();
+
     setState(() => _isLoading = true);
 
     try {
@@ -506,6 +525,8 @@ class _CyberImageState extends State<CyberImage> {
   }
 
   Future<void> _pickFromGallery() async {
+    widget.onUploadRequested?.call();
+
     setState(() => _isLoading = true);
 
     try {
@@ -544,9 +565,11 @@ class _CyberImageState extends State<CyberImage> {
   }
 
   Future<void> _viewImage(String imageValue) async {
+    if (!mounted) return;
+
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => _FullscreenImageViewer(
+        builder: (context) => CyberFullscreenImageViewer(
           imageValue: imageValue,
           isCircle: widget.isCircle,
         ),
@@ -556,6 +579,8 @@ class _CyberImageState extends State<CyberImage> {
   }
 
   Future<void> _deleteImage() async {
+    if (!mounted) return;
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -586,7 +611,6 @@ class _CyberImageState extends State<CyberImage> {
       return const SizedBox.shrink();
     }
 
-    // ⭐ Optimized ListenableBuilder
     final listeners = <Listenable>[];
     if (_boundRow != null) listeners.add(_boundRow!);
     if (_fitBoundRow != null && _fitBoundRow != _boundRow) {
@@ -671,33 +695,27 @@ class _CyberImageState extends State<CyberImage> {
     );
   }
 
-  // ⭐ Get cached decoded bytes
-  Uint8List? _getDecodedBytes(String imageValue) {
-    // Return cached if same image
-    if (_cachedImageValue == imageValue && _cachedBytes != null) {
-      return _cachedBytes;
+  /// ⭐ Get bytes from global cache using HASH
+  Uint8List? _getImageBytes(String imageValue) {
+    // Generate hash from image value
+    final hash = CyberImageUtils.hashBase64(imageValue);
+
+    // Try get from global cache
+    final cached = _cacheManager.get(hash);
+    if (cached != null) {
+      _currentImageHash = hash;
+      return cached;
     }
 
-    // Decode and cache
-    if (imageValue.startsWith('data:image')) {
-      try {
-        final base64String = imageValue.split(',').last;
-        _cachedBytes = base64Decode(base64String);
-        _cachedImageValue = imageValue;
-        return _cachedBytes;
-      } catch (e) {
-        return null;
-      }
+    // Decode and put into cache
+    final bytes = CyberImageUtils.decodeBase64(imageValue);
+    if (bytes != null) {
+      _cacheManager.put(hash, bytes);
+      _currentImageHash = hash;
+      return bytes;
     }
 
-    // Try decode without prefix
-    try {
-      _cachedBytes = base64Decode(imageValue);
-      _cachedImageValue = imageValue;
-      return _cachedBytes;
-    } catch (e) {
-      return null;
-    }
+    return null;
   }
 
   Widget _buildImageWidget(String imageValue) {
@@ -711,7 +729,7 @@ class _CyberImageState extends State<CyberImage> {
         return Image.asset(
           imageValue,
           fit: boxFit,
-          cacheWidth: widget.maxWidth, // ⭐ Memory constraint
+          cacheWidth: widget.maxWidth,
           cacheHeight: widget.maxHeight,
           errorBuilder: (context, error, stackTrace) {
             return widget.errorWidget ?? _buildErrorWidget();
@@ -719,36 +737,14 @@ class _CyberImageState extends State<CyberImage> {
         );
       }
 
-      // Base64 image - ⭐ Use cached bytes
-      if (imageValue.startsWith('data:image') ||
-          !imageValue.startsWith('http://') &&
-              !imageValue.startsWith('https://') &&
-              !imageValue.startsWith('/') &&
-              !imageValue.contains('\\')) {
-        final bytes = _getDecodedBytes(imageValue);
-        if (bytes == null) {
-          return widget.errorWidget ?? _buildErrorWidget();
-        }
-
-        return Image.memory(
-          bytes,
-          fit: boxFit,
-          cacheWidth: widget.maxWidth, // ⭐ Memory constraint
-          cacheHeight: widget.maxHeight,
-          errorBuilder: (context, error, stackTrace) {
-            return widget.errorWidget ?? _buildErrorWidget();
-          },
-        );
-      }
-
-      // Network image - ⭐ With memory management
+      // Network image
       if (imageValue.startsWith('http://') ||
           imageValue.startsWith('https://')) {
         return CachedNetworkImage(
           imageUrl: imageValue,
           fit: boxFit,
-          memCacheWidth: widget.maxWidth, // ⭐ Limit memory cache
-          memCacheHeight: widget.maxHeight, // ⭐ Prevent OOM
+          memCacheWidth: widget.maxWidth,
+          memCacheHeight: widget.maxHeight,
           maxWidthDiskCache: widget.maxWidth,
           maxHeightDiskCache: widget.maxHeight,
           placeholder: (context, url) => _buildLoading(),
@@ -771,7 +767,21 @@ class _CyberImageState extends State<CyberImage> {
         );
       }
 
-      return widget.errorWidget ?? _buildErrorWidget();
+      // ⭐ Base64 - use global cache with HASH
+      final bytes = _getImageBytes(imageValue);
+      if (bytes == null) {
+        return widget.errorWidget ?? _buildErrorWidget();
+      }
+
+      return Image.memory(
+        bytes,
+        fit: boxFit,
+        cacheWidth: widget.maxWidth,
+        cacheHeight: widget.maxHeight,
+        errorBuilder: (context, error, stackTrace) {
+          return widget.errorWidget ?? _buildErrorWidget();
+        },
+      );
     } catch (e) {
       return widget.errorWidget ?? _buildErrorWidget();
     }
@@ -815,7 +825,7 @@ class _CyberImageState extends State<CyberImage> {
   }
 }
 
-// Image options sheet - unchanged
+/// Image options bottom sheet
 class _ImageOptionsSheet extends StatelessWidget {
   final bool hasImage;
   final bool canUpload;
@@ -966,115 +976,5 @@ class _ImageOptionsSheet extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-// ⭐ Optimized fullscreen viewer
-class _FullscreenImageViewer extends StatefulWidget {
-  final String imageValue;
-  final bool isCircle;
-
-  const _FullscreenImageViewer({
-    required this.imageValue,
-    required this.isCircle,
-  });
-
-  @override
-  State<_FullscreenImageViewer> createState() => _FullscreenImageViewerState();
-}
-
-class _FullscreenImageViewerState extends State<_FullscreenImageViewer> {
-  Uint8List? _cachedBytes;
-
-  @override
-  void dispose() {
-    _cachedBytes = null; // ⭐ Clear cache on dispose
-    super.dispose();
-  }
-
-  Uint8List? _getDecodedBytes() {
-    if (_cachedBytes != null) return _cachedBytes;
-
-    if (widget.imageValue.startsWith('data:image')) {
-      try {
-        final base64String = widget.imageValue.split(',').last;
-        _cachedBytes = base64Decode(base64String);
-        return _cachedBytes;
-      } catch (e) {
-        return null;
-      }
-    }
-
-    try {
-      _cachedBytes = base64Decode(widget.imageValue);
-      return _cachedBytes;
-    } catch (e) {
-      return null;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: Center(
-        child: InteractiveViewer(
-          minScale: 0.5,
-          maxScale: 4.0,
-          child: _buildImage(),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildImage() {
-    try {
-      // Base64 - ⭐ Use cached bytes
-      if (widget.imageValue.startsWith('data:image') ||
-          !widget.imageValue.startsWith('http://') &&
-              !widget.imageValue.startsWith('https://') &&
-              !widget.imageValue.startsWith('/') &&
-              !widget.imageValue.contains('\\')) {
-        final bytes = _getDecodedBytes();
-        if (bytes != null) {
-          return Image.memory(
-            bytes,
-            fit: BoxFit.contain,
-            // ⭐ No size constraints for fullscreen
-          );
-        }
-      }
-
-      // Network image
-      if (widget.imageValue.startsWith('http://') ||
-          widget.imageValue.startsWith('https://')) {
-        return CachedNetworkImage(
-          imageUrl: widget.imageValue,
-          fit: BoxFit.contain,
-          placeholder: (context, url) =>
-              const Center(child: CircularProgressIndicator()),
-          errorWidget: (context, url, error) =>
-              const Icon(Icons.broken_image, size: 64, color: Colors.white),
-        );
-      }
-
-      // Local file
-      if (widget.imageValue.startsWith('/') ||
-          widget.imageValue.contains('\\')) {
-        return Image.file(File(widget.imageValue), fit: BoxFit.contain);
-      }
-
-      return const Icon(Icons.broken_image, size: 64, color: Colors.white);
-    } catch (e) {
-      return const Icon(Icons.broken_image, size: 64, color: Colors.white);
-    }
   }
 }
