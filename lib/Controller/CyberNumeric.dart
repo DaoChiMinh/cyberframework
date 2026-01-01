@@ -1,7 +1,13 @@
 import 'package:cyberframework/cyberframework.dart';
+import 'package:flutter/services.dart';
 
 class CyberNumeric extends StatefulWidget {
-  final dynamic text;
+  /// ⚠️ KHÔNG dùng cả value VÀ controller cùng lúc
+  final dynamic value;
+
+  /// Controller để quản lý state từ bên ngoài
+  final CyberNumericController? controller;
+
   final String? label;
   final String? hint;
   final String?
@@ -11,23 +17,27 @@ class CyberNumeric extends StatefulWidget {
   final dynamic isVisible;
   final TextStyle? style;
   final InputDecoration? decoration;
-  final ValueChanged<double>? onChanged;
-  final Function(dynamic)? onLeaver;
+
+  /// ✅ Callback trả num? (không phải String)
+  final ValueChanged<num?>? onChanged;
+  final Function(num?)? onLeaver;
 
   /// Giá trị min
-  final double? min;
+  final num? min;
 
   /// Giá trị max
-  final double? max;
+  final num? max;
 
   final bool isShowLabel;
   final Color? backgroundColor;
   final Color? focusColor;
   final TextStyle? labelStyle;
   final dynamic isCheckEmpty;
+
   const CyberNumeric({
     super.key,
-    this.text,
+    this.value,
+    this.controller,
     this.label,
     this.hint,
     this.format = "### ### ### ###.##",
@@ -45,7 +55,10 @@ class CyberNumeric extends StatefulWidget {
     this.focusColor,
     this.labelStyle,
     this.isCheckEmpty = false,
-  });
+  }) : assert(
+         controller == null || value == null,
+         'CyberNumeric: không được dùng cả value và controller cùng lúc',
+       );
 
   @override
   State<CyberNumeric> createState() => _CyberNumericState();
@@ -61,19 +74,38 @@ class _CyberNumericState extends State<CyberNumeric> {
   String? _visibilityBoundField;
   bool _isUpdating = false;
 
+  /// ✅ Internal controller nếu không có external controller
+  CyberNumericController? _internalController;
+  CyberNumericController get _effectiveController =>
+      widget.controller ?? _internalController!;
+
   @override
   void initState() {
     super.initState();
+
+    // ✅ Tạo internal controller nếu cần
+    if (widget.controller == null) {
+      _internalController = CyberNumericController(
+        value: null,
+        enabled: widget.enabled,
+        min: widget.min,
+        max: widget.max,
+      );
+    }
+
+    // ✅ Khởi tạo controller 1 lần duy nhất
+    _textController = TextEditingController();
     _focusNode = FocusNode();
+
+    // Parse binding và update giá trị ban đầu
     _parseBinding();
-    _updateController();
     _parseVisibilityBinding();
-    if (_boundRow != null) {
-      _boundRow!.addListener(_onBindingChanged);
-    }
-    if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
-      _visibilityBoundRow!.addListener(_onBindingChanged);
-    }
+    _updateControllerValue();
+
+    // Đăng ký listeners
+    _registerBindingListeners();
+    _effectiveController.addListener(_onControllerChanged);
+
     _focusNode.addListener(() {
       if (!_focusNode.hasFocus) {
         _validateAndFormat();
@@ -83,27 +115,108 @@ class _CyberNumericState extends State<CyberNumeric> {
   }
 
   @override
+  void didUpdateWidget(CyberNumeric oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    bool bindingChanged = false;
+    bool visibilityBindingChanged = false;
+    bool controllerChanged = widget.controller != oldWidget.controller;
+
+    // ✅ Xử lý controller thay đổi
+    if (controllerChanged) {
+      oldWidget.controller?.removeListener(_onControllerChanged);
+
+      if (widget.controller == null) {
+        _internalController ??= CyberNumericController(
+          value: null,
+          enabled: widget.enabled,
+          min: widget.min,
+          max: widget.max,
+        );
+      } else {
+        _internalController?.dispose();
+        _internalController = null;
+      }
+
+      _effectiveController.addListener(_onControllerChanged);
+      _updateControllerValue();
+    }
+
+    // ✅ Kiểm tra nếu binding đã thay đổi
+    if (widget.value != oldWidget.value) {
+      _unregisterBindingListeners();
+      _parseBinding();
+      bindingChanged = true;
+    }
+
+    // ✅ Kiểm tra nếu visibility binding đã thay đổi
+    if (widget.isVisible != oldWidget.isVisible) {
+      if (!bindingChanged) {
+        _unregisterBindingListeners();
+      }
+      _parseVisibilityBinding();
+      visibilityBindingChanged = true;
+    }
+
+    // ✅ Đăng ký lại listeners nếu có thay đổi
+    if (bindingChanged || visibilityBindingChanged) {
+      _registerBindingListeners();
+      if (!controllerChanged) {
+        _updateControllerValue();
+      }
+    }
+    // ✅ Cập nhật giá trị nếu format thay đổi
+    else if (widget.format != oldWidget.format && !controllerChanged) {
+      _updateControllerValue();
+    }
+
+    // ✅ Update min/max trong controller
+    if (widget.min != oldWidget.min || widget.max != oldWidget.max) {
+      if (widget.controller == null) {
+        _internalController?.setMinMax(min: widget.min, max: widget.max);
+      }
+    }
+  }
+
+  @override
   void dispose() {
+    _unregisterBindingListeners();
+    _effectiveController.removeListener(_onControllerChanged);
+    _internalController?.dispose();
+    _textController.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  /// ✅ Đăng ký listeners cho binding
+  void _registerBindingListeners() {
+    if (_boundRow != null) {
+      _boundRow!.addListener(_onBindingChanged);
+    }
+    if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
+      _visibilityBoundRow!.addListener(_onBindingChanged);
+    }
+  }
+
+  /// ✅ Hủy đăng ký listeners
+  void _unregisterBindingListeners() {
     if (_boundRow != null) {
       _boundRow!.removeListener(_onBindingChanged);
     }
     if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
       _visibilityBoundRow!.removeListener(_onBindingChanged);
     }
-    _textController.dispose();
-    _focusNode.dispose();
-    super.dispose();
   }
 
   void _parseBinding() {
-    if (widget.text == null) {
+    if (widget.value == null) {
       _boundRow = null;
       _boundField = null;
       return;
     }
 
-    if (widget.text is CyberBindingExpression) {
-      final expr = widget.text as CyberBindingExpression;
+    if (widget.value is CyberBindingExpression) {
+      final expr = widget.value as CyberBindingExpression;
       _boundRow = expr.row;
       _boundField = expr.fieldName;
       return;
@@ -155,11 +268,12 @@ class _CyberNumericState extends State<CyberNumeric> {
     return _parseBool(widget.isVisible);
   }
 
-  void _updateController() {
-    double value = _getCurrentValue();
+  void _updateControllerValue() {
+    num? value = _getCurrentValue();
     final displayValue = _formatValue(value);
 
-    _textController = TextEditingController(text: displayValue);
+    // ✅ Chỉ update text, không tạo controller mới
+    _textController.text = displayValue;
   }
 
   void _onBindingChanged() {
@@ -173,28 +287,62 @@ class _CyberNumericState extends State<CyberNumeric> {
     }
   }
 
-  double _getCurrentValue() {
-    dynamic rawValue;
+  void _onControllerChanged() {
+    if (_isUpdating) return;
 
-    if (_boundRow != null && _boundField != null) {
-      rawValue = _boundRow![_boundField!];
-    } else if (widget.text != null) {
-      rawValue = widget.text;
-    } else {
-      return 0.0;
+    final value = _effectiveController.value;
+    final displayValue = _formatValue(value);
+
+    if (_textController.text != displayValue) {
+      // ✅ Preserve cursor position
+      final oldSelection = _textController.selection;
+      _textController.text = displayValue;
+
+      // Restore cursor hoặc đặt ở cuối nếu selection không hợp lệ
+      if (oldSelection.isValid &&
+          oldSelection.baseOffset <= displayValue.length) {
+        _textController.selection = oldSelection;
+      } else {
+        _textController.selection = TextSelection.collapsed(
+          offset: displayValue.length,
+        );
+      }
     }
-
-    // ✅ Convert sang double
-    if (rawValue is double) return rawValue;
-    if (rawValue is int) return rawValue.toDouble();
-    if (rawValue is String) {
-      return double.tryParse(rawValue) ?? 0.0;
-    }
-
-    return 0.0;
   }
 
-  String _formatValue(double value, {bool forceFormat = false}) {
+  /// ✅ Source of truth: num? (không phải String)
+  num? _getCurrentValue() {
+    // Priority: controller > binding > value
+    if (widget.controller != null) {
+      return widget.controller!.value;
+    }
+
+    dynamic rawValue;
+    if (_boundRow != null && _boundField != null) {
+      rawValue = _boundRow![_boundField!];
+    } else if (widget.value != null) {
+      rawValue = widget.value;
+    } else {
+      return null;
+    }
+
+    // ✅ Convert sang num?
+    return _parseNum(rawValue);
+  }
+
+  /// ✅ Parse về num? (hỗ trợ int, double, String)
+  num? _parseNum(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value;
+    if (value is String) {
+      return num.tryParse(value);
+    }
+    return null;
+  }
+
+  String _formatValue(num? value) {
+    if (value == null) return '';
+
     // Parse pattern to get decimal places
     int decimalPlaces = 0;
     if (widget.format!.contains('.')) {
@@ -206,8 +354,11 @@ class _CyberNumericState extends State<CyberNumeric> {
       }
     }
 
+    // ✅ Convert num sang double để format
+    double doubleValue = value.toDouble();
+
     // Format number with decimal places
-    String numStr = value.toStringAsFixed(decimalPlaces);
+    String numStr = doubleValue.toStringAsFixed(decimalPlaces);
     var parts = numStr.split('.');
     String intPart = parts[0];
     String decPart = parts.length > 1 ? parts[1] : '';
@@ -232,47 +383,59 @@ class _CyberNumericState extends State<CyberNumeric> {
     return formatted;
   }
 
-  double _parseInput(String input) {
-    if (input.isEmpty) return 0.0;
+  /// ✅ Parse input String về num?
+  num? _parseInput(String input) {
+    if (input.isEmpty) return null;
 
-    // ✅ Remove prefix/suffix
+    // Remove prefix/suffix
     String cleaned = input;
     String thousandsSep = ',';
     if (widget.format!.contains(RegExp(r'[\u00A0 ]'))) {
       thousandsSep = ' ';
     }
 
-    // ✅ Remove thousands separator
+    // Remove thousands separator
     cleaned = cleaned.replaceAll(thousandsSep, '');
 
-    // ✅ Remove whitespace
+    // Remove whitespace
     cleaned = cleaned.trim();
 
-    return double.tryParse(cleaned) ?? 0.0;
+    return num.tryParse(cleaned);
   }
 
-  double _validateValue(double value) {
-    if (widget.min != null && value < widget.min!) {
-      return widget.min!;
+  num? _validateValue(num? value) {
+    if (value == null) return null;
+
+    final min = widget.min ?? _effectiveController.min;
+    final max = widget.max ?? _effectiveController.max;
+
+    if (min != null && value < min) {
+      return min;
     }
-    if (widget.max != null && value > widget.max!) {
-      return widget.max!;
+    if (max != null && value > max) {
+      return max;
     }
     return value;
   }
 
   void _validateAndFormat() {
-    double value = _parseInput(_textController.text);
+    num? value = _parseInput(_textController.text);
     value = _validateValue(value);
 
-    // ✅ Update binding
+    // ✅ Update binding và controller
     _isUpdating = true;
+
+    if (widget.controller == null) {
+      _internalController?.setValue(value);
+    }
+
     if (_boundRow != null && _boundField != null) {
       _boundRow![_boundField!] = value;
     }
+
     _isUpdating = false;
 
-    final displayValue = _formatValue(value, forceFormat: true);
+    final displayValue = _formatValue(value);
     if (_textController.text != displayValue) {
       _textController.text = displayValue;
     }
@@ -280,21 +443,31 @@ class _CyberNumericState extends State<CyberNumeric> {
 
   void _onTextChanged(String value) {
     if (_isUpdating) return;
-    value = value.replaceAll(',', '');
+
+    // ✅ Preserve cursor position TRƯỚC khi format
+    final oldSelection = _textController.selection;
+    final oldText = _textController.text;
+
+    // Remove comma để parse
+    String cleanValue = value.replaceAll(',', '').replaceAll(' ', '');
+
     _isUpdating = true;
-    if (value.split(".").length > 2) {
-      value = widget.text.toString();
-      final dotIndex = value.indexOf('.');
+
+    // Xử lý trường hợp nhiều dấu chấm
+    if (cleanValue.split(".").length > 2) {
+      cleanValue = oldText.replaceAll(',', '').replaceAll(' ', '');
+      final dotIndex = cleanValue.indexOf('.');
       _textController.selection = TextSelection.collapsed(offset: dotIndex + 2);
     } else {
       var valueNew = _normalizeDecimalOverwrite(
-        widget.text.toString(),
-        value,
+        oldText.replaceAll(',', '').replaceAll(' ', ''),
+        cleanValue,
         widget.format ?? "### ### ### ###.##",
       );
-      value = valueNew.$2;
+      cleanValue = valueNew.$2;
+
       if (valueNew.$1) {
-        final pos = _textController.selection.baseOffset;
+        final pos = oldSelection.baseOffset;
         final len = _textController.text.length;
 
         if (pos < len - 1) {
@@ -303,10 +476,14 @@ class _CyberNumericState extends State<CyberNumeric> {
       }
     }
 
-    // ✅ Parse input
-    double numericValue = _parseInput(value);
+    // ✅ Parse input về num?
+    num? numericValue = _parseInput(cleanValue);
 
-    // ✅ Update binding
+    // ✅ Update controller và binding
+    if (widget.controller == null) {
+      _internalController?.setValue(numericValue);
+    }
+
     if (_boundRow != null && _boundField != null) {
       _boundRow![_boundField!] = numericValue;
     }
@@ -314,21 +491,23 @@ class _CyberNumericState extends State<CyberNumeric> {
     // ✅ Callback
     widget.onChanged?.call(numericValue);
 
-    // ✅ Real-time formatting while typing
-    final currentCursorPosition = _textController.selection.baseOffset;
+    // ✅ Real-time formatting với cursor management
     final formattedValue = _formatValue(numericValue);
 
     if (_textController.text != formattedValue) {
       // Calculate new cursor position
-      final oldLength = _textController.text.length;
+      final oldLength = oldText.length;
       final newLength = formattedValue.length;
       final lengthDiff = newLength - oldLength;
 
+      final newCursorPos = (oldSelection.baseOffset + lengthDiff).clamp(
+        0,
+        formattedValue.length,
+      );
+
       _textController.value = TextEditingValue(
         text: formattedValue,
-        selection: TextSelection.collapsed(
-          offset: (currentCursorPosition + lengthDiff).clamp(0, newLength),
-        ),
+        selection: TextSelection.collapsed(offset: newCursorPos),
       );
     }
 
@@ -344,6 +523,7 @@ class _CyberNumericState extends State<CyberNumeric> {
     if (!oldStr.contains('.') || !newStr.contains('.')) {
       return (false, newStr);
     }
+
     // Xác định số chữ số thập phân từ format
     int decimalCount = 0;
     if (strFormat.contains('.')) {
@@ -389,75 +569,85 @@ class _CyberNumericState extends State<CyberNumeric> {
     if (!_isVisible()) {
       return const SizedBox.shrink();
     }
-    Widget textField = TextField(
-      controller: _textController,
-      onChanged: _onTextChanged,
-      focusNode: _focusNode,
-      textAlign: TextAlign.end,
-      keyboardType: TextInputType.numberWithOptions(
-        decimal: true,
-        signed: false,
-      ),
-      inputFormatters: [
-        FilteringTextInputFormatter.allow(RegExp(r'[0-9\.\,\-]')),
-      ],
-      enabled: widget.enabled,
-      style: widget.style,
-      decoration: widget.decoration ?? _buildDecoration(),
-    );
 
-    Widget finalWidget;
-    if (widget.isShowLabel &&
-        widget.label != null &&
-        widget.decoration == null) {
-      finalWidget = Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 4.0, bottom: 6.0),
-            child: Row(
-              children: [
-                Text(
-                  widget.label!,
-                  style:
-                      widget.labelStyle ??
-                      const TextStyle(
-                        fontSize: 14,
-                        color: Color(0xFF555555),
-                        fontWeight: FontWeight.w500,
-                      ),
-                ),
-                if (_isCheckEmpty())
-                  const Text(
-                    ' *',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.red,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-              ],
-            ),
+    // ✅ Lắng nghe controller changes
+    return ListenableBuilder(
+      listenable: _effectiveController,
+      builder: (context, _) {
+        final isEnabled = widget.enabled && _effectiveController.enabled;
+
+        Widget textField = TextField(
+          controller: _textController,
+          onChanged: _onTextChanged,
+          focusNode: _focusNode,
+          textAlign: TextAlign.end,
+          keyboardType: const TextInputType.numberWithOptions(
+            decimal: true,
+            signed: false,
           ),
-          textField,
-        ],
-      );
-    } else {
-      finalWidget = textField;
-    }
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'[0-9\.\,\-\s]')),
+          ],
+          enabled: isEnabled,
+          style: widget.style,
+          decoration: widget.decoration ?? _buildDecoration(isEnabled),
+        );
 
-    if (_boundRow != null) {
-      return ListenableBuilder(
-        listenable: _boundRow!,
-        builder: (context, child) => finalWidget,
-      );
-    }
+        Widget finalWidget;
+        if (widget.isShowLabel &&
+            widget.label != null &&
+            widget.decoration == null) {
+          finalWidget = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(left: 4.0, bottom: 6.0),
+                child: Row(
+                  children: [
+                    Text(
+                      widget.label!,
+                      style:
+                          widget.labelStyle ??
+                          const TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF555555),
+                            fontWeight: FontWeight.w500,
+                          ),
+                    ),
+                    if (_isCheckEmpty())
+                      const Text(
+                        ' *',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.red,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              textField,
+            ],
+          );
+        } else {
+          finalWidget = textField;
+        }
 
-    return finalWidget;
+        // ✅ Wrap với binding listener nếu có
+        if (_boundRow != null) {
+          return ListenableBuilder(
+            listenable: _boundRow!,
+            builder: (context, child) => finalWidget,
+          );
+        }
+
+        return finalWidget;
+      },
+    );
   }
 
-  InputDecoration _buildDecoration() {
+  InputDecoration _buildDecoration(bool isEnabled) {
     return InputDecoration(
       hintText: widget.hint,
       prefixIcon: widget.icon != null ? Icon(widget.icon, size: 20) : null,
@@ -472,7 +662,7 @@ class _CyberNumericState extends State<CyberNumeric> {
 
       // ✅ Background đồng bộ
       filled: true,
-      fillColor: widget.enabled
+      fillColor: isEnabled
           ? (widget.backgroundColor ?? const Color(0xFFF5F5F5))
           : const Color(0xFFE0E0E0),
 
