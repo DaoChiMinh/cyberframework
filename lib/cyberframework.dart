@@ -22,6 +22,7 @@ export 'package:cyberframework/Module/Data/cyberdataset.dart';
 export 'package:cyberframework/Module/Info/deviceinfo.dart';
 export 'package:cyberframework/Module/Info/userinfo.dart';
 
+export 'package:cyberframework/Controller/cybertimecontroller.dart';
 export 'package:cyberframework/Controller/cyberdatecontroller.dart';
 export 'package:cyberframework/Controller/cyberbox.dart';
 export 'package:cyberframework/Controller/cybermessagebox.dart';

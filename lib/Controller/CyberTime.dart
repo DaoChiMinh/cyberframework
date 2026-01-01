@@ -19,6 +19,25 @@ class CyberTime extends StatefulWidget {
   final dynamic isVisible;
   final bool showSeconds;
   final dynamic isCheckEmpty;
+
+  /// Controller for programmatic control of the time value
+  final CyberTimeController? controller;
+
+  /// Initial value when no controller is provided
+  final TimeOfDay? initialValue;
+
+  /// Validator function
+  final String? Function(TimeOfDay?)? validator;
+
+  /// Error text to display
+  final String? errorText;
+
+  /// Minimum allowed time
+  final TimeOfDay? minTime;
+
+  /// Maximum allowed time
+  final TimeOfDay? maxTime;
+
   const CyberTime({
     super.key,
     this.text,
@@ -38,6 +57,12 @@ class CyberTime extends StatefulWidget {
     this.isVisible = true,
     this.showSeconds = false,
     this.isCheckEmpty = false,
+    this.controller,
+    this.initialValue,
+    this.validator,
+    this.errorText,
+    this.minTime,
+    this.maxTime,
   });
 
   @override
@@ -54,13 +79,19 @@ class _CyberTimeState extends State<CyberTime> {
   String? _visibilityBoundField;
   bool _isUpdating = false;
 
+  String? _validationError;
+
   @override
   void initState() {
     super.initState();
+
     _focusNode = FocusNode();
     _parseBinding();
     _parseVisibilityBinding();
-    _updateController();
+    _updateTextController();
+
+    // Listen to controller if provided
+    widget.controller?.addListener(_onControllerChanged);
 
     if (_boundRow != null) {
       _boundRow!.addListener(_onBindingChanged);
@@ -77,13 +108,73 @@ class _CyberTimeState extends State<CyberTime> {
   }
 
   @override
+  void didUpdateWidget(CyberTime oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // ✅ 1. Handle controller swap/changes
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller?.removeListener(_onControllerChanged);
+      widget.controller?.addListener(_onControllerChanged);
+      _onControllerChanged();
+    }
+
+    // ✅ 2. Handle binding changes
+    if (oldWidget.text != widget.text) {
+      if (_boundRow != null) {
+        _boundRow!.removeListener(_onBindingChanged);
+      }
+      _parseBinding();
+      if (_boundRow != null) {
+        _boundRow!.addListener(_onBindingChanged);
+      }
+      _onBindingChanged();
+    }
+
+    // ✅ 3. Handle visibility binding changes
+    if (oldWidget.isVisible != widget.isVisible) {
+      if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
+        _visibilityBoundRow!.removeListener(_onBindingChanged);
+      }
+      _parseVisibilityBinding();
+      if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
+        _visibilityBoundRow!.addListener(_onBindingChanged);
+      }
+    }
+
+    // ✅ 4. Handle time range changes
+    if (oldWidget.minTime != widget.minTime ||
+        oldWidget.maxTime != widget.maxTime) {
+      _validate();
+    }
+
+    // ✅ 5. Handle validator changes
+    if (oldWidget.validator != widget.validator) {
+      _validate();
+    }
+
+    // ✅ 6. Handle error text changes
+    if (oldWidget.errorText != widget.errorText) {
+      setState(() {});
+    }
+
+    // ✅ 7. Handle enabled state changes
+    if (oldWidget.enabled != widget.enabled) {
+      setState(() {});
+    }
+  }
+
+  @override
   void dispose() {
+    // ✅ Remove all listeners
+    widget.controller?.removeListener(_onControllerChanged);
+
     if (_boundRow != null) {
       _boundRow!.removeListener(_onBindingChanged);
     }
     if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
       _visibilityBoundRow!.removeListener(_onBindingChanged);
     }
+
     _textController.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -149,62 +240,127 @@ class _CyberTimeState extends State<CyberTime> {
     return _parseBool(widget.isCheckEmpty);
   }
 
-  void _updateController() {
+  void _updateTextController() {
     final timeOfDay = _getCurrentValue();
     final displayValue = timeOfDay != null ? _formatTime(timeOfDay) : '';
-
     _textController = TextEditingController(text: displayValue);
   }
 
-  void _onBindingChanged() {
-    if (_isUpdating || _boundRow == null || _boundField == null) return;
+  /// ✅ Handle controller value changes
+  void _onControllerChanged() {
+    if (_isUpdating) return;
 
-    final timeOfDay = _getCurrentValue();
-    final displayValue = timeOfDay != null ? _formatTime(timeOfDay) : '';
+    _isUpdating = true;
 
+    final value = _getCurrentValue();
+    final displayValue = value != null ? _formatTime(value) : '';
+
+    // Update text display
     if (_textController.text != displayValue) {
       _textController.text = displayValue;
     }
-  }
 
-  TimeOfDay? _getCurrentValue() {
-    dynamic rawValue;
-
+    // Sync controller value to binding
     if (_boundRow != null && _boundField != null) {
-      rawValue = _boundRow![_boundField!];
-    } else if (widget.text != null && widget.text is! CyberBindingExpression) {
-      rawValue = widget.text;
-    } else {
-      return null;
+      final originalValue = _boundRow![_boundField!];
+      if (originalValue is DateTime && value != null) {
+        final newDateTime = DateTime(
+          originalValue.year,
+          originalValue.month,
+          originalValue.day,
+          value.hour,
+          value.minute,
+          0,
+        );
+        if (_boundRow![_boundField!] != newDateTime) {
+          _boundRow![_boundField!] = newDateTime;
+        }
+      } else {
+        final timeString = value != null ? _formatTime(value) : '';
+        if (_boundRow![_boundField!] != timeString) {
+          _boundRow![_boundField!] = timeString;
+        }
+      }
     }
 
-    return _parseTimeOfDay(rawValue);
+    // Validate
+    _validate();
+
+    _isUpdating = false;
+
+    // Trigger rebuild
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  /// Handle binding value changes
+  void _onBindingChanged() {
+    if (_isUpdating || _boundRow == null || _boundField == null) return;
+
+    _isUpdating = true;
+
+    final value = _getCurrentValue();
+    final displayValue = value != null ? _formatTime(value) : '';
+
+    // Update text display
+    if (_textController.text != displayValue) {
+      _textController.text = displayValue;
+    }
+
+    // Sync binding to controller
+    if (widget.controller != null &&
+        !_sameTime(widget.controller!.value, value)) {
+      widget.controller!.setSilently(value);
+    }
+
+    // Validate
+    _validate();
+
+    _isUpdating = false;
+
+    // Trigger rebuild
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  /// ✅ Single source of truth for current value
+  TimeOfDay? _getCurrentValue() {
+    // Priority: Controller > Binding > Initial value
+    if (widget.controller != null) {
+      return widget.controller!.value;
+    } else if (_boundRow != null && _boundField != null) {
+      final rawValue = _boundRow![_boundField!];
+      return _parseTimeOfDay(rawValue);
+    } else if (widget.initialValue != null) {
+      return widget.initialValue;
+    } else if (widget.text != null && widget.text is! CyberBindingExpression) {
+      return _parseTimeOfDay(widget.text);
+    }
+    return null;
   }
 
   TimeOfDay? _parseTimeOfDay(dynamic value) {
     if (value == null) return null;
+
+    if (value is TimeOfDay) return value;
 
     if (value is DateTime) {
       return TimeOfDay(hour: value.hour, minute: value.minute);
     }
 
     if (value is String) {
-      try {
-        final parts = value.trim().split(':');
-        if (parts.length >= 2) {
-          final hour = int.parse(parts[0]);
-          final minute = int.parse(parts[1]);
-
-          if (hour >= 0 && hour < 24 && minute >= 0 && minute < 60) {
-            return TimeOfDay(hour: hour, minute: minute);
-          }
-        }
-      } catch (e) {
-        //debugPrint('Error parsing time string: $e');
-      }
+      return CyberTimeController.parse(value);
     }
 
     return null;
+  }
+
+  bool _sameTime(TimeOfDay? a, TimeOfDay? b) {
+    if (a == null && b == null) return true;
+    if (a == null || b == null) return false;
+    return a.hour == b.hour && a.minute == b.minute;
   }
 
   String _formatTime(TimeOfDay time) {
@@ -218,10 +374,53 @@ class _CyberTimeState extends State<CyberTime> {
     return '$hour:$minute';
   }
 
+  /// ✅ Validation logic
+  void _validate() {
+    final value = _getCurrentValue();
+
+    // Custom validator
+    if (widget.validator != null) {
+      _validationError = widget.validator!(value);
+      return;
+    }
+
+    // Built-in validation
+    if (value != null) {
+      if (widget.minTime != null) {
+        final minMinutes = widget.minTime!.hour * 60 + widget.minTime!.minute;
+        final valueMinutes = value.hour * 60 + value.minute;
+        if (valueMinutes < minMinutes) {
+          _validationError = 'Giờ phải sau ${_formatTime(widget.minTime!)}';
+          return;
+        }
+      }
+
+      if (widget.maxTime != null) {
+        final maxMinutes = widget.maxTime!.hour * 60 + widget.maxTime!.minute;
+        final valueMinutes = value.hour * 60 + value.minute;
+        if (valueMinutes > maxMinutes) {
+          _validationError = 'Giờ phải trước ${_formatTime(widget.maxTime!)}';
+          return;
+        }
+      }
+    }
+
+    // Required validation
+    if (_isCheckEmpty() && value == null) {
+      _validationError = 'Vui lòng chọn giờ';
+      return;
+    }
+
+    _validationError = null;
+  }
+
   void _updateValue(TimeOfDay newTime) {
     _isUpdating = true;
 
-    if (_boundRow != null && _boundField != null) {
+    // ✅ Update controller/binding
+    if (widget.controller != null) {
+      widget.controller!.value = newTime;
+    } else if (_boundRow != null && _boundField != null) {
       final originalValue = _boundRow![_boundField!];
 
       if (originalValue is DateTime) {
@@ -235,10 +434,6 @@ class _CyberTimeState extends State<CyberTime> {
         );
         _boundRow![_boundField!] = newDateTime;
         widget.onChanged?.call(newDateTime);
-      } else if (originalValue is String) {
-        final timeString = _formatTime(newTime);
-        _boundRow![_boundField!] = timeString;
-        widget.onChanged?.call(timeString);
       } else {
         final timeString = _formatTime(newTime);
         _boundRow![_boundField!] = timeString;
@@ -249,8 +444,23 @@ class _CyberTimeState extends State<CyberTime> {
       widget.onChanged?.call(timeString);
     }
 
+    // Update display
     _textController.text = _formatTime(newTime);
+
+    // Validate
+    _validate();
+
+    // Callback (if not using controller)
+    if (widget.controller == null) {
+      widget.onChanged?.call(newTime);
+    }
+
     _isUpdating = false;
+
+    // Trigger rebuild
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _showTimePicker() async {
@@ -300,13 +510,15 @@ class _CyberTimeState extends State<CyberTime> {
       return const SizedBox.shrink();
     }
 
+    final currentError = widget.errorText ?? _validationError;
+
     Widget textField = TextField(
       controller: _textController,
       focusNode: _focusNode,
       readOnly: true,
       enabled: widget.enabled,
       style: widget.style,
-      decoration: widget.decoration ?? _buildDecoration(),
+      decoration: widget.decoration ?? _buildDecoration(currentError),
       onTap: widget.enabled ? _showTimePicker : null,
     );
 
@@ -345,10 +557,27 @@ class _CyberTimeState extends State<CyberTime> {
             ),
           ),
           textField,
+          // ✅ Error text display
+          if (currentError != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 4.0, top: 4.0),
+              child: Text(
+                currentError,
+                style: const TextStyle(fontSize: 12, color: Colors.red),
+              ),
+            ),
         ],
       );
     } else {
       finalWidget = textField;
+    }
+
+    // ✅ Listen to controller for reactive updates
+    if (widget.controller != null) {
+      return ListenableBuilder(
+        listenable: widget.controller!,
+        builder: (context, child) => finalWidget,
+      );
     }
 
     if (_boundRow != null) {
@@ -361,7 +590,9 @@ class _CyberTimeState extends State<CyberTime> {
     return finalWidget;
   }
 
-  InputDecoration _buildDecoration() {
+  InputDecoration _buildDecoration(String? errorText) {
+    final hasError = errorText != null;
+
     return InputDecoration(
       hintText: widget.hint ?? 'Chọn giờ',
       prefixIcon: widget.icon != null
@@ -373,24 +604,47 @@ class _CyberTimeState extends State<CyberTime> {
               onPressed: _showTimePicker,
             )
           : null,
-      border: InputBorder.none,
-      enabledBorder: InputBorder.none,
-      focusedBorder: InputBorder.none,
-      errorBorder: InputBorder.none,
+
+      // ✅ Border for error state
+      border: hasError
+          ? OutlineInputBorder(
+              borderSide: const BorderSide(color: Colors.red),
+              borderRadius: BorderRadius.circular(8),
+            )
+          : InputBorder.none,
+      enabledBorder: hasError
+          ? OutlineInputBorder(
+              borderSide: const BorderSide(color: Colors.red),
+              borderRadius: BorderRadius.circular(8),
+            )
+          : InputBorder.none,
+      focusedBorder: hasError
+          ? OutlineInputBorder(
+              borderSide: const BorderSide(color: Colors.red, width: 2),
+              borderRadius: BorderRadius.circular(8),
+            )
+          : InputBorder.none,
+      errorBorder: OutlineInputBorder(
+        borderSide: const BorderSide(color: Colors.red),
+        borderRadius: BorderRadius.circular(8),
+      ),
       disabledBorder: InputBorder.none,
-      focusedErrorBorder: InputBorder.none,
+      focusedErrorBorder: OutlineInputBorder(
+        borderSide: const BorderSide(color: Colors.red, width: 2),
+        borderRadius: BorderRadius.circular(8),
+      ),
+
       filled: true,
       fillColor: widget.enabled
           ? (widget.backgroundColor ?? const Color(0xFFF5F5F5))
           : const Color(0xFFE0E0E0),
+
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
     );
   }
 }
 
-// (phần _IOSTimePickerSheet giữ nguyên như cũ, chỉ format lại)
-
-/// iOS-style Time Picker Bottom Sheet
+/// iOS-style Time Picker Bottom Sheet (giữ nguyên như cũ)
 class _IOSTimePickerSheet extends StatefulWidget {
   final TimeOfDay initialTime;
   final bool showSeconds;
@@ -486,7 +740,6 @@ class _IOSTimePickerSheetState extends State<_IOSTimePickerSheet> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Handle bar
           Container(
             margin: const EdgeInsets.symmetric(vertical: 12),
             width: 40,
@@ -496,8 +749,6 @@ class _IOSTimePickerSheetState extends State<_IOSTimePickerSheet> {
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-
-          // Header
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
@@ -524,15 +775,11 @@ class _IOSTimePickerSheetState extends State<_IOSTimePickerSheet> {
               ],
             ),
           ),
-
           const Divider(height: 1),
-
-          // Picker
           SizedBox(
             height: 250,
             child: Row(
               children: [
-                // Hour picker
                 Expanded(
                   child: _buildPicker(
                     controller: _hourController,
@@ -542,14 +789,10 @@ class _IOSTimePickerSheetState extends State<_IOSTimePickerSheet> {
                     label: 'Giờ',
                   ),
                 ),
-
-                // Separator
                 const Text(
                   ':',
                   style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
                 ),
-
-                // Minute picker
                 Expanded(
                   child: _buildPicker(
                     controller: _minuteController,
@@ -559,8 +802,6 @@ class _IOSTimePickerSheetState extends State<_IOSTimePickerSheet> {
                     label: 'Phút',
                   ),
                 ),
-
-                // Second picker (if enabled)
                 if (widget.showSeconds) ...[
                   const Text(
                     ':',
@@ -579,7 +820,6 @@ class _IOSTimePickerSheetState extends State<_IOSTimePickerSheet> {
               ],
             ),
           ),
-
           const SizedBox(height: 16),
         ],
       ),
@@ -612,7 +852,7 @@ class _IOSTimePickerSheetState extends State<_IOSTimePickerSheet> {
                 itemExtent: 50,
                 onSelectedItemChanged: (index) {
                   onSelectedItemChanged(index);
-                  setPickerState(() {}); // ✅ Trigger rebuild to update styles
+                  setPickerState(() {});
                 },
                 children: items.map((value) {
                   final isSelected = value == selectedValue;
