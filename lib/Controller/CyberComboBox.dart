@@ -2,8 +2,12 @@ import 'package:cyberframework/cyberframework.dart';
 import 'package:flutter/cupertino.dart';
 
 class CyberComboBox extends StatefulWidget {
+  /// ⚠️ KHÔNG dùng cả text VÀ controller cùng lúc
   /// Binding đến field chứa giá trị được chọn (value binding)
   final dynamic text;
+
+  /// Controller để quản lý state từ bên ngoài
+  final CyberComboBoxController? controller;
 
   /// Field name để hiển thị (có thể binding)
   final dynamic displayMember;
@@ -51,9 +55,11 @@ class CyberComboBox extends StatefulWidget {
   final bool isShowLabel;
   final dynamic isVisible;
   final dynamic isCheckEmpty;
+
   const CyberComboBox({
     super.key,
     this.text,
+    this.controller,
     this.displayMember,
     this.valueMember,
     this.dataSource,
@@ -71,7 +77,10 @@ class CyberComboBox extends StatefulWidget {
     this.isShowLabel = true,
     this.isVisible = true,
     this.isCheckEmpty = false,
-  });
+  }) : assert(
+         controller == null || text == null,
+         'CyberComboBox: không được dùng cả text và controller cùng lúc',
+       );
 
   @override
   State<CyberComboBox> createState() => _CyberComboBoxState();
@@ -84,35 +93,131 @@ class _CyberComboBoxState extends State<CyberComboBox> {
   String? _visibilityBoundField;
   bool _isUpdating = false;
 
+  /// ✅ Internal controller nếu không có external controller
+  CyberComboBoxController? _internalController;
+  CyberComboBoxController? get _effectiveController =>
+      widget.controller ?? _internalController;
+
+  /// ✅ Effective DataSource - ưu tiên controller > widget
+  CyberDataTable? get _effectiveDataSource =>
+      _effectiveController?.dataSource ?? widget.dataSource;
+
   @override
   void initState() {
     super.initState();
+
+    // ✅ Tạo internal controller nếu cần
+    if (widget.controller == null) {
+      _internalController = CyberComboBoxController(
+        value: null,
+        enabled: widget.enabled,
+        dataSource: widget.dataSource,
+        displayMember: _getDisplayMember(),
+        valueMember: _getValueMember(),
+      );
+    }
+
+    // Parse binding
     _parseBinding();
     _parseVisibilityBinding();
+
+    // Đăng ký listeners
+    _registerBindingListeners();
+    _effectiveController?.addListener(_onControllerChanged);
+  }
+
+  @override
+  void didUpdateWidget(CyberComboBox oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    bool bindingChanged = false;
+    bool visibilityBindingChanged = false;
+    bool controllerChanged = widget.controller != oldWidget.controller;
+
+    // ✅ Xử lý controller thay đổi
+    if (controllerChanged) {
+      oldWidget.controller?.removeListener(_onControllerChanged);
+
+      if (widget.controller == null) {
+        _internalController ??= CyberComboBoxController(
+          value: null,
+          enabled: widget.enabled,
+          dataSource: widget.dataSource,
+          displayMember: _getDisplayMember(),
+          valueMember: _getValueMember(),
+        );
+      } else {
+        _internalController?.dispose();
+        _internalController = null;
+      }
+
+      _effectiveController?.addListener(_onControllerChanged);
+    }
+
+    // ✅ Kiểm tra nếu binding đã thay đổi
+    if (widget.text != oldWidget.text) {
+      _unregisterBindingListeners();
+      _parseBinding();
+      bindingChanged = true;
+    }
+
+    // ✅ Kiểm tra nếu visibility binding đã thay đổi
+    if (widget.isVisible != oldWidget.isVisible) {
+      if (!bindingChanged) {
+        _unregisterBindingListeners();
+      }
+      _parseVisibilityBinding();
+      visibilityBindingChanged = true;
+    }
+
+    // ✅ Đăng ký lại listeners nếu có thay đổi
+    if (bindingChanged || visibilityBindingChanged) {
+      _registerBindingListeners();
+    }
+
+    // ✅ Update internal controller nếu widget properties thay đổi
+    if (widget.controller == null && _internalController != null) {
+      if (widget.dataSource != oldWidget.dataSource) {
+        _internalController!.setDataSource(widget.dataSource);
+      }
+      if (widget.displayMember != oldWidget.displayMember) {
+        _internalController!.setDisplayMember(_getDisplayMember());
+      }
+      if (widget.valueMember != oldWidget.valueMember) {
+        _internalController!.setValueMember(_getValueMember());
+      }
+      if (widget.enabled != oldWidget.enabled) {
+        _internalController!.setEnabled(widget.enabled);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _unregisterBindingListeners();
+    _effectiveController?.removeListener(_onControllerChanged);
+    _internalController?.dispose();
+    super.dispose();
+  }
+
+  /// ✅ Đăng ký listeners cho binding và datasource
+  void _registerBindingListeners() {
     if (_boundRow != null) {
       _boundRow!.addListener(_onBindingChanged);
     }
     if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
       _visibilityBoundRow!.addListener(_onBindingChanged);
     }
-    // Listen to DataSource changes
-    if (widget.dataSource != null) {
-      widget.dataSource!.addListener(_onDataSourceChanged);
-    }
   }
 
-  @override
-  void dispose() {
+  /// ✅ Hủy đăng ký listeners
+  void _unregisterBindingListeners() {
     if (_boundRow != null) {
       _boundRow!.removeListener(_onBindingChanged);
-    }
-    if (widget.dataSource != null) {
-      widget.dataSource!.removeListener(_onDataSourceChanged);
     }
     if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
       _visibilityBoundRow!.removeListener(_onBindingChanged);
     }
-    super.dispose();
   }
 
   void _parseBinding() {
@@ -126,7 +231,6 @@ class _CyberComboBoxState extends State<CyberComboBox> {
       final expr = widget.text as CyberBindingExpression;
       _boundRow = expr.row;
       _boundField = expr.fieldName;
-
       return;
     }
 
@@ -181,37 +285,34 @@ class _CyberComboBoxState extends State<CyberComboBox> {
     setState(() {}); // Trigger rebuild
   }
 
-  void _onDataSourceChanged() {
+  void _onControllerChanged() {
     if (_isUpdating) return;
-    setState(() {}); // Trigger rebuild when datasource changes
+    setState(() {}); // Trigger rebuild
   }
 
   /// Get current selected value
+  /// Priority: controller > binding > text
   dynamic _getCurrentValue() {
-    // ✅ Parse binding nếu chưa parse hoặc widget.text thay đổi
-    if (widget.text is CyberBindingExpression) {
-      final expr = widget.text as CyberBindingExpression;
-      if (_boundRow != expr.row || _boundField != expr.fieldName) {
-        _boundRow = expr.row;
-        _boundField = expr.fieldName;
-      }
+    // ✅ Priority 1: Controller
+    if (_effectiveController != null) {
+      return _effectiveController!.value;
     }
 
-    dynamic rawValue;
-
+    // ✅ Priority 2: Binding
     if (_boundRow != null && _boundField != null) {
       try {
-        rawValue = _boundRow![_boundField!];
+        return _boundRow![_boundField!];
       } catch (e) {
         return null;
       }
-    } else if (widget.text != null && widget.text is! CyberBindingExpression) {
-      rawValue = widget.text;
-    } else {
-      return null;
     }
 
-    return rawValue;
+    // ✅ Priority 3: Direct value
+    if (widget.text != null && widget.text is! CyberBindingExpression) {
+      return widget.text;
+    }
+
+    return null;
   }
 
   /// Get display member field name
@@ -243,7 +344,14 @@ class _CyberComboBoxState extends State<CyberComboBox> {
   /// Get display text for current value
   String _getDisplayText() {
     final currentValue = _getCurrentValue();
-    if (currentValue == null || widget.dataSource == null) {
+
+    // ✅ Ưu tiên dùng controller's getDisplayText nếu có
+    if (_effectiveController != null) {
+      final displayText = _effectiveController!.getDisplayText();
+      if (displayText != null) return displayText;
+    }
+
+    if (currentValue == null || _effectiveDataSource == null) {
       return widget.hint ?? '';
     }
 
@@ -256,29 +364,36 @@ class _CyberComboBoxState extends State<CyberComboBox> {
 
     try {
       // Find row with matching value
-      final length = widget.dataSource!.rowCount;
+      final length = _effectiveDataSource!.rowCount;
       for (int i = 0; i < length; i++) {
-        final row = widget.dataSource![i];
+        final row = _effectiveDataSource![i];
         final rowValue = row[valueMember];
         if (rowValue?.toString() == currentValue?.toString()) {
           final displayText = row[displayMember]?.toString() ?? '';
-
           return displayText;
         }
       }
-      // ignore: empty_catches
-    } catch (e) {}
+    } catch (e) {
+      // Ignore errors
+    }
 
     return widget.hint ?? '';
   }
 
   /// Update selected value
   void _updateValue(dynamic newValue) {
-    if (!widget.enabled) {
+    final isEnabled = widget.enabled && (_effectiveController?.enabled ?? true);
+
+    if (!isEnabled) {
       return;
     }
 
     _isUpdating = true;
+
+    // ✅ Update controller
+    if (widget.controller == null && _internalController != null) {
+      _internalController!.setValue(newValue);
+    }
 
     // ✅ Update binding
     if (_boundRow != null && _boundField != null) {
@@ -307,7 +422,9 @@ class _CyberComboBoxState extends State<CyberComboBox> {
 
   /// Show picker bottom sheet
   Future<void> _showPicker() async {
-    if (!widget.enabled || widget.dataSource == null) return;
+    final isEnabled = widget.enabled && (_effectiveController?.enabled ?? true);
+
+    if (!isEnabled || _effectiveDataSource == null) return;
 
     final valueMember = _getValueMember();
     final displayMember = _getDisplayMember();
@@ -322,7 +439,7 @@ class _CyberComboBoxState extends State<CyberComboBox> {
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) => _IOSPickerSheet(
-        dataSource: widget.dataSource!,
+        dataSource: _effectiveDataSource!,
         valueMember: valueMember,
         displayMember: displayMember,
         currentValue: currentValue,
@@ -338,112 +455,114 @@ class _CyberComboBoxState extends State<CyberComboBox> {
     if (!_isVisible()) {
       return const SizedBox.shrink();
     }
-    Widget buildComboBox() {
-      final displayText = _getDisplayText();
-      final hasValue = displayText.isNotEmpty && displayText != widget.hint;
 
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Label
-          if (widget.isShowLabel &&
-              widget.label != null &&
-              widget.label!.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(left: 4.0, bottom: 6.0),
-              child: Row(
-                children: [
-                  Text(
-                    widget.label!,
-                    style:
-                        widget.labelStyle ??
-                        const TextStyle(
-                          fontSize: 14,
-                          color: Color(0xFF555555),
-                          fontWeight: FontWeight.w500,
-                        ),
-                  ),
-                  if (_isCheckEmpty())
-                    const Text(
-                      ' *',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.red,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                ],
-              ),
-            ),
+    // ✅ Lắng nghe controller và datasource changes
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        if (_effectiveController != null) _effectiveController!,
+        if (_effectiveDataSource != null) _effectiveDataSource!,
+        if (_boundRow != null) _boundRow!,
+      ]),
+      builder: (context, _) {
+        final displayText = _getDisplayText();
+        final hasValue = displayText.isNotEmpty && displayText != widget.hint;
+        final isEnabled =
+            widget.enabled && (_effectiveController?.enabled ?? true);
 
-          // ComboBox
-          InkWell(
-            onTap: widget.enabled ? _showPicker : null,
-            borderRadius: BorderRadius.circular(8),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              decoration: BoxDecoration(
-                // ✅ Background đồng bộ, bỏ border
-                color: widget.enabled
-                    ? (widget.backgroundColor ?? const Color(0xFFF5F5F5))
-                    : const Color(0xFFE0E0E0),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  // Icon (optional)
-                  if (widget.icon != null) ...[
-                    Icon(
-                      widget.icon,
-                      color: widget.enabled
-                          ? (widget.iconColor ?? Colors.grey[600])
-                          : Colors.grey[400],
-                      size: 20,
-                    ),
-                    const SizedBox(width: 12),
-                  ],
-
-                  // Display text
-                  Expanded(
-                    child: Text(
-                      displayText,
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Label
+            if (widget.isShowLabel &&
+                widget.label != null &&
+                widget.label!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(left: 4.0, bottom: 6.0),
+                child: Row(
+                  children: [
+                    Text(
+                      widget.label!,
                       style:
-                          widget.textStyle ??
-                          TextStyle(
-                            fontSize: 16,
-                            color: hasValue
-                                ? (widget.enabled
-                                      ? Colors.black87
-                                      : Colors.grey)
-                                : Colors.grey[500],
+                          widget.labelStyle ??
+                          const TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF555555),
+                            fontWeight: FontWeight.w500,
                           ),
                     ),
-                  ),
+                    if (_isCheckEmpty())
+                      const Text(
+                        ' *',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.red,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
 
-                  // Dropdown arrow
-                  Icon(
-                    Icons.keyboard_arrow_down,
-                    color: widget.enabled ? Colors.grey[600] : Colors.grey[400],
-                    size: 24,
-                  ),
-                ],
+            // ComboBox
+            InkWell(
+              onTap: isEnabled ? _showPicker : null,
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  // ✅ Background đồng bộ, bỏ border
+                  color: isEnabled
+                      ? (widget.backgroundColor ?? const Color(0xFFF5F5F5))
+                      : const Color(0xFFE0E0E0),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    // Icon (optional)
+                    if (widget.icon != null) ...[
+                      Icon(
+                        widget.icon,
+                        color: isEnabled
+                            ? (widget.iconColor ?? Colors.grey[600])
+                            : Colors.grey[400],
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                    ],
+
+                    // Display text
+                    Expanded(
+                      child: Text(
+                        displayText,
+                        style:
+                            widget.textStyle ??
+                            TextStyle(
+                              fontSize: 16,
+                              color: hasValue
+                                  ? (isEnabled ? Colors.black87 : Colors.grey)
+                                  : Colors.grey[500],
+                            ),
+                      ),
+                    ),
+
+                    // Dropdown arrow
+                    Icon(
+                      Icons.keyboard_arrow_down,
+                      color: isEnabled ? Colors.grey[600] : Colors.grey[400],
+                      size: 24,
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
-      );
-    }
-
-    // ✅ Wrap với ListenableBuilder nếu có binding
-    if (_boundRow != null) {
-      return ListenableBuilder(
-        listenable: _boundRow!,
-        builder: (context, child) => buildComboBox(),
-      );
-    }
-
-    return buildComboBox();
+          ],
+        );
+      },
+    );
   }
 }
 
