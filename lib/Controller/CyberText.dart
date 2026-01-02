@@ -337,7 +337,7 @@ class _CyberTextState extends State<CyberText> {
   /// Check mode hiện tại
   bool _isBindingExpressionMode() => widget.text is CyberBindingExpression;
   bool _isStaticTextMode() => widget.text is String;
-  bool _isExternalControllerMode() => widget.controller != null;
+
 
   // === SYNC CONTROLLER ↔ TEXT CONTROLLER (ANTI-LOOP) ===
 
