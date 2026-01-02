@@ -41,10 +41,6 @@ class CyberTimeController extends ChangeNotifier {
   /// Check if value is not null
   bool get isNotEmpty => _value != null;
 
-  @override
-  void dispose() {
-    super.dispose();
-  }
 
   @override
   String toString() {

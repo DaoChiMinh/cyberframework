@@ -80,7 +80,7 @@ class CyberText extends StatefulWidget {
   /// Callback khi focus ra khỏi field
   final VoidCallback? onLeaver;
 
-  CyberText({
+  const CyberText({
     super.key,
     // Binding / Static mode
     this.text,

@@ -81,8 +81,4 @@ class CyberNumericController extends ChangeNotifier {
     return value;
   }
 
-  @override
-  void dispose() {
-    super.dispose();
-  }
 }

@@ -353,10 +353,6 @@ class _InternalCheckboxController extends ChangeNotifier {
 
   bool get value => _value;
 
-  @override
-  void dispose() {
-    super.dispose();
-  }
 }
 
 // ============================================================================

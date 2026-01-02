@@ -2,10 +2,43 @@ import 'package:cyberframework/Controller/cyber_fullscreen_image_viewer.dart';
 import 'package:cyberframework/Controller/cyber_image_cache_manager.dart';
 import 'package:cyberframework/cyberframework.dart';
 
-/// CyberImage - Production ready với controller pattern
+/// ============================================================================
+/// CyberImage - Internal Controller + Binding Pattern
+/// ============================================================================
+/// 
+/// TRIẾT LÝ:
+/// 1. Thuộc tính `text` là PRIMARY SOURCE - có thể binding trực tiếp
+/// 2. Controller (nếu có) chỉ để điều khiển programmatically
+/// 3. Nếu không truyền controller → tự tạo internal controller
+/// 4. Sync 2 chiều: text binding <-> controller <-> UI
+///
+/// CÁCH DÙNG:
+/// 
+/// // Cách 1: Chỉ binding (không cần controller)
+/// CyberImage(
+///   text: drEdit.bind("image_url"),
+///   label: "Ảnh đại diện",
+///   isUpload: true,
+/// )
+///
+/// // Cách 2: Có controller để điều khiển
+/// final imageCtrl = CyberImageController();
+/// CyberImage(
+///   controller: imageCtrl,
+///   text: drEdit.bind("image_url"), // Vẫn binding được
+///   label: "Ảnh đại diện",
+/// )
+/// imageCtrl.triggerUpload(); // Trigger action
+///
+/// ============================================================================
+
 class CyberImage extends StatefulWidget {
   final CyberImageController? controller;
+  
+  /// Thuộc tính text - có thể binding với CyberDataRow
+  /// Hỗ trợ: String, CyberBindingExpression, null
   final dynamic text;
+  
   final String? label;
   final dynamic isUpload;
   final dynamic isView;
@@ -19,7 +52,7 @@ class CyberImage extends StatefulWidget {
   final TextStyle? labelStyle;
   final bool isShowLabel;
 
-  /// ⭐ Callbacks
+  /// Callbacks
   final ValueChanged<String>? onChanged;
   final Function(dynamic)? onLeaver;
   final VoidCallback? onUploadRequested;
@@ -74,81 +107,178 @@ class CyberImage extends StatefulWidget {
     this.viewIcon,
     this.deleteIcon,
     this.isCircle = false,
-  }) : assert(
-         controller == null || text == null,
-         'CyberImage: không được dùng controller cùng với text/binding trực tiếp',
-       );
+  });
 
   @override
   State<CyberImage> createState() => _CyberImageState();
 }
 
 class _CyberImageState extends State<CyberImage> {
-  // Internal controller nếu không có từ bên ngoài
+  
+  /// Internal controller (tự tạo nếu không có từ bên ngoài)
   CyberImageController? _internalController;
 
-  // Binding references (giữ cho backward compatible)
+  /// Binding references
   CyberDataRow? _boundRow;
   String? _boundField;
+  
+  /// Visibility binding
   CyberDataRow? _visibilityBoundRow;
   String? _visibilityBoundField;
+  
+  /// Fit binding
   CyberDataRow? _fitBoundRow;
   String? _fitBoundField;
 
-  // State flags
-  bool _isUpdating = false;
+  /// State flags
+  bool _isSyncing = false;
   bool _isLoading = false;
 
-  // Cache
+  /// Cache
   bool? _cachedVisibility;
   BoxFit? _cachedFit;
 
-  // Track để tránh reload
-  String? _lastLoadedValue;
-
-  // Global cache manager
+  /// Global cache manager
   final _cacheManager = CyberImageCacheManager();
 
+  /// Effective controller - luôn có giá trị
   CyberImageController get _effectiveController =>
       widget.controller ?? _internalController!;
 
   @override
   void initState() {
     super.initState();
+    _initializeController();
+    _initializeBindings();
+  }
 
-    // Tạo internal controller nếu cần
+  void _initializeController() {
+    // Tạo internal controller nếu chưa có
     if (widget.controller == null) {
       _internalController = CyberImageController();
-
-      // Set initial value từ binding hoặc text
-      final initialValue = _getInitialValue();
-      if (initialValue != null) {
-        _internalController!.setUrlInternal(initialValue);
-        _lastLoadedValue = initialValue;
-      }
     }
 
-    _initializeBindings();
+    // Sync initial value từ binding vào controller
+    final initialValue = _getValueFromBinding();
+    _effectiveController.syncFromBinding(initialValue);
+
+    // Listen controller changes
     _effectiveController.addListener(_onControllerChanged);
   }
 
-  String? _getInitialValue() {
-    if (widget.text is CyberBindingExpression) {
-      final expr = widget.text as CyberBindingExpression;
-      try {
-        final value = expr.row[expr.fieldName];
-        return value?.toString();
-      } catch (e) {
-        return null;
-      }
-    } else if (widget.text != null && widget.text is! CyberBindingExpression) {
-      return widget.text.toString();
-    }
-    return null;
+  void _initializeBindings() {
+    _parseTextBinding();
+    _parseVisibilityBinding();
+    _parseFitBinding();
+    _addAllListeners();
   }
 
+  /// ============================================================================
+  /// BINDING PARSING
+  /// ============================================================================
+
+  void _parseTextBinding() {
+    if (widget.text is CyberBindingExpression) {
+      final expr = widget.text as CyberBindingExpression;
+      _boundRow = expr.row;
+      _boundField = expr.fieldName;
+    } else {
+      _boundRow = null;
+      _boundField = null;
+    }
+  }
+
+  void _parseVisibilityBinding() {
+    if (widget.isVisible is CyberBindingExpression) {
+      final expr = widget.isVisible as CyberBindingExpression;
+      _visibilityBoundRow = expr.row;
+      _visibilityBoundField = expr.fieldName;
+    } else {
+      _visibilityBoundRow = null;
+      _visibilityBoundField = null;
+    }
+  }
+
+  void _parseFitBinding() {
+    if (widget.fit is CyberBindingExpression) {
+      final expr = widget.fit as CyberBindingExpression;
+      _fitBoundRow = expr.row;
+      _fitBoundField = expr.fieldName;
+    } else {
+      _fitBoundRow = null;
+      _fitBoundField = null;
+    }
+  }
+
+  /// ============================================================================
+  /// LISTENER MANAGEMENT
+  /// ============================================================================
+
+  void _addAllListeners() {
+    if (_boundRow != null) {
+      _boundRow!.addListener(_onBindingChanged);
+    }
+    if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
+      _visibilityBoundRow!.addListener(_onVisibilityBindingChanged);
+    }
+    if (_fitBoundRow != null &&
+        _fitBoundRow != _boundRow &&
+        _fitBoundRow != _visibilityBoundRow) {
+      _fitBoundRow!.addListener(_onFitBindingChanged);
+    }
+  }
+
+  void _removeAllListeners() {
+    if (_boundRow != null) {
+      _boundRow!.removeListener(_onBindingChanged);
+    }
+    if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
+      _visibilityBoundRow!.removeListener(_onVisibilityBindingChanged);
+    }
+    if (_fitBoundRow != null &&
+        _fitBoundRow != _boundRow &&
+        _fitBoundRow != _visibilityBoundRow) {
+      _fitBoundRow!.removeListener(_onFitBindingChanged);
+    }
+  }
+
+  /// ============================================================================
+  /// SYNC LOGIC: BINDING <-> CONTROLLER <-> UI
+  /// ============================================================================
+
+  /// Khi binding thay đổi → sync vào controller
+  void _onBindingChanged() {
+    if (_isSyncing || !mounted) return;
+
+    final newValue = _getValueFromBinding();
+    if (newValue != _effectiveController.imageUrl) {
+      _isSyncing = true;
+      _effectiveController.syncFromBinding(newValue);
+      _isSyncing = false;
+      
+      if (mounted) {
+        setState(() {});
+      }
+    }
+  }
+
+  /// Khi visibility binding thay đổi
+  void _onVisibilityBindingChanged() {
+    if (!mounted) return;
+    _cachedVisibility = null;
+    setState(() {});
+  }
+
+  /// Khi fit binding thay đổi
+  void _onFitBindingChanged() {
+    if (!mounted) return;
+    _cachedFit = null;
+    setState(() {});
+  }
+
+  /// Khi controller thay đổi → sync ra binding và UI
   void _onControllerChanged() {
-    if (!mounted || _isUpdating) return;
+    if (_isSyncing || !mounted) return;
 
     // Handle pending actions
     final action = _effectiveController.pendingAction;
@@ -158,23 +288,20 @@ class _CyberImageState extends State<CyberImage> {
     }
 
     // Handle URL change
-    final newUrl = _effectiveController.imageUrl;
-    if (_lastLoadedValue != newUrl) {
-      _lastLoadedValue = newUrl;
+    final controllerUrl = _effectiveController.imageUrl;
+    final bindingUrl = _getValueFromBinding();
 
-      // Sync to binding if exists
-      if (_boundRow != null && _boundField != null && !_isUpdating) {
-        _isUpdating = true;
-        _boundRow![_boundField!] = newUrl ?? '';
-        _isUpdating = false;
+    if (controllerUrl != bindingUrl) {
+      _isSyncing = true;
+      
+      // Sync controller → binding
+      if (_boundRow != null && _boundField != null) {
+        _boundRow![_boundField!] = controllerUrl ?? '';
       }
-
-      if (mounted) {
-        setState(() {});
-      }
+      
+      _isSyncing = false;
     }
 
-    // Handle enabled state change
     if (mounted) {
       setState(() {});
     }
@@ -183,15 +310,16 @@ class _CyberImageState extends State<CyberImage> {
   void _handlePendingAction(CyberImageAction action) {
     if (!mounted) return;
 
+    final imageUrl = _getCurrentValue();
+    final hasImage = imageUrl != null && imageUrl.isNotEmpty;
+
     switch (action) {
       case CyberImageAction.upload:
-        final hasImage =
-            _lastLoadedValue != null && _lastLoadedValue!.isNotEmpty;
         _showOptionsBottomSheet(hasImage, true, false, false);
         break;
       case CyberImageAction.view:
-        if (_lastLoadedValue != null && _lastLoadedValue!.isNotEmpty) {
-          _viewImage(_lastLoadedValue!);
+        if (hasImage) {
+          _viewImage(imageUrl);
         }
         break;
       case CyberImageAction.delete:
@@ -202,158 +330,69 @@ class _CyberImageState extends State<CyberImage> {
     }
   }
 
-  @override
-  void didUpdateWidget(CyberImage oldWidget) {
-    super.didUpdateWidget(oldWidget);
+  /// ============================================================================
+  /// VALUE GETTERS
+  /// ============================================================================
 
-    // Controller changed
-    if (oldWidget.controller != widget.controller) {
-      oldWidget.controller?.removeListener(_onControllerChanged);
-
-      if (widget.controller == null && _internalController == null) {
-        _internalController = CyberImageController();
-        final initialValue = _getInitialValue();
-        if (initialValue != null) {
-          _internalController!.setUrlInternal(initialValue);
-          _lastLoadedValue = initialValue;
-        }
+  /// Lấy value từ binding (nếu có)
+  String? _getValueFromBinding() {
+    if (_boundRow != null && _boundField != null) {
+      try {
+        final value = _boundRow![_boundField!];
+        return value?.toString();
+      } catch (e) {
+        return null;
       }
+    } else if (widget.text != null && widget.text is! CyberBindingExpression) {
+      // Static value
+      return widget.text.toString();
+    }
+    return null;
+  }
 
-      _effectiveController.addListener(_onControllerChanged);
+  /// Lấy current value (ưu tiên controller)
+  String? _getCurrentValue() {
+    // Priority 1: Controller value
+    final controllerValue = _effectiveController.imageUrl;
+    if (controllerValue != null && controllerValue.isNotEmpty) {
+      return controllerValue;
     }
 
-    // Bindings changed
-    bool bindingsChanged = false;
+    // Priority 2: Binding value
+    return _getValueFromBinding();
+  }
 
-    if (oldWidget.text != widget.text) {
-      bindingsChanged = true;
-    }
-    if (oldWidget.isVisible != widget.isVisible) {
-      bindingsChanged = true;
-      _cachedVisibility = null;
-    }
-    if (oldWidget.fit != widget.fit) {
-      bindingsChanged = true;
-      _cachedFit = null;
+  /// ============================================================================
+  /// UPDATE VALUE
+  /// ============================================================================
+
+  void _updateValue(String? newValue) {
+    if (!_effectiveController.enabled || !widget.enabled || _isSyncing) return;
+
+    _isSyncing = true;
+
+    // Update controller
+    _effectiveController.loadUrl(newValue);
+
+    // Update binding
+    if (_boundRow != null && _boundField != null) {
+      _boundRow![_boundField!] = newValue ?? '';
     }
 
-    if (bindingsChanged) {
-      _removeAllListeners();
-      _initializeBindings();
+    // Callbacks
+    widget.onChanged?.call(newValue ?? '');
+    widget.onLeaver?.call(newValue);
 
-      // Update internal controller from new binding
-      if (widget.controller == null) {
-        final newValue = _getInitialValue();
-        if (newValue != _internalController!.imageUrl) {
-          _internalController!.setUrlInternal(newValue);
-          _lastLoadedValue = newValue;
-        }
-      }
+    _isSyncing = false;
+
+    if (mounted) {
+      setState(() {});
     }
   }
 
-  @override
-  void dispose() {
-    _effectiveController.removeListener(_onControllerChanged);
-    _removeAllListeners();
-    _clearCaches();
-    _internalController?.dispose();
-    super.dispose();
-  }
-
-  void _initializeBindings() {
-    _parseBinding();
-    _parseVisibilityBinding();
-    _parseFitBinding();
-    _addAllListeners();
-  }
-
-  void _addAllListeners() {
-    if (_boundRow != null) {
-      _boundRow!.addListener(_onBindingChanged);
-    }
-    if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
-      _visibilityBoundRow!.addListener(_onBindingChanged);
-    }
-    if (_fitBoundRow != null &&
-        _fitBoundRow != _boundRow &&
-        _fitBoundRow != _visibilityBoundRow) {
-      _fitBoundRow!.addListener(_onBindingChanged);
-    }
-  }
-
-  void _removeAllListeners() {
-    if (_boundRow != null) {
-      _boundRow!.removeListener(_onBindingChanged);
-    }
-    if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
-      _visibilityBoundRow!.removeListener(_onBindingChanged);
-    }
-    if (_fitBoundRow != null &&
-        _fitBoundRow != _boundRow &&
-        _fitBoundRow != _visibilityBoundRow) {
-      _fitBoundRow!.removeListener(_onBindingChanged);
-    }
-  }
-
-  void _clearCaches() {
-    _cachedVisibility = null;
-    _cachedFit = null;
-  }
-
-  void _parseBinding() {
-    if (widget.text == null) {
-      _boundRow = null;
-      _boundField = null;
-      return;
-    }
-
-    if (widget.text is CyberBindingExpression) {
-      final expr = widget.text as CyberBindingExpression;
-      _boundRow = expr.row;
-      _boundField = expr.fieldName;
-      return;
-    }
-
-    _boundRow = null;
-    _boundField = null;
-  }
-
-  void _parseVisibilityBinding() {
-    if (widget.isVisible == null) {
-      _visibilityBoundRow = null;
-      _visibilityBoundField = null;
-      return;
-    }
-
-    if (widget.isVisible is CyberBindingExpression) {
-      final expr = widget.isVisible as CyberBindingExpression;
-      _visibilityBoundRow = expr.row;
-      _visibilityBoundField = expr.fieldName;
-      return;
-    }
-
-    _visibilityBoundRow = null;
-    _visibilityBoundField = null;
-  }
-
-  void _parseFitBinding() {
-    if (widget.fit == null) {
-      _fitBoundRow = null;
-      _fitBoundField = null;
-      return;
-    }
-
-    if (widget.fit is CyberBindingExpression) {
-      final expr = widget.fit as CyberBindingExpression;
-      _fitBoundRow = expr.row;
-      _fitBoundField = expr.fieldName;
-      return;
-    }
-
-    _fitBoundRow = null;
-    _fitBoundField = null;
-  }
+  /// ============================================================================
+  /// VISIBILITY & FIT
+  /// ============================================================================
 
   bool _parseBool(dynamic value) {
     if (value == null) return false;
@@ -447,96 +486,6 @@ class _CyberImageState extends State<CyberImage> {
     return _cachedFit!;
   }
 
-  void _onBindingChanged() {
-    if (_isUpdating) return;
-
-    // Sync binding value to controller
-    final currentBindingValue = _getCurrentValueFromBinding();
-    if (currentBindingValue != _effectiveController.imageUrl) {
-      _isUpdating = true;
-      _effectiveController.setUrlInternal(currentBindingValue);
-      _lastLoadedValue = currentBindingValue;
-      _isUpdating = false;
-    }
-
-    _clearCaches();
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
-  String? _getCurrentValueFromBinding() {
-    if (_boundRow != null && _boundField != null) {
-      try {
-        final value = _boundRow![_boundField!];
-        return value?.toString();
-      } catch (e) {
-        return null;
-      }
-    }
-    return null;
-  }
-
-  String? _getCurrentValue() {
-    // Ưu tiên controller
-    final controllerValue = _effectiveController.imageUrl;
-    if (controllerValue != null && controllerValue.isNotEmpty) {
-      return controllerValue;
-    }
-
-    // Fallback to binding
-    if (widget.text is CyberBindingExpression) {
-      final expr = widget.text as CyberBindingExpression;
-      if (_boundRow != expr.row || _boundField != expr.fieldName) {
-        _boundRow = expr.row;
-        _boundField = expr.fieldName;
-      }
-    }
-
-    dynamic rawValue;
-
-    if (_boundRow != null && _boundField != null) {
-      try {
-        rawValue = _boundRow![_boundField!];
-      } catch (e) {
-        return null;
-      }
-    } else if (widget.text != null && widget.text is! CyberBindingExpression) {
-      rawValue = widget.text;
-    } else {
-      return null;
-    }
-
-    return rawValue?.toString();
-  }
-
-  void _updateValue(String? newValue) {
-    if (!_effectiveController.enabled || !widget.enabled) return;
-
-    _isUpdating = true;
-
-    // Update controller
-    if (newValue == null || newValue.isEmpty) {
-      _effectiveController.setUrlInternal(null);
-    } else {
-      _effectiveController.setUrlInternal(newValue);
-    }
-
-    // Update binding
-    if (_boundRow != null && _boundField != null) {
-      _boundRow![_boundField!] = newValue ?? '';
-    }
-
-    _lastLoadedValue = newValue;
-
-    widget.onChanged?.call(newValue ?? '');
-    widget.onLeaver?.call(newValue);
-
-    setState(() {
-      _isUpdating = false;
-    });
-  }
-
   bool _canUpload() {
     if (widget.isUpload is CyberBindingExpression) {
       final expr = widget.isUpload as CyberBindingExpression;
@@ -572,6 +521,10 @@ class _CyberImageState extends State<CyberImage> {
     }
     return _parseBool(widget.isDelete);
   }
+
+  /// ============================================================================
+  /// IMAGE ACTIONS
+  /// ============================================================================
 
   Future<void> _handleImageTap() async {
     if (!_effectiveController.enabled || !widget.enabled) return;
@@ -760,6 +713,66 @@ class _CyberImageState extends State<CyberImage> {
     }
   }
 
+  /// ============================================================================
+  /// WIDGET LIFECYCLE
+  /// ============================================================================
+
+  @override
+  void didUpdateWidget(CyberImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // Controller changed
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller?.removeListener(_onControllerChanged);
+
+      if (widget.controller == null && _internalController == null) {
+        _internalController = CyberImageController();
+      }
+
+      final currentValue = _getValueFromBinding();
+      _effectiveController.syncFromBinding(currentValue);
+      _effectiveController.addListener(_onControllerChanged);
+    }
+
+    // Bindings changed
+    bool bindingsChanged = false;
+
+    if (oldWidget.text != widget.text) {
+      bindingsChanged = true;
+    }
+    if (oldWidget.isVisible != widget.isVisible) {
+      bindingsChanged = true;
+      _cachedVisibility = null;
+    }
+    if (oldWidget.fit != widget.fit) {
+      bindingsChanged = true;
+      _cachedFit = null;
+    }
+
+    if (bindingsChanged) {
+      _removeAllListeners();
+      _initializeBindings();
+
+      // Sync new binding value to controller
+      final newValue = _getValueFromBinding();
+      _effectiveController.syncFromBinding(newValue);
+    }
+  }
+
+  @override
+  void dispose() {
+    _effectiveController.removeListener(_onControllerChanged);
+    _removeAllListeners();
+    _cachedVisibility = null;
+    _cachedFit = null;
+    _internalController?.dispose();
+    super.dispose();
+  }
+
+  /// ============================================================================
+  /// BUILD UI
+  /// ============================================================================
+
   @override
   Widget build(BuildContext context) {
     if (!_isVisible()) {
@@ -770,6 +783,11 @@ class _CyberImageState extends State<CyberImage> {
     if (_boundRow != null) listeners.add(_boundRow!);
     if (_fitBoundRow != null && _fitBoundRow != _boundRow) {
       listeners.add(_fitBoundRow!);
+    }
+    if (_visibilityBoundRow != null &&
+        _visibilityBoundRow != _boundRow &&
+        _visibilityBoundRow != _fitBoundRow) {
+      listeners.add(_visibilityBoundRow!);
     }
 
     Widget buildImage() {
@@ -965,7 +983,10 @@ class _CyberImageState extends State<CyberImage> {
   }
 }
 
-/// Image options bottom sheet
+/// ============================================================================
+/// Image Options Bottom Sheet
+/// ============================================================================
+
 class _ImageOptionsSheet extends StatelessWidget {
   final bool hasImage;
   final bool canUpload;

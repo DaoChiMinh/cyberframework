@@ -587,10 +587,6 @@ class _InternalLookupController extends ChangeNotifier {
   String get displayValue => _displayValue;
   bool get hasValue => _displayValue.isNotEmpty;
 
-  @override
-  void dispose() {
-    super.dispose();
-  }
 }
 
 // ============================================================================
