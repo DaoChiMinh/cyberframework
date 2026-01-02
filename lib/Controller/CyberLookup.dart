@@ -1,21 +1,42 @@
 import 'package:cyberframework/cyberframework.dart';
 
-/// Widget RENDER UI và ĐIỀU KHIỂN LOOKUP
-/// Không sở hữu business logic, chỉ render và handle interactions
+/// CyberLookup - Lookup control với Internal Controller + Binding
+/// 
+/// Hỗ trợ binding 2 chiều cho text value và display value:
+/// ```dart
+/// CyberLookup(
+///   text: drEdit.bind('ma_kh'),           // Binding text value
+///   display: drEdit.bind('ten_kh'),        // Binding display value
+///   tbName: 'dmkh',
+///   displayField: 'ten_kh',
+///   displayValue: 'ma_kh',
+/// )
+/// ```
 class CyberLookup extends StatefulWidget {
-  // === CONTROLLER (nếu có thì KHÔNG có text/display) ===
-  final CyberLookupController? controller;
-
-  // === SIMPLE MODE (chỉ khi KHÔNG có controller) ===
+  // === DATA BINDING ===
+  /// Text value - có thể binding: dr.bind('ma_kh')
   final dynamic text;
+  
+  /// Display value - có thể binding: dr.bind('ten_kh')
   final dynamic display;
+  
+  /// Callback khi giá trị thay đổi
   final ValueChanged<dynamic>? onChanged;
 
-  // === LOOKUP PARAMETERS (chỉ dùng khi KHÔNG có controller) ===
+  // === LOOKUP PARAMETERS ===
+  /// Tên bảng lookup - có thể binding
   final dynamic tbName;
+  
+  /// Filter string - có thể binding
   final dynamic strFilter;
+  
+  /// Tên field hiển thị
   final dynamic displayField;
+  
+  /// Tên field giá trị
   final dynamic displayValue;
+  
+  /// Số record mỗi trang
   final int lookupPageSize;
 
   // === UI PROPERTIES ===
@@ -38,7 +59,6 @@ class CyberLookup extends StatefulWidget {
 
   const CyberLookup({
     super.key,
-    this.controller,
     this.text,
     this.display,
     this.onChanged,
@@ -61,130 +81,223 @@ class CyberLookup extends StatefulWidget {
     this.backgroundColor,
     this.borderColor,
     this.onLeaver,
-  }) : // ✅ CRITICAL: Assert bắt buộc để catch lỗi kiến trúc
-       assert(
-         controller == null || (text == null && display == null),
-         'CyberLookup: KHÔNG được truyền đồng thời controller và text/display.\n'
-         'Nếu dùng controller thì bỏ text và display properties.\n'
-         'Nếu không dùng controller thì bỏ controller property.',
-       );
+  });
 
   @override
   State<CyberLookup> createState() => _CyberLookupState();
 }
 
+// ============================================================================
+// INTERNAL STATE - QUẢN LÝ CONTROLLER VÀ BINDING
+// ============================================================================
+
 class _CyberLookupState extends State<CyberLookup> {
-  // === FLAG CHỐNG LOOP ===
-  bool _isInternalUpdate = false;
-
-  // === SIMPLE MODE STATE ===
-  dynamic _simpleTextValue;
-  String _simpleDisplayValue = '';
-
+  // === INTERNAL CONTROLLER ===
+  late final _InternalLookupController _controller;
+  
+  // === BINDING CONTEXT ===
+  CyberDataRow? _textBoundRow;
+  String? _textBoundField;
+  CyberDataRow? _displayBoundRow;
+  String? _displayBoundField;
+  
   // === VISIBILITY BINDING ===
   CyberDataRow? _visibilityBoundRow;
   String? _visibilityBoundField;
 
+  // === FLAGS ===
+  bool _isInternalUpdate = false;
+
   @override
   void initState() {
     super.initState();
-
-    // Parse visibility binding
+    
+    // Khởi tạo internal controller
+    _controller = _InternalLookupController();
+    
+    // Parse bindings
+    _parseTextBinding();
+    _parseDisplayBinding();
     _parseVisibilityBinding();
-
-    // Simple mode: lấy giá trị ban đầu
-    if (widget.controller == null) {
-      _simpleTextValue = _extractValue(widget.text);
-      _simpleDisplayValue = _extractDisplayValue(widget.display);
-    }
-
-    // Lắng nghe controller nếu có
-    widget.controller?.addListener(_onControllerChanged);
+    
+    // Sync initial values
+    _syncFromWidget();
+    
+    // Listen to controller changes
+    _controller.addListener(_onControllerChanged);
   }
 
   @override
   void didUpdateWidget(CyberLookup oldWidget) {
     super.didUpdateWidget(oldWidget);
-
-    // Nếu controller thay đổi
-    if (widget.controller != oldWidget.controller) {
-      oldWidget.controller?.removeListener(_onControllerChanged);
-      widget.controller?.addListener(_onControllerChanged);
+    
+    // Re-parse bindings nếu properties thay đổi
+    if (widget.text != oldWidget.text) {
+      _parseTextBinding();
     }
-
-    // Parse visibility nếu thay đổi
+    if (widget.display != oldWidget.display) {
+      _parseDisplayBinding();
+    }
     if (widget.isVisible != oldWidget.isVisible) {
       _parseVisibilityBinding();
     }
-
-    // Simple mode: sync từ properties
-    if (widget.controller == null) {
-      if (widget.text != oldWidget.text) {
-        _simpleTextValue = _extractValue(widget.text);
-      }
-      if (widget.display != oldWidget.display) {
-        _simpleDisplayValue = _extractDisplayValue(widget.display);
-      }
-    }
+    
+    // Sync values
+    _syncFromWidget();
   }
 
   @override
   void dispose() {
-    widget.controller?.removeListener(_onControllerChanged);
+    _controller.removeListener(_onControllerChanged);
+    _controller.dispose();
+    
+    // Cleanup bindings
+    _textBoundRow?.removeListener(_onTextBindingChanged);
+    _displayBoundRow?.removeListener(_onDisplayBindingChanged);
+    
     super.dispose();
   }
 
-  // === VISIBILITY ===
+  // ============================================================================
+  // BINDING PARSERS
+  // ============================================================================
+
+  void _parseTextBinding() {
+    // Cleanup old binding
+    if (_textBoundRow != null) {
+      _textBoundRow!.removeListener(_onTextBindingChanged);
+      _textBoundRow = null;
+      _textBoundField = null;
+    }
+    
+    // Parse new binding
+    if (widget.text is CyberBindingExpression) {
+      final expr = widget.text as CyberBindingExpression;
+      _textBoundRow = expr.row;
+      _textBoundField = expr.fieldName;
+      _textBoundRow!.addListener(_onTextBindingChanged);
+    }
+  }
+
+  void _parseDisplayBinding() {
+    // Cleanup old binding
+    if (_displayBoundRow != null) {
+      _displayBoundRow!.removeListener(_onDisplayBindingChanged);
+      _displayBoundRow = null;
+      _displayBoundField = null;
+    }
+    
+    // Parse new binding
+    if (widget.display is CyberBindingExpression) {
+      final expr = widget.display as CyberBindingExpression;
+      _displayBoundRow = expr.row;
+      _displayBoundField = expr.fieldName;
+      _displayBoundRow!.addListener(_onDisplayBindingChanged);
+    }
+  }
 
   void _parseVisibilityBinding() {
-    if (widget.isVisible == null) {
-      _visibilityBoundRow = null;
-      _visibilityBoundField = null;
-      return;
-    }
-
     if (widget.isVisible is CyberBindingExpression) {
       final expr = widget.isVisible as CyberBindingExpression;
       _visibilityBoundRow = expr.row;
       _visibilityBoundField = expr.fieldName;
-      return;
+    } else {
+      _visibilityBoundRow = null;
+      _visibilityBoundField = null;
     }
-
-    _visibilityBoundRow = null;
-    _visibilityBoundField = null;
   }
 
-  bool _parseBool(dynamic value, {required bool defaultValue}) {
-    if (value == null) return defaultValue;
-    if (value is bool) return value;
-    if (value is int) return value != 0;
-    if (value is String) {
-      final lower = value.toLowerCase().trim();
-      if (lower == "1" || lower == "true") return true;
-      if (lower == "0" || lower == "false") return false;
-      return defaultValue;
+  // ============================================================================
+  // SYNC LOGIC
+  // ============================================================================
+
+  /// Sync từ widget properties vào controller
+  void _syncFromWidget() {
+    if (_isInternalUpdate) return;
+    
+    _isInternalUpdate = true;
+    
+    // Sync text value
+    final textValue = _extractValue(widget.text);
+    if (_controller.textValue != textValue) {
+      _controller._textValue = textValue;
     }
-    return defaultValue;
+    
+    // Sync display value
+    final displayValue = _extractDisplayValue(widget.display);
+    if (_controller.displayValue != displayValue) {
+      _controller._displayValue = displayValue;
+    }
+    
+    _isInternalUpdate = false;
   }
 
-  bool _isVisible() {
-    if (_visibilityBoundRow != null && _visibilityBoundField != null) {
-      return _parseBool(
-        _visibilityBoundRow![_visibilityBoundField!],
-        defaultValue: true,
-      );
+  /// Sync từ text binding vào controller
+  void _onTextBindingChanged() {
+    if (_isInternalUpdate || !mounted) return;
+    if (_textBoundRow == null || _textBoundField == null) return;
+    
+    _isInternalUpdate = true;
+    
+    final newValue = _textBoundRow![_textBoundField!];
+    if (_controller.textValue != newValue) {
+      _controller._textValue = newValue;
+      _controller.notifyListeners();
     }
-    return _parseBool(widget.isVisible, defaultValue: true);
+    
+    _isInternalUpdate = false;
   }
 
-  // === SYNC CONTROLLER (ANTI-LOOP) ===
+  /// Sync từ display binding vào controller
+  void _onDisplayBindingChanged() {
+    if (_isInternalUpdate || !mounted) return;
+    if (_displayBoundRow == null || _displayBoundField == null) return;
+    
+    _isInternalUpdate = true;
+    
+    final newValue = _displayBoundRow![_displayBoundField!]?.toString() ?? '';
+    if (_controller.displayValue != newValue) {
+      _controller._displayValue = newValue;
+      _controller.notifyListeners();
+    }
+    
+    _isInternalUpdate = false;
+  }
 
+  /// Sync từ controller vào bindings (khi user chọn lookup)
+  void _syncToBindings(dynamic textValue, String displayValue) {
+    if (_isInternalUpdate) return;
+    
+    _isInternalUpdate = true;
+    
+    // Update controller
+    _controller._textValue = textValue;
+    _controller._displayValue = displayValue;
+    
+    // Update bindings
+    if (_textBoundRow != null && _textBoundField != null) {
+      _textBoundRow![_textBoundField!] = textValue;
+    }
+    if (_displayBoundRow != null && _displayBoundField != null) {
+      _displayBoundRow![_displayBoundField!] = displayValue;
+    }
+    
+    // Callback
+    widget.onChanged?.call(textValue);
+    
+    _isInternalUpdate = false;
+    _controller.notifyListeners();
+  }
+
+  /// Listen to controller changes
   void _onControllerChanged() {
     if (!mounted || _isInternalUpdate) return;
     setState(() {}); // Rebuild UI
   }
 
-  // === VALUE EXTRACTORS ===
+  // ============================================================================
+  // VALUE EXTRACTORS
+  // ============================================================================
 
   dynamic _extractValue(dynamic value) {
     if (value is CyberBindingExpression) {
@@ -219,63 +332,72 @@ class _CyberLookupState extends State<CyberLookup> {
     return param?.toString() ?? '';
   }
 
-  // === ACTIONS ===
+  // ============================================================================
+  // VISIBILITY HELPERS
+  // ============================================================================
 
-  /// ✅ CRITICAL: Clear action ĐI QUA CONTROLLER
-  /// Widget KHÔNG tự clear state, controller điều khiển
+  bool _parseBool(dynamic value, {required bool defaultValue}) {
+    if (value == null) return defaultValue;
+    if (value is bool) return value;
+    if (value is int) return value != 0;
+    if (value is String) {
+      final lower = value.toLowerCase().trim();
+      if (lower == "1" || lower == "true") return true;
+      if (lower == "0" || lower == "false") return false;
+      return defaultValue;
+    }
+    return defaultValue;
+  }
+
+  bool _isVisible() {
+    if (_visibilityBoundRow != null && _visibilityBoundField != null) {
+      return _parseBool(
+        _visibilityBoundRow![_visibilityBoundField!],
+        defaultValue: true,
+      );
+    }
+    return _parseBool(widget.isVisible, defaultValue: true);
+  }
+
+  bool _isCheckEmpty() {
+    return _parseBool(widget.isCheckEmpty, defaultValue: false);
+  }
+
+  // ============================================================================
+  // ACTIONS
+  // ============================================================================
+
+  /// Clear values
   void _clearValues() {
     if (!_isInteractive()) return;
-
-    if (widget.controller != null) {
-      // ✅ Controller mode: gọi controller.clear()
-      widget.controller!.clear();
-
-      // Callback sau khi clear
-      if (widget.onLeaver != null) {
-        Future.delayed(Duration.zero, () {
-          if (mounted) {
-            widget.onLeaver!(null);
-          }
-        });
-      }
-    } else {
-      // Simple mode: tự update state
-      setState(() {
-        _simpleTextValue = null;
-        _simpleDisplayValue = '';
+    
+    _syncToBindings(null, '');
+    
+    // Callback
+    if (widget.onLeaver != null) {
+      Future.delayed(Duration.zero, () {
+        if (mounted) {
+          widget.onLeaver!(null);
+        }
       });
-
-      widget.onChanged?.call(null);
-
-      if (widget.onLeaver != null) {
-        Future.delayed(Duration.zero, () {
-          if (mounted) {
-            widget.onLeaver!(null);
-          }
-        });
-      }
     }
   }
 
-  /// ✅ CRITICAL: Set values ĐI QUA CONTROLLER
+  /// Show lookup modal
   Future<void> _showLookup() async {
     if (!_isInteractive() || !mounted) return;
 
     // Get lookup parameters
-    final tbName = widget.controller?.tbName ?? _extractParam(widget.tbName);
-    final strFilter =
-        widget.controller?.strFilter ?? _extractParam(widget.strFilter);
-    final displayField =
-        widget.controller?.displayFieldName ??
-        _extractParam(widget.displayField);
-    final valueField =
-        widget.controller?.valueFieldName ?? _extractParam(widget.displayValue);
-    final pageSize = widget.controller?.lookupPageSize ?? widget.lookupPageSize;
+    final tbName = _extractParam(widget.tbName);
+    final strFilter = _extractParam(widget.strFilter);
+    final displayField = _extractParam(widget.displayField);
+    final valueField = _extractParam(widget.displayValue);
+    final pageSize = widget.lookupPageSize;
 
     if (tbName.isEmpty || displayField.isEmpty || valueField.isEmpty) return;
 
     // Get current value
-    final currentTextValue = widget.controller?.textValue ?? _simpleTextValue;
+    final currentTextValue = _controller.textValue;
 
     final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
@@ -295,62 +417,38 @@ class _CyberLookupState extends State<CyberLookup> {
       final textValue = result[valueField];
       final displayValue = result[displayField]?.toString() ?? '';
 
-      if (widget.controller != null) {
-        // ✅ Controller mode: gọi controller.setValues()
-        widget.controller!.setValues(
-          textValue: textValue,
-          displayValue: displayValue,
-        );
+      _syncToBindings(textValue, displayValue);
 
-        // Callback sau khi set
-        if (widget.onLeaver != null) {
-          Future.delayed(Duration.zero, () {
-            if (mounted) {
-              widget.onLeaver!(textValue);
-            }
-          });
-        }
-      } else {
-        // Simple mode: tự update state
-        setState(() {
-          _simpleTextValue = textValue;
-          _simpleDisplayValue = displayValue;
+      // Callback
+      if (widget.onLeaver != null) {
+        Future.delayed(Duration.zero, () {
+          if (mounted) {
+            widget.onLeaver!(textValue);
+          }
         });
-
-        widget.onChanged?.call(textValue);
-
-        if (widget.onLeaver != null) {
-          Future.delayed(Duration.zero, () {
-            if (mounted) {
-              widget.onLeaver!(textValue);
-            }
-          });
-        }
       }
     }
   }
 
-  // === HELPERS ===
+  // ============================================================================
+  // HELPERS
+  // ============================================================================
 
   bool _isInteractive() {
-    final effectiveEnabled = widget.controller?.enabled ?? widget.enabled;
-    return effectiveEnabled && !widget.readOnly;
+    return widget.enabled && !widget.readOnly;
   }
 
   String _getCurrentDisplayValue() {
-    return widget.controller?.displayValue ?? _simpleDisplayValue;
+    return _controller.displayValue;
   }
 
   bool _hasValue() {
     return _getCurrentDisplayValue().isNotEmpty;
   }
 
-  bool _isCheckEmpty() {
-    if (widget.controller != null) {
-      return widget.controller!.isCheckEmpty;
-    }
-    return _parseBool(widget.isCheckEmpty, defaultValue: false);
-  }
+  // ============================================================================
+  // BUILD UI
+  // ============================================================================
 
   @override
   Widget build(BuildContext context) {
@@ -442,7 +540,7 @@ class _CyberLookupState extends State<CyberLookup> {
                   if (widget.allowClear && hasValue && isInteractive) ...[
                     const SizedBox(width: 8),
                     InkWell(
-                      onTap: _clearValues, // ✅ Gọi qua controller
+                      onTap: _clearValues,
                       borderRadius: BorderRadius.circular(12),
                       child: Icon(
                         Icons.clear,
@@ -477,7 +575,24 @@ class _CyberLookupState extends State<CyberLookup> {
   }
 }
 
-// _LookupBottomSheet giữ nguyên...
+// ============================================================================
+// INTERNAL CONTROLLER
+// ============================================================================
+
+class _InternalLookupController extends ChangeNotifier {
+  dynamic _textValue;
+  String _displayValue = '';
+
+  dynamic get textValue => _textValue;
+  String get displayValue => _displayValue;
+  bool get hasValue => _displayValue.isNotEmpty;
+
+  @override
+  void dispose() {
+    super.dispose();
+  }
+}
+
 // ============================================================================
 // LOOKUP BOTTOM SHEET - VIRTUAL PAGING
 // ============================================================================

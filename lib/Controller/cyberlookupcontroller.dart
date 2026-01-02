@@ -1,9 +1,43 @@
 import 'package:cyberframework/cyberframework.dart';
 
-/// Controller quản lý STATE và BUSINESS LOGIC cho Lookup
-/// KHÔNG biết gì về UI, Modal, Dialog
+/// CyberLookupController - OPTIONAL controller cho advanced use cases
+/// 
+/// NOTE: Trong hầu hết trường hợp, KHÔNG CẦN dùng controller này.
+/// CyberLookup đã có internal controller và hỗ trợ binding trực tiếp.
+/// 
+/// Chỉ dùng controller này khi:
+/// - Cần programmatic control phức tạp
+/// - Cần validation logic phức tạp
+/// - Cần share state giữa nhiều widgets
+/// 
+/// Example with binding (RECOMMENDED - không cần controller):
+/// ```dart
+/// CyberLookup(
+///   text: drEdit.bind('ma_kh'),
+///   display: drEdit.bind('ten_kh'),
+///   tbName: 'dmkh',
+///   displayField: 'ten_kh',
+///   displayValue: 'ma_kh',
+/// )
+/// ```
+/// 
+/// Example with controller (ADVANCED):
+/// ```dart
+/// final controller = CyberLookupController(
+///   initialTextValue: 'KH001',
+///   initialDisplayValue: 'Khách hàng A',
+/// );
+/// 
+/// // Programmatic control
+/// controller.setValues(textValue: 'KH002', displayValue: 'Khách hàng B');
+/// controller.clear();
+/// 
+/// // Bind to CyberDataRow
+/// controller.bindText(drEdit, 'ma_kh');
+/// controller.bindDisplay(drEdit, 'ten_kh');
+/// ```
 class CyberLookupController extends ChangeNotifier {
-  // === PRIVATE STATE (encapsulated) ===
+  // === PRIVATE STATE ===
   dynamic _textValue;
   String _displayValue = '';
   bool _enabled = true;
@@ -19,14 +53,14 @@ class CyberLookupController extends ChangeNotifier {
   // === VALIDATION ===
   bool _isCheckEmpty;
 
-  // === LOOKUP PARAMETERS (private với getters) ===
+  // === LOOKUP PARAMETERS ===
   String? _tbName;
   String? _strFilter;
   String? _displayFieldName;
   String? _valueFieldName;
   int _lookupPageSize;
 
-  // === PUBLIC GETTERS ONLY ===
+  // === PUBLIC GETTERS ===
   dynamic get textValue => _textValue;
   String get displayValue => _displayValue;
   bool get enabled => _enabled;
@@ -63,7 +97,7 @@ class CyberLookupController extends ChangeNotifier {
     _validate();
   }
 
-  // === PUBLIC SETTERS (controlled mutation) ===
+  // === PUBLIC SETTERS ===
 
   /// Set cả text value và display value
   void setValues({required dynamic textValue, required String displayValue}) {
