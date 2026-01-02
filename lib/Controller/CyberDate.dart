@@ -1,19 +1,67 @@
 import 'package:cyberframework/cyberframework.dart';
 import 'package:intl/intl.dart';
 
+/// CyberDate - Widget chọn ngày với binding hỗ trợ
+/// 
+/// Triết lý ERP/CyberFramework:
+/// - Internal Controller tự động (không cần khai báo)
+/// - Hỗ trợ binding: text: dr.bind("ngay_sinh")
+/// - Two-way binding tự động
+/// 
+/// Ví dụ sử dụng:
+/// ```dart
+/// // Cách 1: Binding với CyberDataRow
+/// CyberDate(
+///   text: dr.bind("ngay_sinh"),
+///   label: "Ngày sinh",
+///   format: "dd/MM/yyyy",
+/// )
+/// 
+/// // Cách 2: Giá trị tĩnh
+/// CyberDate(
+///   text: DateTime.now(),
+///   label: "Ngày hiện tại",
+/// )
+/// 
+/// // Cách 3: External controller (advanced)
+/// final controller = CyberDateController();
+/// CyberDate(
+///   controller: controller,
+///   label: "Điều khiển từ ngoài",
+/// )
+/// ```
 class CyberDate extends StatefulWidget {
+  /// ⚠️ KHÔNG dùng cả text VÀ controller cùng lúc
+  /// 
+  /// text hỗ trợ:
+  /// - Binding: dr.bind("ngay_sinh")
+  /// - Giá trị tĩnh: DateTime.now()
+  /// - null: rỗng
   final dynamic text;
+
+  /// Controller để quản lý state từ bên ngoài (Optional - không bắt buộc)
+  /// Chỉ dùng khi cần điều khiển widget từ code
+  final CyberDateController? controller;
+
   final String? label;
   final String? hint;
-  final String format; // Date format: "dd/MM/yyyy", "yyyy-MM-dd", etc.
+  
+  /// Date format: "dd/MM/yyyy", "yyyy-MM-dd", etc.
+  final String format;
+  
   final IconData? icon;
   final bool enabled;
   final TextStyle? style;
   final InputDecoration? decoration;
-  final ValueChanged<DateTime>? onChanged;
+  
+  /// Callback khi giá trị thay đổi
+  final ValueChanged<DateTime?>? onChanged;
   final Function(dynamic)? onLeaver;
+  
+  /// Giới hạn ngày
   final DateTime? minDate;
   final DateTime? maxDate;
+  
   final bool isShowLabel;
   final Color? backgroundColor;
   final Color? focusColor;
@@ -21,13 +69,7 @@ class CyberDate extends StatefulWidget {
   final dynamic isVisible;
   final dynamic isCheckEmpty;
 
-  /// Controller for programmatic control of the date value
-  final CyberDateController? controller;
-
-  /// Initial value when no controller is provided
-  final DateTime? initialValue;
-
-  /// Date formatter (if null, use format string)
+  /// Date formatter (nếu null, dùng format string)
   final DateFormat? formatter;
 
   /// Validator function
@@ -39,6 +81,7 @@ class CyberDate extends StatefulWidget {
   const CyberDate({
     super.key,
     this.text,
+    this.controller,
     this.label,
     this.hint,
     this.format = "dd/MM/yyyy",
@@ -56,12 +99,13 @@ class CyberDate extends StatefulWidget {
     this.labelStyle,
     this.isVisible = true,
     this.isCheckEmpty = false,
-    this.controller,
-    this.initialValue,
     this.formatter,
     this.validator,
     this.errorText,
-  });
+  }) : assert(
+         controller == null || text == null,
+         'CyberDate: không được dùng cả text và controller cùng lúc',
+       );
 
   @override
   State<CyberDate> createState() => _CyberDateState();
@@ -74,6 +118,7 @@ class _CyberDateState extends State<CyberDate> {
   late DateTime _minDate;
   late DateTime _maxDate;
 
+  // Binding state
   CyberDataRow? _boundRow;
   String? _boundField;
   CyberDataRow? _visibilityBoundRow;
@@ -82,26 +127,34 @@ class _CyberDateState extends State<CyberDate> {
 
   String? _validationError;
 
+  /// ✅ Internal controller (tạo tự động nếu không có external controller)
+  CyberDateController? _internalController;
+  
+  /// ✅ Effective controller - ưu tiên external, fallback internal
+  CyberDateController get _effectiveController =>
+      widget.controller ?? _internalController!;
+
   @override
   void initState() {
     super.initState();
 
+    // ✅ Tạo internal controller nếu không có external controller
+    if (widget.controller == null) {
+      _internalController = CyberDateController();
+    }
+
+    _textController = TextEditingController();
     _focusNode = FocusNode();
+    
     _setupDateFormat();
     _setupDateRange();
     _parseBinding();
     _parseVisibilityBinding();
     _updateTextController();
 
-    // Listen to controller if provided
-    widget.controller?.addListener(_onControllerChanged);
-
-    if (_boundRow != null) {
-      _boundRow!.addListener(_onBindingChanged);
-    }
-    if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
-      _visibilityBoundRow!.addListener(_onBindingChanged);
-    }
+    // Đăng ký listeners
+    _registerBindingListeners();
+    _effectiveController.addListener(_onControllerChanged);
 
     _focusNode.addListener(() {
       if (_focusNode.hasFocus && widget.enabled) {
@@ -114,120 +167,116 @@ class _CyberDateState extends State<CyberDate> {
   void didUpdateWidget(CyberDate oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    // ✅ 1. Handle controller swap/changes
-    if (oldWidget.controller != widget.controller) {
-      // Remove listener from old controller
+    bool bindingChanged = false;
+    bool visibilityBindingChanged = false;
+    bool controllerChanged = widget.controller != oldWidget.controller;
+
+    // ✅ Xử lý controller thay đổi
+    if (controllerChanged) {
       oldWidget.controller?.removeListener(_onControllerChanged);
 
-      // Add listener to new controller
-      widget.controller?.addListener(_onControllerChanged);
-
-      // Update display with new controller value
-      _onControllerChanged();
-    }
-
-    // ✅ 2. Handle binding changes
-    if (oldWidget.text != widget.text) {
-      // Remove listener from old binding
-      if (_boundRow != null) {
-        _boundRow!.removeListener(_onBindingChanged);
+      if (widget.controller == null) {
+        // Chuyển sang internal controller
+        _internalController ??= CyberDateController();
+      } else {
+        // Chuyển sang external controller - dispose internal
+        _internalController?.dispose();
+        _internalController = null;
       }
 
-      // Parse new binding
+      _effectiveController.addListener(_onControllerChanged);
+      _updateTextController();
+    }
+
+    // ✅ Kiểm tra text binding đã thay đổi
+    if (widget.text != oldWidget.text) {
+      _unregisterBindingListeners();
       _parseBinding();
-
-      // Add listener to new binding
-      if (_boundRow != null) {
-        _boundRow!.addListener(_onBindingChanged);
-      }
-
-      // Update display with new binding value
-      _onBindingChanged();
+      bindingChanged = true;
     }
 
-    // ✅ 3. Handle visibility binding changes
-    if (oldWidget.isVisible != widget.isVisible) {
-      // Remove listener from old visibility binding
-      if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
-        _visibilityBoundRow!.removeListener(_onBindingChanged);
+    // ✅ Kiểm tra visibility binding đã thay đổi
+    if (widget.isVisible != oldWidget.isVisible) {
+      if (!bindingChanged) {
+        _unregisterBindingListeners();
       }
-
-      // Parse new visibility binding
       _parseVisibilityBinding();
+      visibilityBindingChanged = true;
+    }
 
-      // Add listener to new visibility binding
-      if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
-        _visibilityBoundRow!.addListener(_onBindingChanged);
+    // ✅ Đăng ký lại listeners nếu có thay đổi
+    if (bindingChanged || visibilityBindingChanged) {
+      _registerBindingListeners();
+      if (!controllerChanged) {
+        _updateTextController();
       }
     }
 
-    // ✅ 4. Handle date format changes
-    if (oldWidget.format != widget.format ||
-        oldWidget.formatter != widget.formatter) {
+    // ✅ Xử lý format changes
+    if (widget.format != oldWidget.format ||
+        widget.formatter != oldWidget.formatter) {
       _setupDateFormat();
       _updateTextController();
     }
 
-    // ✅ 5. Handle date range changes
-    if (oldWidget.minDate != widget.minDate ||
-        oldWidget.maxDate != widget.maxDate) {
+    // ✅ Xử lý date range changes
+    if (widget.minDate != oldWidget.minDate ||
+        widget.maxDate != oldWidget.maxDate) {
       _setupDateRange();
       _validate();
     }
 
-    // ✅ 6. Handle validator changes
-    if (oldWidget.validator != widget.validator) {
+    // ✅ Xử lý validator changes
+    if (widget.validator != oldWidget.validator) {
       _validate();
     }
 
-    // ✅ 7. Handle error text changes
-    if (oldWidget.errorText != widget.errorText) {
-      setState(() {}); // Trigger rebuild to show new error
+    // ✅ Xử lý error text changes
+    if (widget.errorText != oldWidget.errorText) {
+      setState(() {});
     }
 
-    // ✅ 8. Handle enabled state changes
+    // ✅ Xử lý enabled state changes
     if (oldWidget.enabled != widget.enabled) {
-      setState(() {}); // Trigger rebuild
+      setState(() {});
     }
   }
 
   @override
   void dispose() {
-    // ✅ Remove all listeners
-    widget.controller?.removeListener(_onControllerChanged);
+    _unregisterBindingListeners();
+    _effectiveController.removeListener(_onControllerChanged);
+    _internalController?.dispose();
+    _textController.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
 
+  // ============================================================================
+  // BINDING MANAGEMENT
+  // ============================================================================
+
+  /// ✅ Đăng ký listeners cho binding
+  void _registerBindingListeners() {
+    if (_boundRow != null) {
+      _boundRow!.addListener(_onBindingChanged);
+    }
+    if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
+      _visibilityBoundRow!.addListener(_onBindingChanged);
+    }
+  }
+
+  /// ✅ Hủy đăng ký listeners
+  void _unregisterBindingListeners() {
     if (_boundRow != null) {
       _boundRow!.removeListener(_onBindingChanged);
     }
     if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
       _visibilityBoundRow!.removeListener(_onBindingChanged);
     }
-
-    _textController.dispose();
-    _focusNode.dispose();
-    super.dispose();
   }
 
-  void _setupDateFormat() {
-    if (widget.formatter != null) {
-      _dateFormat = widget.formatter!;
-    } else {
-      try {
-        _dateFormat = DateFormat(widget.format);
-      } catch (e) {
-        // ✅ Fallback to global config if available
-        // _dateFormat = CyberAppConfig.dateFormat ?? DateFormat('dd/MM/yyyy');
-        _dateFormat = DateFormat('dd/MM/yyyy');
-      }
-    }
-  }
-
-  void _setupDateRange() {
-    final now = DateTime.now();
-    _minDate = widget.minDate ?? DateTime(now.year - 100, 1, 1);
-    _maxDate = widget.maxDate ?? DateTime(now.year + 100, 12, 31);
-  }
-
+  /// ✅ Parse text binding
   void _parseBinding() {
     if (widget.text == null) {
       _boundRow = null;
@@ -246,6 +295,7 @@ class _CyberDateState extends State<CyberDate> {
     _boundField = null;
   }
 
+  /// ✅ Parse visibility binding
   void _parseVisibilityBinding() {
     if (widget.isVisible == null) {
       _visibilityBoundRow = null;
@@ -264,43 +314,94 @@ class _CyberDateState extends State<CyberDate> {
     _visibilityBoundField = null;
   }
 
-  bool _parseBool(dynamic value) {
-    if (value == null) return true;
-    if (value is bool) return value;
-    if (value is int) return value != 0;
-    if (value is String) {
-      final lower = value.toLowerCase().trim();
-      if (lower == "1" || lower == "true") return true;
-      if (lower == "0" || lower == "false") return false;
-      return true;
+  // ============================================================================
+  // DATE SETUP
+  // ============================================================================
+
+  void _setupDateFormat() {
+    if (widget.formatter != null) {
+      _dateFormat = widget.formatter!;
+    } else {
+      try {
+        _dateFormat = DateFormat(widget.format);
+      } catch (e) {
+        _dateFormat = DateFormat('dd/MM/yyyy');
+      }
     }
-    return true;
   }
 
-  bool _isCheckEmpty() {
-    return _parseBool(widget.isCheckEmpty);
+  void _setupDateRange() {
+    final now = DateTime.now();
+    _minDate = widget.minDate ?? DateTime(now.year - 100, 1, 1);
+    _maxDate = widget.maxDate ?? DateTime(now.year + 100, 12, 31);
   }
 
-  bool _isVisible() {
-    if (_visibilityBoundRow != null && _visibilityBoundField != null) {
-      return _parseBool(_visibilityBoundRow![_visibilityBoundField!]);
+  // ============================================================================
+  // VALUE MANAGEMENT
+  // ============================================================================
+
+  /// ✅ Single source of truth for current value
+  /// Priority: controller > binding > text
+  DateTime? _getCurrentValue() {
+    // Priority 1: External controller
+    if (widget.controller != null) {
+      return widget.controller!.value;
     }
-    return _parseBool(widget.isVisible);
+
+    // Priority 2: Binding
+    dynamic rawValue;
+    if (_boundRow != null && _boundField != null) {
+      rawValue = _boundRow![_boundField!];
+    } 
+    // Priority 3: Static text value
+    else if (widget.text != null) {
+      rawValue = widget.text;
+    } 
+    else {
+      return null;
+    }
+
+    // ✅ Convert sang DateTime?
+    return _parseDateTime(rawValue);
   }
 
+  /// ✅ Parse dynamic value sang DateTime?
+  DateTime? _parseDateTime(dynamic rawValue) {
+    if (rawValue is DateTime) return rawValue;
+    if (rawValue is String) {
+      try {
+        return DateTime.parse(rawValue);
+      } catch (e) {
+        try {
+          return _dateFormat.parse(rawValue);
+        } catch (e) {
+          return null;
+        }
+      }
+    }
+    return null;
+  }
+
+  /// ✅ Format DateTime sang String để hiển thị
+  String _formatDate(DateTime date) {
+    return _dateFormat.format(date);
+  }
+
+  /// ✅ Update text controller từ binding/controller
   void _updateTextController() {
     final value = _getCurrentValue();
     final displayValue = value != null ? _formatDate(value) : '';
-    _textController = TextEditingController(text: displayValue);
+    _textController.text = displayValue;
+    _validate();
   }
 
-  /// ✅ Handle controller value changes
+  /// ✅ Callback khi controller changed
   void _onControllerChanged() {
     if (_isUpdating) return;
 
     _isUpdating = true;
 
-    final value = _getCurrentValue();
+    final value = _effectiveController.value;
     final displayValue = value != null ? _formatDate(value) : '';
 
     // Update text display
@@ -326,7 +427,7 @@ class _CyberDateState extends State<CyberDate> {
     }
   }
 
-  /// Handle binding value changes
+  /// ✅ Callback khi binding changed
   void _onBindingChanged() {
     if (_isUpdating || _boundRow == null || _boundField == null) return;
 
@@ -340,9 +441,9 @@ class _CyberDateState extends State<CyberDate> {
       _textController.text = displayValue;
     }
 
-    // Sync binding to controller
-    if (widget.controller != null && widget.controller!.value != value) {
-      widget.controller!.setSilently(value);
+    // Sync binding to internal controller
+    if (widget.controller == null && _internalController!.value != value) {
+      _internalController!.setSilently(value);
     }
 
     // Validate
@@ -356,41 +457,9 @@ class _CyberDateState extends State<CyberDate> {
     }
   }
 
-  /// ✅ Single source of truth for current value
-  DateTime? _getCurrentValue() {
-    // Priority: Controller > Binding > Initial value
-    if (widget.controller != null) {
-      return widget.controller!.value;
-    } else if (_boundRow != null && _boundField != null) {
-      final rawValue = _boundRow![_boundField!];
-      return _parseDateTime(rawValue);
-    } else if (widget.initialValue != null) {
-      return widget.initialValue;
-    } else if (widget.text != null && widget.text is! CyberBindingExpression) {
-      return _parseDateTime(widget.text);
-    }
-    return null;
-  }
-
-  DateTime? _parseDateTime(dynamic rawValue) {
-    if (rawValue is DateTime) return rawValue;
-    if (rawValue is String) {
-      try {
-        return DateTime.parse(rawValue);
-      } catch (e) {
-        try {
-          return _dateFormat.parse(rawValue);
-        } catch (e) {
-          return null;
-        }
-      }
-    }
-    return null;
-  }
-
-  String _formatDate(DateTime date) {
-    return _dateFormat.format(date);
-  }
+  // ============================================================================
+  // VALIDATION
+  // ============================================================================
 
   /// ✅ Validation logic
   void _validate() {
@@ -423,13 +492,20 @@ class _CyberDateState extends State<CyberDate> {
     _validationError = null;
   }
 
+  // ============================================================================
+  // DATE PICKER
+  // ============================================================================
+
+  /// ✅ Update value từ date picker
   void _updateValue(DateTime newDate) {
     _isUpdating = true;
 
     // ✅ Update controller/binding
-    if (widget.controller != null) {
-      widget.controller!.value = newDate;
-    } else if (_boundRow != null && _boundField != null) {
+    if (widget.controller == null) {
+      _internalController!.value = newDate;
+    }
+
+    if (_boundRow != null && _boundField != null) {
       _boundRow![_boundField!] = newDate;
     }
 
@@ -474,90 +550,121 @@ class _CyberDateState extends State<CyberDate> {
     }
   }
 
+  // ============================================================================
+  // VISIBILITY & VALIDATION HELPERS
+  // ============================================================================
+
+  bool _parseBool(dynamic value) {
+    if (value == null) return true;
+    if (value is bool) return value;
+    if (value is int) return value != 0;
+    if (value is String) {
+      final lower = value.toLowerCase().trim();
+      if (lower == "1" || lower == "true") return true;
+      if (lower == "0" || lower == "false") return false;
+      return true;
+    }
+    return true;
+  }
+
+  bool _isCheckEmpty() {
+    return _parseBool(widget.isCheckEmpty);
+  }
+
+  bool _isVisible() {
+    if (_visibilityBoundRow != null && _visibilityBoundField != null) {
+      return _parseBool(_visibilityBoundRow![_visibilityBoundField!]);
+    }
+    return _parseBool(widget.isVisible);
+  }
+
+  // ============================================================================
+  // BUILD UI
+  // ============================================================================
+
   @override
   Widget build(BuildContext context) {
     if (!_isVisible()) {
       return const SizedBox.shrink();
     }
 
-    final currentError = widget.errorText ?? _validationError;
+    // ✅ Lắng nghe controller changes
+    return ListenableBuilder(
+      listenable: _effectiveController,
+      builder: (context, _) {
+        final currentError = widget.errorText ?? _validationError;
 
-    Widget textField = TextField(
-      controller: _textController,
-      focusNode: _focusNode,
-      readOnly: true,
-      enabled: widget.enabled,
-      style: widget.style,
-      decoration: widget.decoration ?? _buildDecoration(currentError),
-      onTap: widget.enabled ? _showDatePicker : null,
-    );
+        Widget textField = TextField(
+          controller: _textController,
+          focusNode: _focusNode,
+          readOnly: true,
+          enabled: widget.enabled,
+          style: widget.style,
+          decoration: widget.decoration ?? _buildDecoration(currentError),
+          onTap: widget.enabled ? _showDatePicker : null,
+        );
 
-    Widget finalWidget;
-    if (widget.isShowLabel &&
-        widget.label != null &&
-        widget.decoration == null) {
-      finalWidget = Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 4.0, bottom: 6.0),
-            child: Row(
-              children: [
-                Text(
-                  widget.label!,
-                  style:
-                      widget.labelStyle ??
-                      const TextStyle(
-                        fontSize: 14,
-                        color: Color(0xFF555555),
-                        fontWeight: FontWeight.w500,
-                      ),
-                ),
-                if (_isCheckEmpty())
-                  const Text(
-                    ' *',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.red,
-                      fontWeight: FontWeight.bold,
+        Widget finalWidget;
+        if (widget.isShowLabel &&
+            widget.label != null &&
+            widget.decoration == null) {
+          finalWidget = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(left: 4.0, bottom: 6.0),
+                child: Row(
+                  children: [
+                    Text(
+                      widget.label!,
+                      style:
+                          widget.labelStyle ??
+                          const TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF555555),
+                            fontWeight: FontWeight.w500,
+                          ),
                     ),
-                  ),
-              ],
-            ),
-          ),
-          textField,
-          // ✅ Error text display
-          if (currentError != null)
-            Padding(
-              padding: const EdgeInsets.only(left: 4.0, top: 4.0),
-              child: Text(
-                currentError,
-                style: const TextStyle(fontSize: 12, color: Colors.red),
+                    if (_isCheckEmpty())
+                      const Text(
+                        ' *',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.red,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                  ],
+                ),
               ),
-            ),
-        ],
-      );
-    } else {
-      finalWidget = textField;
-    }
+              textField,
+              // ✅ Error text display
+              if (currentError != null)
+                Padding(
+                  padding: const EdgeInsets.only(left: 4.0, top: 4.0),
+                  child: Text(
+                    currentError,
+                    style: const TextStyle(fontSize: 12, color: Colors.red),
+                  ),
+                ),
+            ],
+          );
+        } else {
+          finalWidget = textField;
+        }
 
-    // ✅ Listen to controller for reactive updates
-    if (widget.controller != null) {
-      return ListenableBuilder(
-        listenable: widget.controller!,
-        builder: (context, child) => finalWidget,
-      );
-    }
+        // ✅ Wrap với binding listener nếu có
+        if (_boundRow != null) {
+          return ListenableBuilder(
+            listenable: _boundRow!,
+            builder: (context, child) => finalWidget,
+          );
+        }
 
-    if (_boundRow != null) {
-      return ListenableBuilder(
-        listenable: _boundRow!,
-        builder: (context, child) => finalWidget,
-      );
-    }
-
-    return finalWidget;
+        return finalWidget;
+      },
+    );
   }
 
   InputDecoration _buildDecoration(String? errorText) {
@@ -615,7 +722,10 @@ class _CyberDateState extends State<CyberDate> {
   }
 }
 
-// ✅ iOS Date Picker remains the same
+// ============================================================================
+// iOS-STYLE DATE PICKER SHEET
+// ============================================================================
+
 class _IOSDatePickerSheet extends StatefulWidget {
   final DateTime initialDate;
   final DateTime minDate;
