@@ -1,17 +1,53 @@
 import 'package:cyberframework/cyberframework.dart';
-import 'package:flutter/services.dart';
 
+/// CyberNumeric - Widget nhập liệu số với binding hỗ trợ
+/// 
+/// Triết lý ERP/CyberFramework:
+/// - Internal Controller tự động (không cần khai báo)
+/// - Hỗ trợ binding: text: dr.bind("field_name")
+/// - Two-way binding tự động
+/// 
+/// Ví dụ sử dụng:
+/// ```dart
+/// // Cách 1: Binding với CyberDataRow
+/// CyberNumeric(
+///   text: dr.bind("so_luong"),
+///   label: "Số lượng",
+///   format: "#,##0.##",
+/// )
+/// 
+/// // Cách 2: Giá trị tĩnh
+/// CyberNumeric(
+///   text: 12345.67,
+///   label: "Giá trị",
+/// )
+/// 
+/// // Cách 3: External controller (advanced)
+/// final controller = CyberNumericController(value: 100);
+/// CyberNumeric(
+///   controller: controller,
+///   label: "Điều khiển từ ngoài",
+/// )
+/// ```
 class CyberNumeric extends StatefulWidget {
-  /// ⚠️ KHÔNG dùng cả value VÀ controller cùng lúc
-  final dynamic value;
+  /// ⚠️ KHÔNG dùng cả text VÀ controller cùng lúc
+  /// 
+  /// text hỗ trợ:
+  /// - Binding: dr.bind("field_name")
+  /// - Giá trị tĩnh: 123.45
+  /// - null: rỗng
+  final dynamic text;
 
-  /// Controller để quản lý state từ bên ngoài
+  /// Controller để quản lý state từ bên ngoài (Optional - không bắt buộc)
+  /// Chỉ dùng khi cần điều khiển widget từ code
   final CyberNumericController? controller;
 
   final String? label;
   final String? hint;
-  final String?
-  format; // Number format pattern: "###,###,##0.##" hoặc "#,##0.00"
+  
+  /// Number format pattern: "###,###,##0.##" hoặc "#,##0.00"
+  final String? format;
+  
   final IconData? icon;
   final bool enabled;
   final dynamic isVisible;
@@ -36,7 +72,7 @@ class CyberNumeric extends StatefulWidget {
 
   const CyberNumeric({
     super.key,
-    this.value,
+    this.text,
     this.controller,
     this.label,
     this.hint,
@@ -56,8 +92,8 @@ class CyberNumeric extends StatefulWidget {
     this.labelStyle,
     this.isCheckEmpty = false,
   }) : assert(
-         controller == null || value == null,
-         'CyberNumeric: không được dùng cả value và controller cùng lúc',
+         controller == null || text == null,
+         'CyberNumeric: không được dùng cả text và controller cùng lúc',
        );
 
   @override
@@ -68,14 +104,17 @@ class _CyberNumericState extends State<CyberNumeric> {
   late TextEditingController _textController;
   late FocusNode _focusNode;
 
+  // Binding state
   CyberDataRow? _boundRow;
   String? _boundField;
   CyberDataRow? _visibilityBoundRow;
   String? _visibilityBoundField;
   bool _isUpdating = false;
 
-  /// ✅ Internal controller nếu không có external controller
+  /// ✅ Internal controller (tạo tự động nếu không có external controller)
   CyberNumericController? _internalController;
+  
+  /// ✅ Effective controller - ưu tiên external, fallback internal
   CyberNumericController get _effectiveController =>
       widget.controller ?? _internalController!;
 
@@ -83,7 +122,7 @@ class _CyberNumericState extends State<CyberNumeric> {
   void initState() {
     super.initState();
 
-    // ✅ Tạo internal controller nếu cần
+    // ✅ Tạo internal controller nếu không có external controller
     if (widget.controller == null) {
       _internalController = CyberNumericController(
         value: null,
@@ -93,7 +132,7 @@ class _CyberNumericState extends State<CyberNumeric> {
       );
     }
 
-    // ✅ Khởi tạo controller 1 lần duy nhất
+    // Khởi tạo text controller và focus node
     _textController = TextEditingController();
     _focusNode = FocusNode();
 
@@ -127,6 +166,7 @@ class _CyberNumericState extends State<CyberNumeric> {
       oldWidget.controller?.removeListener(_onControllerChanged);
 
       if (widget.controller == null) {
+        // Chuyển sang internal controller
         _internalController ??= CyberNumericController(
           value: null,
           enabled: widget.enabled,
@@ -134,6 +174,7 @@ class _CyberNumericState extends State<CyberNumeric> {
           max: widget.max,
         );
       } else {
+        // Chuyển sang external controller - dispose internal
         _internalController?.dispose();
         _internalController = null;
       }
@@ -142,14 +183,14 @@ class _CyberNumericState extends State<CyberNumeric> {
       _updateControllerValue();
     }
 
-    // ✅ Kiểm tra nếu binding đã thay đổi
-    if (widget.value != oldWidget.value) {
+    // ✅ Kiểm tra text binding đã thay đổi
+    if (widget.text != oldWidget.text) {
       _unregisterBindingListeners();
       _parseBinding();
       bindingChanged = true;
     }
 
-    // ✅ Kiểm tra nếu visibility binding đã thay đổi
+    // ✅ Kiểm tra visibility binding đã thay đổi
     if (widget.isVisible != oldWidget.isVisible) {
       if (!bindingChanged) {
         _unregisterBindingListeners();
@@ -170,7 +211,7 @@ class _CyberNumericState extends State<CyberNumeric> {
       _updateControllerValue();
     }
 
-    // ✅ Update min/max trong controller
+    // ✅ Update min/max trong internal controller
     if (widget.min != oldWidget.min || widget.max != oldWidget.max) {
       if (widget.controller == null) {
         _internalController?.setMinMax(min: widget.min, max: widget.max);
@@ -187,6 +228,10 @@ class _CyberNumericState extends State<CyberNumeric> {
     _focusNode.dispose();
     super.dispose();
   }
+
+  // ============================================================================
+  // BINDING MANAGEMENT
+  // ============================================================================
 
   /// ✅ Đăng ký listeners cho binding
   void _registerBindingListeners() {
@@ -208,24 +253,27 @@ class _CyberNumericState extends State<CyberNumeric> {
     }
   }
 
+  /// ✅ Parse text binding
   void _parseBinding() {
-    if (widget.value == null) {
+    if (widget.text == null) {
       _boundRow = null;
       _boundField = null;
       return;
     }
 
-    if (widget.value is CyberBindingExpression) {
-      final expr = widget.value as CyberBindingExpression;
+    if (widget.text is CyberBindingExpression) {
+      final expr = widget.text as CyberBindingExpression;
       _boundRow = expr.row;
       _boundField = expr.fieldName;
       return;
     }
 
+    // Nếu không phải binding, clear binding state
     _boundRow = null;
     _boundField = null;
   }
 
+  /// ✅ Parse visibility binding
   void _parseVisibilityBinding() {
     if (widget.isVisible == null) {
       _visibilityBoundRow = null;
@@ -244,38 +292,55 @@ class _CyberNumericState extends State<CyberNumeric> {
     _visibilityBoundField = null;
   }
 
-  bool _parseBool(dynamic value) {
-    if (value == null) return true;
-    if (value is bool) return value;
-    if (value is int) return value != 0;
+  // ============================================================================
+  // VALUE MANAGEMENT
+  // ============================================================================
+
+  /// ✅ Source of truth: num? (không phải String)
+  /// Priority: controller > binding > text
+  num? _getCurrentValue() {
+    // Priority 1: External controller
+    if (widget.controller != null) {
+      return widget.controller!.value;
+    }
+
+    // Priority 2: Binding
+    dynamic rawValue;
+    if (_boundRow != null && _boundField != null) {
+      rawValue = _boundRow![_boundField!];
+    } 
+    // Priority 3: Static text value
+    else if (widget.text != null) {
+      rawValue = widget.text;
+    } 
+    else {
+      return null;
+    }
+
+    // ✅ Convert sang num?
+    return _parseNum(rawValue);
+  }
+
+  /// ✅ Parse về num? (hỗ trợ int, double, String)
+  num? _parseNum(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value;
     if (value is String) {
-      final lower = value.toLowerCase().trim();
-      if (lower == "1" || lower == "true") return true;
-      if (lower == "0" || lower == "false") return false;
-      return true;
+      return num.tryParse(value);
     }
-    return true;
+    return null;
   }
 
-  bool _isCheckEmpty() {
-    return _parseBool(widget.isCheckEmpty);
-  }
-
-  bool _isVisible() {
-    if (_visibilityBoundRow != null && _visibilityBoundField != null) {
-      return _parseBool(_visibilityBoundRow![_visibilityBoundField!]);
-    }
-    return _parseBool(widget.isVisible);
-  }
-
+  /// ✅ Update controller value từ binding/text
   void _updateControllerValue() {
     num? value = _getCurrentValue();
     final displayValue = _formatValue(value);
 
-    // ✅ Chỉ update text, không tạo controller mới
+    // ✅ Update text controller
     _textController.text = displayValue;
   }
 
+  /// ✅ Callback khi binding changed
   void _onBindingChanged() {
     if (_isUpdating || _boundRow == null || _boundField == null) return;
 
@@ -287,6 +352,7 @@ class _CyberNumericState extends State<CyberNumeric> {
     }
   }
 
+  /// ✅ Callback khi controller changed
   void _onControllerChanged() {
     if (_isUpdating) return;
 
@@ -310,36 +376,11 @@ class _CyberNumericState extends State<CyberNumeric> {
     }
   }
 
-  /// ✅ Source of truth: num? (không phải String)
-  num? _getCurrentValue() {
-    // Priority: controller > binding > value
-    if (widget.controller != null) {
-      return widget.controller!.value;
-    }
+  // ============================================================================
+  // FORMATTING & VALIDATION
+  // ============================================================================
 
-    dynamic rawValue;
-    if (_boundRow != null && _boundField != null) {
-      rawValue = _boundRow![_boundField!];
-    } else if (widget.value != null) {
-      rawValue = widget.value;
-    } else {
-      return null;
-    }
-
-    // ✅ Convert sang num?
-    return _parseNum(rawValue);
-  }
-
-  /// ✅ Parse về num? (hỗ trợ int, double, String)
-  num? _parseNum(dynamic value) {
-    if (value == null) return null;
-    if (value is num) return value;
-    if (value is String) {
-      return num.tryParse(value);
-    }
-    return null;
-  }
-
+  /// ✅ Format num? về String để hiển thị
   String _formatValue(num? value) {
     if (value == null) return '';
 
@@ -403,6 +444,7 @@ class _CyberNumericState extends State<CyberNumeric> {
     return num.tryParse(cleaned);
   }
 
+  /// ✅ Validate value theo min/max
   num? _validateValue(num? value) {
     if (value == null) return null;
 
@@ -418,11 +460,12 @@ class _CyberNumericState extends State<CyberNumeric> {
     return value;
   }
 
+  /// ✅ Validate và format khi mất focus
   void _validateAndFormat() {
     num? value = _parseInput(_textController.text);
     value = _validateValue(value);
 
-    // ✅ Update binding và controller
+    // ✅ Update binding và internal controller
     _isUpdating = true;
 
     if (widget.controller == null) {
@@ -441,6 +484,11 @@ class _CyberNumericState extends State<CyberNumeric> {
     }
   }
 
+  // ============================================================================
+  // TEXT INPUT HANDLING
+  // ============================================================================
+
+  /// ✅ Callback khi text changed (real-time formatting)
   void _onTextChanged(String value) {
     if (_isUpdating) return;
 
@@ -479,7 +527,7 @@ class _CyberNumericState extends State<CyberNumeric> {
     // ✅ Parse input về num?
     num? numericValue = _parseInput(cleanValue);
 
-    // ✅ Update controller và binding
+    // ✅ Update internal controller và binding
     if (widget.controller == null) {
       _internalController?.setValue(numericValue);
     }
@@ -514,6 +562,7 @@ class _CyberNumericState extends State<CyberNumeric> {
     _isUpdating = false;
   }
 
+  /// ✅ Normalize decimal overwrite behavior
   (bool, String) _normalizeDecimalOverwrite(
     String oldStr,
     String newStr,
@@ -563,6 +612,38 @@ class _CyberNumericState extends State<CyberNumeric> {
     }
     return (true, oldStr.substring(0, oldDot + 1) + resultDec.join());
   }
+
+  // ============================================================================
+  // VISIBILITY & VALIDATION HELPERS
+  // ============================================================================
+
+  bool _parseBool(dynamic value) {
+    if (value == null) return true;
+    if (value is bool) return value;
+    if (value is int) return value != 0;
+    if (value is String) {
+      final lower = value.toLowerCase().trim();
+      if (lower == "1" || lower == "true") return true;
+      if (lower == "0" || lower == "false") return false;
+      return true;
+    }
+    return true;
+  }
+
+  bool _isCheckEmpty() {
+    return _parseBool(widget.isCheckEmpty);
+  }
+
+  bool _isVisible() {
+    if (_visibilityBoundRow != null && _visibilityBoundField != null) {
+      return _parseBool(_visibilityBoundRow![_visibilityBoundField!]);
+    }
+    return _parseBool(widget.isVisible);
+  }
+
+  // ============================================================================
+  // BUILD UI
+  // ============================================================================
 
   @override
   Widget build(BuildContext context) {
