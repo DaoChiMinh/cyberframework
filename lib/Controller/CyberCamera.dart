@@ -1,13 +1,341 @@
-// ============================================================================
-// VIEW - CyberCameraView (Full screen camera)
-// ============================================================================
+// lib/Controller/CyberCamera.dart
 
+import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:cyberframework/cyberframework.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:path/path.dart' as path;
 
-/// CyberCameraView - Màn hình camera full screen với controller
+// ============================================================================
+// WIDGET - CyberCamera (Main Widget with Internal Controller + Binding)
+// ============================================================================
+
+class CyberCamera extends StatefulWidget {
+  /// Binding hoặc static string cho đường dẫn ảnh
+  final dynamic imagePath; // String hoặc CyberBindingExpression
+
+  /// Label hiển thị
+  final String? label;
+
+  /// Callback khi chụp ảnh thành công
+  final OnCaptureImage? onCaptured;
+
+  /// Enable/disable
+  final bool enabled;
+
+  /// Image display settings
+  final double? width;
+  final double? height;
+  final BoxFit fit;
+
+  /// Camera settings
+  final bool enableCompression;
+  final int compressionQuality;
+  final int? maxWidth;
+  final int? maxHeight;
+  final CameraLensDirection defaultCamera;
+
+  /// Title cho camera screen
+  final String? cameraTitle;
+
+  /// Custom placeholder khi chưa có ảnh
+  final Widget? placeholder;
+
+  /// Error callback
+  final OnCameraError? onError;
+
+  const CyberCamera({
+    super.key,
+    this.imagePath,
+    this.label,
+    this.onCaptured,
+    this.enabled = true,
+    this.width,
+    this.height,
+    this.fit = BoxFit.cover,
+    this.enableCompression = true,
+    this.compressionQuality = 85,
+    this.maxWidth = 1920,
+    this.maxHeight = 1920,
+    this.defaultCamera = CameraLensDirection.back,
+    this.cameraTitle,
+    this.placeholder,
+    this.onError,
+  });
+
+  @override
+  State<CyberCamera> createState() => _CyberCameraState();
+}
+
+class _CyberCameraState extends State<CyberCamera> {
+  // ============================================================================
+  // INTERNAL CONTROLLER - User không cần khai báo
+  // ============================================================================
+  late final CyberCameraController _controller;
+
+  CyberBindingExpression? _binding;
+  String? _currentImagePath;
+  bool _isBinding = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = CyberCameraController();
+    _controller.setEnabled(widget.enabled);
+    _initBinding();
+  }
+
+  @override
+  void didUpdateWidget(CyberCamera oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // Update enabled state
+    if (widget.enabled != oldWidget.enabled) {
+      _controller.setEnabled(widget.enabled);
+    }
+
+    // Re-init binding nếu imagePath thay đổi
+    if (widget.imagePath != oldWidget.imagePath) {
+      _cleanupBinding();
+      _initBinding();
+    }
+  }
+
+  void _initBinding() {
+    if (widget.imagePath == null) {
+      _isBinding = false;
+      _currentImagePath = null;
+      return;
+    }
+
+    if (widget.imagePath is CyberBindingExpression) {
+      // Binding mode
+      _binding = widget.imagePath as CyberBindingExpression;
+      _isBinding = true;
+      _currentImagePath = _binding!.value?.toString();
+
+      // Listen to binding changes
+      _binding!.row.addListener(_onBindingChanged);
+    } else {
+      // Static string mode
+      _isBinding = false;
+      _currentImagePath = widget.imagePath.toString();
+    }
+  }
+
+  void _cleanupBinding() {
+    if (_binding != null) {
+      _binding!.row.removeListener(_onBindingChanged);
+      _binding = null;
+    }
+  }
+
+  void _onBindingChanged() {
+    if (!mounted) return;
+
+    final newValue = _binding?.value?.toString();
+    if (newValue != _currentImagePath) {
+      setState(() {
+        _currentImagePath = newValue;
+      });
+    }
+  }
+
+  Future<void> _openCamera() async {
+    if (!widget.enabled) return;
+
+    final view = CyberCameraView(
+      context: context,
+      controller: _controller,
+      enableCompression: widget.enableCompression,
+      compressionQuality: widget.compressionQuality,
+      maxWidth: widget.maxWidth,
+      maxHeight: widget.maxHeight,
+      title: widget.cameraTitle ?? 'Chụp ảnh',
+      defaultCamera: widget.defaultCamera,
+      onError: widget.onError,
+    );
+
+    final result = await view.show();
+
+    if (result != null) {
+      _handleCaptureResult(result);
+    }
+  }
+
+  void _handleCaptureResult(CyberCameraResult result) {
+    final imagePath = result.file.path;
+
+    // Update binding hoặc local state
+    if (_isBinding && _binding != null) {
+      _binding!.value = imagePath;
+    } else {
+      setState(() {
+        _currentImagePath = imagePath;
+      });
+    }
+
+    // Trigger callback
+    widget.onCaptured?.call(result);
+  }
+
+  void _clearImage() {
+    if (!widget.enabled) return;
+
+    if (_isBinding && _binding != null) {
+      _binding!.value = null;
+    } else {
+      setState(() {
+        _currentImagePath = null;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _cleanupBinding();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hasImage = _currentImagePath != null && _currentImagePath!.isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Label
+        if (widget.label != null) ...[
+          Text(
+            widget.label!,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+
+        // Image Display & Controls
+        AbsorbPointer(
+          absorbing: !widget.enabled,
+          child: Opacity(
+            opacity: widget.enabled ? 1.0 : 0.5,
+            child: Container(
+              width: widget.width ?? double.infinity,
+              height: widget.height ?? 200,
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: theme.colorScheme.outline.withOpacity(0.3),
+                ),
+                borderRadius: BorderRadius.circular(8),
+                color: theme.colorScheme.surfaceContainerHighest,
+              ),
+              child: Stack(
+                children: [
+                  // Image or Placeholder
+                  if (hasImage)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.file(
+                        File(_currentImagePath!),
+                        width: double.infinity,
+                        height: double.infinity,
+                        fit: widget.fit,
+                        errorBuilder: (context, error, stackTrace) {
+                          return _buildPlaceholder(theme);
+                        },
+                      ),
+                    )
+                  else
+                    _buildPlaceholder(theme),
+
+                  // Control buttons
+                  Positioned(
+                    bottom: 8,
+                    right: 8,
+                    child: Row(
+                      children: [
+                        // Clear button (chỉ hiện khi có ảnh)
+                        if (hasImage) ...[
+                          Material(
+                            color: Colors.black.withOpacity(0.6),
+                            borderRadius: BorderRadius.circular(20),
+                            child: InkWell(
+                              onTap: _clearImage,
+                              borderRadius: BorderRadius.circular(20),
+                              child: Padding(
+                                padding: const EdgeInsets.all(8),
+                                child: Icon(
+                                  Icons.delete_outline,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+
+                        // Camera button
+                        Material(
+                          color: theme.colorScheme.primary.withOpacity(0.9),
+                          borderRadius: BorderRadius.circular(20),
+                          child: InkWell(
+                            onTap: _openCamera,
+                            borderRadius: BorderRadius.circular(20),
+                            child: Padding(
+                              padding: const EdgeInsets.all(8),
+                              child: Icon(
+                                Icons.camera_alt,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPlaceholder(ThemeData theme) {
+    return widget.placeholder ??
+        Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.add_a_photo,
+                size: 48,
+                color: theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Chụp ảnh',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
+                ),
+              ),
+            ],
+          ),
+        );
+  }
+}
+
+// ============================================================================
+// VIEW - CyberCameraView (Full screen camera)
+// ============================================================================
+
 class CyberCameraView {
   final BuildContext context;
   final CyberCameraController? controller;
@@ -31,7 +359,6 @@ class CyberCameraView {
     this.onError,
   });
 
-  /// Show camera screen và trả về result
   Future<CyberCameraResult?> show() async {
     final result = await Navigator.of(context).push<CyberCameraResult>(
       MaterialPageRoute(
@@ -53,7 +380,10 @@ class CyberCameraView {
   }
 }
 
-/// Camera Screen Widget
+// ============================================================================
+// SCREEN - _CyberCameraScreen (Internal camera screen)
+// ============================================================================
+
 class _CyberCameraScreen extends StatefulWidget {
   final CyberCameraController? controller;
   final bool enableCompression;
@@ -289,13 +619,13 @@ class _CyberCameraScreenState extends State<_CyberCameraScreen> {
         elevation: 0,
         title: Text(widget.title ?? 'Chụp ảnh'),
         leading: IconButton(
-          icon: Icon(Icons.close),
+          icon: const Icon(Icons.close),
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
           if (_isInitialized && _cameras != null && _cameras!.length > 1)
             IconButton(
-              icon: Icon(Icons.flip_camera_ios),
+              icon: const Icon(Icons.flip_camera_ios),
               onPressed: _switchCamera,
             ),
         ],
@@ -315,7 +645,7 @@ class _CyberCameraScreenState extends State<_CyberCameraScreen> {
                   ),
                 )
               else
-                Center(
+                const Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -333,8 +663,8 @@ class _CyberCameraScreenState extends State<_CyberCameraScreen> {
               if (_isCapturing)
                 Positioned.fill(
                   child: Container(
-                    color: Colors.white.withValues(alpha: 0.5),
-                    child: Center(
+                    color: Colors.white.withOpacity(0.5),
+                    child: const Center(
                       child: Icon(
                         Icons.camera_alt,
                         size: 64,
@@ -351,21 +681,21 @@ class _CyberCameraScreenState extends State<_CyberCameraScreen> {
                   left: 0,
                   right: 0,
                   child: Container(
-                    padding: EdgeInsets.symmetric(vertical: 32),
+                    padding: const EdgeInsets.symmetric(vertical: 32),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
                           Colors.transparent,
-                          Colors.black.withValues(alpha: 0.7),
+                          Colors.black.withOpacity(0.7),
                         ],
                       ),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
-                        SizedBox(width: 60),
+                        const SizedBox(width: 60),
 
                         // Capture button
                         GestureDetector(
@@ -378,8 +708,8 @@ class _CyberCameraScreenState extends State<_CyberCameraScreen> {
                               border: Border.all(color: Colors.white, width: 4),
                             ),
                             child: Container(
-                              margin: EdgeInsets.all(4),
-                              decoration: BoxDecoration(
+                              margin: const EdgeInsets.all(4),
+                              decoration: const BoxDecoration(
                                 color: Colors.white,
                                 shape: BoxShape.circle,
                               ),
@@ -387,7 +717,7 @@ class _CyberCameraScreenState extends State<_CyberCameraScreen> {
                           ),
                         ),
 
-                        SizedBox(width: 60),
+                        const SizedBox(width: 60),
                       ],
                     ),
                   ),
@@ -401,15 +731,15 @@ class _CyberCameraScreenState extends State<_CyberCameraScreen> {
                   right: 0,
                   child: Center(
                     child: Container(
-                      padding: EdgeInsets.symmetric(
+                      padding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 8,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.6),
+                        color: Colors.black.withOpacity(0.6),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Text(
+                      child: const Text(
                         'Nhấn vào màn hình để chụp',
                         style: TextStyle(color: Colors.white, fontSize: 14),
                       ),
