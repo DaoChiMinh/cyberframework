@@ -8,12 +8,18 @@ import 'package:cyberframework/cyberframework.dart';
 /// - DisplayMember/ValueMember
 /// - Enabled state
 /// - Clear/Reset
+/// - Binding to CyberDataRow
 class CyberComboBoxController extends ChangeNotifier {
   dynamic _value;
   bool _enabled = true;
   CyberDataTable? _dataSource;
   String? _displayMember;
   String? _valueMember;
+
+  // === BINDING ===
+  CyberDataRow? _boundRow;
+  String? _boundField;
+  bool _isUpdating = false;
 
   CyberComboBoxController({
     dynamic value,
@@ -48,7 +54,16 @@ class CyberComboBoxController extends ChangeNotifier {
   /// Set giá trị được chọn
   void setValue(dynamic v) {
     if (_value == v) return;
+
+    _isUpdating = true;
     _value = v;
+
+    // Update binding nếu có
+    if (_boundRow != null && _boundField != null) {
+      _boundRow![_boundField!] = v;
+    }
+
+    _isUpdating = false;
     notifyListeners();
   }
 
@@ -136,6 +151,51 @@ class CyberComboBoxController extends ChangeNotifier {
     return false;
   }
 
+  // === BINDING ===
+
+  /// Bind to CyberDataRow field
+  void bind(CyberDataRow row, String fieldName) {
+    unbind();
+
+    _boundRow = row;
+    _boundField = fieldName;
+
+    // Đọc giá trị ban đầu
+    _updateFromBinding();
+
+    // Lắng nghe thay đổi
+    _boundRow!.addListener(_onBindingChanged);
+  }
+
+  /// Unbind khỏi CyberDataRow
+  void unbind() {
+    if (_boundRow != null) {
+      _boundRow!.removeListener(_onBindingChanged);
+      _boundRow = null;
+      _boundField = null;
+    }
+  }
+
+  // === PRIVATE METHODS ===
+
+  void _updateFromBinding() {
+    if (_isUpdating || _boundRow == null || _boundField == null) return;
+
+    _isUpdating = true;
+    final newValue = _boundRow![_boundField!];
+
+    if (_value != newValue) {
+      _value = newValue;
+      notifyListeners();
+    }
+
+    _isUpdating = false;
+  }
+
+  void _onBindingChanged() {
+    _updateFromBinding();
+  }
+
   void _onDataSourceChanged() {
     notifyListeners();
   }
@@ -143,6 +203,7 @@ class CyberComboBoxController extends ChangeNotifier {
   @override
   void dispose() {
     _dataSource?.removeListener(_onDataSourceChanged);
+    unbind();
     super.dispose();
   }
 }

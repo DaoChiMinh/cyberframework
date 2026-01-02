@@ -2,6 +2,19 @@ import 'package:cyberframework/cyberframework.dart';
 
 /// Controller quản lý STATE và BUSINESS LOGIC
 /// KHÔNG biết gì về UI, TextEditingController, FocusNode
+/// 
+/// **SỬ DỤNG:**
+/// ```dart
+/// // Tạo thông thường
+/// final controller = CyberTextController(initialValue: 'Hello');
+/// 
+/// // Tạo với binding sẵn
+/// final controller = CyberTextController.withBinding(
+///   dataRow: myRow,
+///   fieldName: 'customerName',
+///   isCheckEmpty: true,
+/// );
+/// ```
 class CyberTextController extends ChangeNotifier {
   // === PRIVATE STATE (encapsulated) ===
   String? _value;
@@ -35,12 +48,44 @@ class CyberTextController extends ChangeNotifier {
     String? format,
     bool showFormatInField = false,
     bool enabled = true,
-  }) : _value = initialValue,
-       _enabled = enabled,
-       _isCheckEmpty = isCheckEmpty,
-       _format = format,
-       _showFormatInField = showFormatInField {
+  })  : _value = initialValue,
+        _enabled = enabled,
+        _isCheckEmpty = isCheckEmpty,
+        _format = format,
+        _showFormatInField = showFormatInField {
     _validate();
+  }
+
+  /// Factory constructor để tạo controller với binding ngay từ đầu
+  /// 
+  /// **SỬ DỤNG:**
+  /// ```dart
+  /// final controller = CyberTextController.withBinding(
+  ///   dataRow: myRow,
+  ///   fieldName: 'customerName',
+  ///   isCheckEmpty: true,
+  ///   format: 'Khách hàng: {0}',
+  /// );
+  /// ```
+  factory CyberTextController.withBinding({
+    required CyberDataRow dataRow,
+    required String fieldName,
+    bool isCheckEmpty = false,
+    String? format,
+    bool showFormatInField = false,
+    bool enabled = true,
+  }) {
+    final controller = CyberTextController(
+      isCheckEmpty: isCheckEmpty,
+      format: format,
+      showFormatInField: showFormatInField,
+      enabled: enabled,
+    );
+
+    // Bind ngay
+    controller.bind(dataRow, fieldName);
+
+    return controller;
   }
 
   // === PUBLIC SETTERS (controlled mutation) ===
@@ -104,6 +149,11 @@ class CyberTextController extends ChangeNotifier {
   // === BINDING ===
 
   /// Bind to CyberDataRow field
+  /// 
+  /// **SỬ DỤNG:**
+  /// ```dart
+  /// controller.bind(myRow, 'customerName');
+  /// ```
   void bind(CyberDataRow row, String fieldName) {
     unbind();
 
@@ -125,6 +175,9 @@ class CyberTextController extends ChangeNotifier {
       _boundField = null;
     }
   }
+
+  /// Check xem có đang binding không
+  bool get isBound => _boundRow != null && _boundField != null;
 
   // === PRIVATE METHODS ===
 
