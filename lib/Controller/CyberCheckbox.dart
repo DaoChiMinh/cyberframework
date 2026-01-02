@@ -1,13 +1,30 @@
 import 'package:cyberframework/cyberframework.dart';
 
+/// CyberCheckbox - Checkbox control với Internal Controller + Binding
+/// 
+/// Hỗ trợ binding 2 chiều:
+/// ```dart
+/// CyberCheckbox(
+///   text: drEdit.bind('is_active'),    // Binding boolean field
+///   label: 'Kích hoạt',
+/// )
+/// ```
 class CyberCheckbox extends StatefulWidget {
-  final CyberCheckboxController? controller;
+  // === DATA BINDING ===
+  /// Value - có thể binding: dr.bind('is_active')
+  /// Hỗ trợ: bool, int (0/1), String ("0"/"1", "true"/"false")
   final dynamic text;
-  final String? label;
-  final bool enabled;
-  final TextStyle? labelStyle;
+  
+  /// Callback khi giá trị thay đổi
   final ValueChanged<bool>? onChanged;
+  
+  /// Callback khi rời khỏi (blur)
   final Function(dynamic)? onLeaver;
+
+  // === UI PROPERTIES ===
+  final String? label;
+  final TextStyle? labelStyle;
+  final bool enabled;
   final Color? activeColor;
   final Color? checkColor;
   final double? size;
@@ -15,7 +32,6 @@ class CyberCheckbox extends StatefulWidget {
 
   const CyberCheckbox({
     super.key,
-    this.controller,
     this.text,
     this.label,
     this.enabled = true,
@@ -26,334 +42,246 @@ class CyberCheckbox extends StatefulWidget {
     this.checkColor,
     this.size,
     this.isVisible = true,
-  }) : assert(
-         controller == null || text == null,
-         'CyberCheckbox: không được dùng controller cùng với text/binding trực tiếp',
-       );
+  });
 
   @override
   State<CyberCheckbox> createState() => _CyberCheckboxState();
 }
 
-class _CyberCheckboxState extends State<CyberCheckbox> {
-  // Internal controller nếu không có từ bên ngoài
-  CyberCheckboxController? _internalController;
+// ============================================================================
+// INTERNAL STATE - QUẢN LÝ CONTROLLER VÀ BINDING
+// ============================================================================
 
-  // Binding references (giữ cho backward compatible)
+class _CyberCheckboxState extends State<CyberCheckbox> {
+  // === INTERNAL CONTROLLER ===
+  late final _InternalCheckboxController _controller;
+  
+  // === BINDING CONTEXT ===
   CyberDataRow? _boundRow;
   String? _boundField;
+  
+  // === VISIBILITY BINDING ===
   CyberDataRow? _visibilityBoundRow;
   String? _visibilityBoundField;
 
-  // State flags
-  bool _isUpdating = false;
-
-  // Cache
-  bool? _cachedVisibility;
-
-  // Track để tránh rebuild
-  bool? _lastValue;
-
-  CyberCheckboxController get _effectiveController =>
-      widget.controller ?? _internalController!;
+  // === FLAGS ===
+  bool _isInternalUpdate = false;
 
   @override
   void initState() {
     super.initState();
-
-    // Tạo internal controller nếu cần
-    if (widget.controller == null) {
-      _internalController = CyberCheckboxController();
-
-      // Set initial value từ binding hoặc text
-      final initialValue = _getInitialValue();
-      _internalController!.setValueInternal(initialValue);
-      _lastValue = initialValue;
-    }
-
+    
+    // Khởi tạo internal controller
+    _controller = _InternalCheckboxController();
+    
+    // Parse bindings
     _parseBinding();
     _parseVisibilityBinding();
-    _addAllListeners();
-    _effectiveController.addListener(_onControllerChanged);
-  }
-
-  bool _getInitialValue() {
-    if (widget.text is CyberBindingExpression) {
-      final expr = widget.text as CyberBindingExpression;
-      try {
-        final value = expr.row[expr.fieldName];
-        return _parseBool(value);
-      } catch (e) {
-        return false;
-      }
-    } else if (widget.text != null && widget.text is! CyberBindingExpression) {
-      return _parseBool(widget.text);
-    }
-    return false;
-  }
-
-  void _onControllerChanged() {
-    if (!mounted || _isUpdating) return;
-
-    // Handle value change
-    final newValue = _effectiveController.value;
-    if (_lastValue != newValue) {
-      _lastValue = newValue;
-
-      // Sync to binding if exists
-      if (_boundRow != null && _boundField != null && !_isUpdating) {
-        _isUpdating = true;
-        _updateBindingValue(newValue);
-        _isUpdating = false;
-      }
-
-      if (mounted) {
-        setState(() {});
-      }
-    }
-
-    // Handle enabled state change
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
-  void _updateBindingValue(bool newValue) {
-    if (_boundRow == null || _boundField == null) return;
-
-    final originalValue = _boundRow![_boundField!];
-
-    // Preserve original type
-    if (originalValue is String) {
-      _boundRow![_boundField!] = newValue ? "1" : "0";
-    } else if (originalValue is int) {
-      _boundRow![_boundField!] = newValue ? 1 : 0;
-    } else {
-      _boundRow![_boundField!] = newValue;
-    }
+    
+    // Sync initial value
+    _syncFromWidget();
+    
+    // Listen to controller changes
+    _controller.addListener(_onControllerChanged);
   }
 
   @override
   void didUpdateWidget(CyberCheckbox oldWidget) {
     super.didUpdateWidget(oldWidget);
-
-    // Controller changed
-    if (oldWidget.controller != widget.controller) {
-      oldWidget.controller?.removeListener(_onControllerChanged);
-
-      if (widget.controller == null && _internalController == null) {
-        _internalController = CyberCheckboxController();
-        final initialValue = _getInitialValue();
-        _internalController!.setValueInternal(initialValue);
-        _lastValue = initialValue;
-      }
-
-      _effectiveController.addListener(_onControllerChanged);
-    }
-
-    // Bindings changed
-    bool bindingsChanged = false;
-
-    if (oldWidget.text != widget.text) {
-      bindingsChanged = true;
-    }
-    if (oldWidget.isVisible != widget.isVisible) {
-      bindingsChanged = true;
-      _cachedVisibility = null;
-    }
-
-    if (bindingsChanged) {
-      _removeAllListeners();
+    
+    // Re-parse bindings nếu properties thay đổi
+    if (widget.text != oldWidget.text) {
       _parseBinding();
-      _parseVisibilityBinding();
-      _addAllListeners();
-
-      // Update internal controller from new binding
-      if (widget.controller == null) {
-        final newValue = _getInitialValue();
-        if (newValue != _internalController!.value) {
-          _internalController!.setValueInternal(newValue);
-          _lastValue = newValue;
-        }
-      }
     }
+    if (widget.isVisible != oldWidget.isVisible) {
+      _parseVisibilityBinding();
+    }
+    
+    // Sync values
+    _syncFromWidget();
   }
 
   @override
   void dispose() {
-    _effectiveController.removeListener(_onControllerChanged);
-    _removeAllListeners();
-    _internalController?.dispose();
+    _controller.removeListener(_onControllerChanged);
+    _controller.dispose();
+    
+    // Cleanup bindings
+    _boundRow?.removeListener(_onBindingChanged);
+    
     super.dispose();
   }
 
+  // ============================================================================
+  // BINDING PARSERS
+  // ============================================================================
+
   void _parseBinding() {
-    if (widget.text == null) {
+    // Cleanup old binding
+    if (_boundRow != null) {
+      _boundRow!.removeListener(_onBindingChanged);
       _boundRow = null;
       _boundField = null;
-      return;
     }
-
+    
+    // Parse new binding
     if (widget.text is CyberBindingExpression) {
       final expr = widget.text as CyberBindingExpression;
       _boundRow = expr.row;
       _boundField = expr.fieldName;
-      return;
+      _boundRow!.addListener(_onBindingChanged);
     }
-
-    _boundRow = null;
-    _boundField = null;
   }
 
   void _parseVisibilityBinding() {
-    if (widget.isVisible == null) {
-      _visibilityBoundRow = null;
-      _visibilityBoundField = null;
-      return;
-    }
-
     if (widget.isVisible is CyberBindingExpression) {
       final expr = widget.isVisible as CyberBindingExpression;
       _visibilityBoundRow = expr.row;
       _visibilityBoundField = expr.fieldName;
-      return;
-    }
-
-    _visibilityBoundRow = null;
-    _visibilityBoundField = null;
-  }
-
-  void _addAllListeners() {
-    if (_boundRow != null) {
-      _boundRow!.addListener(_onBindingChanged);
-    }
-    if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
-      _visibilityBoundRow!.addListener(_onBindingChanged);
-    }
-  }
-
-  void _removeAllListeners() {
-    if (_boundRow != null) {
-      _boundRow!.removeListener(_onBindingChanged);
-    }
-    if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
-      _visibilityBoundRow!.removeListener(_onBindingChanged);
-    }
-  }
-
-  bool _isVisible() {
-    if (_cachedVisibility != null) return _cachedVisibility!;
-
-    if (_visibilityBoundRow != null && _visibilityBoundField != null) {
-      _cachedVisibility = _parseBool(
-        _visibilityBoundRow![_visibilityBoundField!],
-      );
     } else {
-      _cachedVisibility = _parseBool(widget.isVisible);
+      _visibilityBoundRow = null;
+      _visibilityBoundField = null;
     }
-
-    return _cachedVisibility!;
   }
 
+  // ============================================================================
+  // SYNC LOGIC
+  // ============================================================================
+
+  /// Sync từ widget properties vào controller
+  void _syncFromWidget() {
+    if (_isInternalUpdate) return;
+    
+    _isInternalUpdate = true;
+    
+    final value = _extractValue(widget.text);
+    if (_controller.value != value) {
+      _controller._value = value;
+    }
+    
+    _isInternalUpdate = false;
+  }
+
+  /// Sync từ binding vào controller
   void _onBindingChanged() {
-    if (_isUpdating) return;
-
-    // Sync binding value to controller
-    final currentBindingValue = _getCurrentValueFromBinding();
-    if (currentBindingValue != _effectiveController.value) {
-      _isUpdating = true;
-      _effectiveController.setValueInternal(currentBindingValue);
-      _lastValue = currentBindingValue;
-      _isUpdating = false;
+    if (_isInternalUpdate || !mounted) return;
+    if (_boundRow == null || _boundField == null) return;
+    
+    _isInternalUpdate = true;
+    
+    final newValue = _parseBool(_boundRow![_boundField!]);
+    if (_controller.value != newValue) {
+      _controller._value = newValue;
+      _controller.notifyListeners();
     }
-
-    _cachedVisibility = null;
-
-    if (mounted) {
-      setState(() {});
-    }
+    
+    _isInternalUpdate = false;
   }
 
-  bool _getCurrentValueFromBinding() {
+  /// Sync từ controller vào binding (khi user click checkbox)
+  void _syncToBinding(bool newValue) {
+    if (_isInternalUpdate) return;
+    
+    _isInternalUpdate = true;
+    
+    // Update controller
+    _controller._value = newValue;
+    
+    // Update binding - preserve original type
     if (_boundRow != null && _boundField != null) {
+      final originalValue = _boundRow![_boundField!];
+      
+      // Preserve type: String → "0"/"1", int → 0/1, bool → bool
+      if (originalValue is String) {
+        _boundRow![_boundField!] = newValue ? "1" : "0";
+      } else if (originalValue is int) {
+        _boundRow![_boundField!] = newValue ? 1 : 0;
+      } else {
+        _boundRow![_boundField!] = newValue;
+      }
+    }
+    
+    // Callbacks
+    widget.onChanged?.call(newValue);
+    widget.onLeaver?.call(newValue);
+    
+    _isInternalUpdate = false;
+    _controller.notifyListeners();
+  }
+
+  /// Listen to controller changes
+  void _onControllerChanged() {
+    if (!mounted || _isInternalUpdate) return;
+    setState(() {}); // Rebuild UI
+  }
+
+  // ============================================================================
+  // VALUE EXTRACTORS
+  // ============================================================================
+
+  bool _extractValue(dynamic value) {
+    if (value is CyberBindingExpression) {
       try {
-        final value = _boundRow![_boundField!];
-        return _parseBool(value);
+        return _parseBool(value.row[value.fieldName]);
       } catch (e) {
         return false;
       }
     }
-    return false;
-  }
-
-  bool _getCurrentValue() {
-    // Ưu tiên controller
-    return _effectiveController.value;
+    return _parseBool(value);
   }
 
   /// Parse dynamic value to bool
-  /// Ưu tiên: string "1" = true, "0" = false
+  /// Supports: bool, int (0/1), String ("0"/"1", "true"/"false")
   bool _parseBool(dynamic value) {
     if (value == null) return false;
-
-    // Bool trực tiếp
     if (value is bool) return value;
-
-    // Int: 1 = true, 0 = false
     if (value is int) return value == 1;
-
-    // String: "1" = true, "0" = false
     if (value is String) {
       final trimmed = value.trim().toLowerCase();
       if (trimmed == "1" || trimmed == "true") return true;
       if (trimmed == "0" || trimmed == "false") return false;
       return false;
     }
-
     return false;
   }
 
-  void _updateValue(bool newValue) {
-    if (!_effectiveController.enabled || !widget.enabled) return;
+  // ============================================================================
+  // VISIBILITY HELPERS
+  // ============================================================================
 
-    _isUpdating = true;
-
-    // Update controller
-    _effectiveController.setValueInternal(newValue);
-
-    // Update binding
-    if (_boundRow != null && _boundField != null) {
-      _updateBindingValue(newValue);
+  bool _isVisible() {
+    if (_visibilityBoundRow != null && _visibilityBoundField != null) {
+      return _parseBool(_visibilityBoundRow![_visibilityBoundField!]);
     }
-
-    _lastValue = newValue;
-
-    // Callback
-    widget.onChanged?.call(newValue);
-    widget.onLeaver?.call(newValue);
-
-    setState(() {
-      _isUpdating = false;
-    });
+    return _parseBool(widget.isVisible);
   }
+
+  // ============================================================================
+  // ACTIONS
+  // ============================================================================
+
+  void _toggleValue() {
+    if (!widget.enabled) return;
+    
+    final newValue = !_controller.value;
+    _syncToBinding(newValue);
+  }
+
+  // ============================================================================
+  // BUILD UI
+  // ============================================================================
 
   @override
   Widget build(BuildContext context) {
-    if (!_isVisible()) {
-      return const SizedBox.shrink();
-    }
+    Widget buildCheckboxWidget() {
+      if (!_isVisible()) {
+        return const SizedBox.shrink();
+      }
 
-    final listeners = <Listenable>[];
-    if (_boundRow != null) listeners.add(_boundRow!);
-    if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
-      listeners.add(_visibilityBoundRow!);
-    }
+      final isChecked = _controller.value;
+      final isEnabled = widget.enabled;
 
-    Widget buildCheckbox() {
-      final isChecked = _getCurrentValue();
-      final isEnabled = _effectiveController.enabled && widget.enabled;
-
-      // iOS Checkbox widget (không có gesture)
+      // iOS-style checkbox display
       Widget checkboxDisplay = _IOSCheckbox(
         value: isChecked,
         enabled: isEnabled,
@@ -362,10 +290,10 @@ class _CyberCheckboxState extends State<CyberCheckbox> {
         size: widget.size ?? 24,
       );
 
-      // Nếu có label, wrap với InkWell + Row
+      // With label: InkWell + Row
       if (widget.label != null && widget.label!.isNotEmpty) {
         return InkWell(
-          onTap: isEnabled ? () => _updateValue(!isChecked) : null,
+          onTap: isEnabled ? _toggleValue : null,
           borderRadius: BorderRadius.circular(4),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
@@ -391,25 +319,50 @@ class _CyberCheckboxState extends State<CyberCheckbox> {
         );
       }
 
-      // Không có label, wrap checkbox với GestureDetector
+      // Without label: GestureDetector
       return GestureDetector(
-        onTap: isEnabled ? () => _updateValue(!isChecked) : null,
+        onTap: isEnabled ? _toggleValue : null,
         child: checkboxDisplay,
       );
+    }
+
+    // Use ListenableBuilder if there are bindings
+    final listeners = <Listenable>[];
+    if (_boundRow != null) listeners.add(_boundRow!);
+    if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
+      listeners.add(_visibilityBoundRow!);
     }
 
     if (listeners.isNotEmpty) {
       return ListenableBuilder(
         listenable: Listenable.merge(listeners),
-        builder: (context, child) => buildCheckbox(),
+        builder: (context, child) => buildCheckboxWidget(),
       );
     }
 
-    return buildCheckbox();
+    return buildCheckboxWidget();
   }
 }
 
-/// iOS-style Checkbox Widget
+// ============================================================================
+// INTERNAL CONTROLLER
+// ============================================================================
+
+class _InternalCheckboxController extends ChangeNotifier {
+  bool _value = false;
+
+  bool get value => _value;
+
+  @override
+  void dispose() {
+    super.dispose();
+  }
+}
+
+// ============================================================================
+// iOS-STYLE CHECKBOX WIDGET
+// ============================================================================
+
 class _IOSCheckbox extends StatelessWidget {
   final bool value;
   final bool enabled;
@@ -452,7 +405,11 @@ class _IOSCheckbox extends StatelessWidget {
   }
 }
 
-/// Extension để tạo clickable checkbox từ String (optional)
+// ============================================================================
+// EXTENSION HELPERS
+// ============================================================================
+
+/// Extension để tạo checkbox từ String label
 extension CyberCheckboxExtension on String {
   Widget toCheckbox(
     BuildContext context, {

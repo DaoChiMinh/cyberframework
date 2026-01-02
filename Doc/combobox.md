@@ -1,597 +1,792 @@
-# CyberComboBox - Internal Controller + Binding Architecture
+# CyberComboBox - Dropdown với Binding Expression
 
-## 📋 Tổng quan
+## 🎯 Overview
 
-CyberComboBox được refactor theo triết lý **Internal Controller + Binding**, đúng với tinh thần ERP/CyberFramework:
+**CyberComboBox** là dropdown picker với iOS-style bottom sheet, hỗ trợ binding expression với CyberDataRow.
 
-- ✅ **Không cần khai báo controller** - Widget tự quản lý state
-- ✅ **Binding trực tiếp** qua thuộc tính `text`
-- ✅ **Sync 2 chiều** tự động với CyberDataRow
-- ✅ **Optional external controller** khi cần control phức tạp
-
----
-
-## 🏗️ Kiến trúc
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     CyberComboBox Widget                     │
-├─────────────────────────────────────────────────────────────┤
-│                                                               │
-│  ┌───────────────────────────────────────────────────────┐  │
-│  │          Internal Controller (Luôn tồn tại)           │  │
-│  │  - Quản lý state nội bộ                                │  │
-│  │  - Tự động tạo khi khởi tạo widget                    │  │
-│  │  - Auto dispose khi widget dispose                     │  │
-│  └───────────────────────────────────────────────────────┘  │
-│                          ↕ sync                              │
-│  ┌───────────────────────────────────────────────────────┐  │
-│  │         Text Binding (CyberBindingExpression)         │  │
-│  │  - Binding vào CyberDataRow field                     │  │
-│  │  - Sync 2 chiều tự động                               │  │
-│  │  - Source of truth khi có binding                     │  │
-│  └───────────────────────────────────────────────────────┘  │
-│                          ↕ optional                          │
-│  ┌───────────────────────────────────────────────────────┐  │
-│  │       External Controller (Optional override)         │  │
-│  │  - Khi cần control từ bên ngoài                       │  │
-│  │  - Advanced use cases                                  │  │
-│  └───────────────────────────────────────────────────────┘  │
-│                                                               │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 🔄 Luồng dữ liệu
-
-### 1. Khởi tạo (Initialization)
-
+**Cú pháp:**
 ```dart
-// Bước 1: Parse binding expression
-text: drEdit.bind('ma_kh')
-  ↓
-_boundRow = drEdit
-_boundField = 'ma_kh'
+final productRow = CyberDataRow();
+final categories = CyberDataTable(); // Danh sách categories
 
-// Bước 2: Tạo internal controller với initial value từ binding
-_internalController = CyberComboBoxController(
-  value: drEdit['ma_kh'],  // ← Đọc từ binding
-  ...
+CyberComboBox(
+  text: productRow.bind('categoryId'),  // ← Value binding
+  displayMember: 'categoryName',        // Field hiển thị
+  valueMember: 'categoryId',            // Field giá trị
+  dataSource: categories,               // DataTable
+  label: 'Danh mục',
 )
-
-// Bước 3: Đăng ký listeners
-drEdit.addListener(_onBindingChanged)
-_internalController.addListener(_onControllerChanged)
-```
-
-### 2. User chọn giá trị mới (User Selection)
-
-```dart
-User chọn item trong picker
-  ↓
-_updateValue(newValue)
-  ↓
-┌─────────────────────────────────────┐
-│ 1. Update internal controller      │
-│    _internalController.setValue()   │
-│    ↓                                │
-│ 2. Update binding (preserve type)   │
-│    drEdit['ma_kh'] = newValue       │
-│    ↓                                │
-│ 3. Trigger callbacks                │
-│    onChanged?.call(newValue)        │
-└─────────────────────────────────────┘
-```
-
-### 3. Binding thay đổi từ bên ngoài (External Binding Change)
-
-```dart
-drEdit['ma_kh'] = '003'  // Code thay đổi từ bên ngoài
-  ↓
-drEdit.notifyListeners()
-  ↓
-_onBindingChanged()
-  ↓
-_syncFromBinding()
-  ↓
-┌─────────────────────────────────────┐
-│ 1. Đọc giá trị mới từ binding       │
-│    bindingValue = drEdit['ma_kh']   │
-│    ↓                                │
-│ 2. Update internal controller       │
-│    _internalController.setValue()   │
-│    ↓                                │
-│ 3. Trigger rebuild                  │
-│    setState(() {})                  │
-└─────────────────────────────────────┘
-```
-
-### 4. Controller thay đổi (Controller Change)
-
-```dart
-_internalController.setValue('002')
-  ↓
-controller.notifyListeners()
-  ↓
-_onControllerChanged()
-  ↓
-_syncToBinding()
-  ↓
-┌─────────────────────────────────────┐
-│ 1. Đọc giá trị từ controller        │
-│    controllerValue = controller.value│
-│    ↓                                │
-│ 2. Update binding (preserve type)   │
-│    drEdit['ma_kh'] = controllerValue│
-│    ↓                                │
-│ 3. Trigger rebuild                  │
-│    setState(() {})                  │
-└─────────────────────────────────────┘
 ```
 
 ---
 
-## 🎯 Priority và Source of Truth
+## 🚀 Quick Start
 
-### Value Priority (Ưu tiên đọc giá trị)
+### 1. Chuẩn bị Data
 
 ```dart
-_getCurrentValue() {
-  // Priority 1: BINDING (source of truth khi có binding)
-  if (_boundRow != null && _boundField != null) {
-    return _boundRow![_boundField!];
+// Tạo DataTable cho categories
+final categories = CyberDataTable();
+
+// Thêm data vào table
+final cat1 = CyberDataRow();
+cat1['categoryId'] = 1;
+cat1['categoryName'] = 'Điện thoại';
+categories.add(cat1);
+
+final cat2 = CyberDataRow();
+cat2['categoryId'] = 2;
+cat2['categoryName'] = 'Laptop';
+categories.add(cat2);
+
+final cat3 = CyberDataRow();
+cat3['categoryId'] = 3;
+cat3['categoryName'] = 'Tablet';
+categories.add(cat3);
+
+// Tạo product row
+final productRow = CyberDataRow();
+productRow['productName'] = 'iPhone 15';
+productRow['categoryId'] = 1;  // Chọn "Điện thoại"
+```
+
+### 2. Sử dụng Widget
+
+```dart
+Column(
+  children: [
+    // Product name
+    CyberText(
+      text: productRow.bind('productName'),
+      label: 'Tên sản phẩm',
+    ),
+    
+    // Category ComboBox ⭐
+    CyberComboBox(
+      text: productRow.bind('categoryId'),  // Value binding
+      displayMember: 'categoryName',
+      valueMember: 'categoryId',
+      dataSource: categories,
+      label: 'Danh mục',
+      hint: 'Chọn danh mục',
+      icon: Icons.category,
+    ),
+  ],
+)
+```
+
+### 3. Đọc/Ghi Data
+
+```dart
+// Đọc giá trị
+print('Category ID: ${productRow['categoryId']}');
+
+// Thay đổi category → UI tự động update!
+productRow['categoryId'] = 2;  // Chuyển sang "Laptop"
+
+// Lấy display text
+String displayText = _getDisplayText(productRow['categoryId']);
+```
+
+---
+
+## 📝 3 Modes Sử Dụng
+
+### 1️⃣ **BINDING EXPRESSION MODE** (Khuyên dùng - 90% cases)
+
+**Syntax:**
+```dart
+CyberComboBox(
+  text: row.bind('fieldName'),  // ← Value binding
+  displayMember: 'displayField',
+  valueMember: 'valueField',
+  dataSource: dataTable,
+  label: 'Label',
+)
+```
+
+**Full Example:**
+```dart
+class ProductForm extends StatefulWidget {
+  @override
+  State<ProductForm> createState() => _ProductFormState();
+}
+
+class _ProductFormState extends State<ProductForm> {
+  late CyberDataRow productRow;
+  late CyberDataTable categories;
+  late CyberDataTable brands;
+
+  @override
+  void initState() {
+    super.initState();
+    
+    // Tạo product row
+    productRow = CyberDataRow();
+    productRow['productName'] = '';
+    productRow['categoryId'] = null;
+    productRow['brandId'] = null;
+    productRow['price'] = '';
+    
+    // Load categories
+    categories = CyberDataTable();
+    _loadCategories();
+    
+    // Load brands
+    brands = CyberDataTable();
+    _loadBrands();
   }
 
-  // Priority 2: CONTROLLER
-  return _controller.value;
-}
-```
-
-### Tại sao Binding là Priority 1?
-
-1. **ERP Philosophy**: Trong ERP, data row là trung tâm của form
-2. **Consistency**: Form data luôn đồng bộ với UI
-3. **Simplicity**: Không cần quan tâm controller khi dùng binding
-
----
-
-## 💡 Cách sử dụng
-
-### ✅ Cách 1: Binding (RECOMMENDED)
-
-```dart
-// Setup
-final drEdit = CyberDataRow({'ma_kh': '001', 'ten_kh': ''});
-final dtKhachHang = CyberDataTable();
-// ... populate dtKhachHang
-
-// Usage
-CyberComboBox(
-  text: drEdit.bind('ma_kh'),  // ← Chỉ cần bind!
-  dataSource: dtKhachHang,
-  valueMember: 'ma_kh',
-  displayMember: 'ten_kh',
-  label: 'Khách hàng',
-)
-
-// Auto sync - không cần code gì thêm!
-drEdit['ma_kh'] = '002';  // ← UI tự động update
-```
-
-**Ưu điểm:**
-- ✅ Ngắn gọn, dễ hiểu
-- ✅ Tự động sync 2 chiều
-- ✅ Không cần quản lý controller
-- ✅ Đúng triết lý ERP
-
-### ⚙️ Cách 2: External Controller (Advanced)
-
-```dart
-// Setup
-final controller = CyberComboBoxController(
-  value: '001',
-  dataSource: dtKhachHang,
-  valueMember: 'ma_kh',
-  displayMember: 'ten_kh',
-);
-
-// Usage
-CyberComboBox(
-  controller: controller,
-  label: 'Khách hàng',
-)
-
-// Control từ code
-controller.setValue('002');
-controller.clear();
-controller.setEnabled(false);
-```
-
-**Ưu điểm:**
-- ✅ Control phức tạp từ code
-- ✅ Validate selection
-- ✅ Programmatic operations
-
-**Khi nào dùng:**
-- Cần clear/reset nhiều lần
-- Validate selection trước khi save
-- Dynamic enable/disable based on logic
-- Multiple combos phụ thuộc nhau
-
-### 📝 Cách 3: Simple Value (Basic)
-
-```dart
-CyberComboBox(
-  text: '001',  // Direct value
-  dataSource: dtKhachHang,
-  valueMember: 'ma_kh',
-  displayMember: 'ten_kh',
-  onChanged: (value) {
-    print('Selected: $value');
-  },
-)
-```
-
-**Khi nào dùng:**
-- Demo, prototype
-- Không cần persist data
-- One-time selection
-
----
-
-## 🔧 Technical Details
-
-### Infinite Loop Prevention
-
-```dart
-bool _isUpdating = false;  // ← Flag để prevent infinite loop
-
-void _syncFromBinding() {
-  if (_isUpdating) return;  // ← Guard
-  
-  _isUpdating = true;
-  try {
-    // ... sync logic
-  } finally {
-    _isUpdating = false;
-  }
-}
-```
-
-**Flow:**
-```
-User chọn value
-  ↓
-_updateValue() sets _isUpdating = true
-  ↓
-Update controller → trigger _onControllerChanged()
-  ↓
-_onControllerChanged() checks _isUpdating → SKIP
-  ↓
-Update binding → trigger _onBindingChanged()
-  ↓
-_onBindingChanged() checks _isUpdating → SKIP
-  ↓
-_isUpdating = false
-  ↓
-Done (no infinite loop!)
-```
-
-### Type Preservation
-
-```dart
-void _updateValue(dynamic newValue) {
-  if (_boundRow != null && _boundField != null) {
-    final originalValue = _boundRow![_boundField!];
-
-    // ✅ Preserve original type
-    if (originalValue is String && newValue != null) {
-      _boundRow![_boundField!] = newValue.toString();
-    } else if (originalValue is int && newValue is int) {
-      _boundRow![_boundField!] = newValue;
-    } else if (originalValue is double && newValue is num) {
-      _boundRow![_boundField!] = newValue.toDouble();
-    } else {
-      _boundRow![_boundField!] = newValue;
+  void _loadCategories() {
+    final data = [
+      {'id': 1, 'name': 'Điện thoại'},
+      {'id': 2, 'name': 'Laptop'},
+      {'id': 3, 'name': 'Tablet'},
+    ];
+    
+    for (var item in data) {
+      final row = CyberDataRow();
+      row['categoryId'] = item['id'];
+      row['categoryName'] = item['name'];
+      categories.add(row);
     }
   }
+
+  void _loadBrands() {
+    final data = [
+      {'id': 1, 'name': 'Apple'},
+      {'id': 2, 'name': 'Samsung'},
+      {'id': 3, 'name': 'Dell'},
+    ];
+    
+    for (var item in data) {
+      final row = CyberDataRow();
+      row['brandId'] = item['id'];
+      row['brandName'] = item['name'];
+      brands.add(row);
+    }
+  }
+
+  void _handleSave() {
+    // Validate
+    if (productRow['categoryId'] == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Vui lòng chọn danh mục!')),
+      );
+      return;
+    }
+    
+    final data = productRow.toMap();
+    print('Save: $data');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // Product name
+        CyberText(
+          text: productRow.bind('productName'),
+          label: 'Tên sản phẩm',
+          isCheckEmpty: true,
+        ),
+        SizedBox(height: 16),
+        
+        // Category ⭐ BINDING
+        CyberComboBox(
+          text: productRow.bind('categoryId'),
+          displayMember: 'categoryName',
+          valueMember: 'categoryId',
+          dataSource: categories,
+          label: 'Danh mục',
+          hint: 'Chọn danh mục',
+          icon: Icons.category,
+          isCheckEmpty: true,
+        ),
+        SizedBox(height: 16),
+        
+        // Brand ⭐ BINDING
+        CyberComboBox(
+          text: productRow.bind('brandId'),
+          displayMember: 'brandName',
+          valueMember: 'brandId',
+          dataSource: brands,
+          label: 'Thương hiệu',
+          hint: 'Chọn thương hiệu',
+          icon: Icons.business,
+        ),
+        SizedBox(height: 16),
+        
+        // Price
+        CyberText(
+          text: productRow.bind('price'),
+          label: 'Giá bán',
+          format: '{0} VNĐ',
+          showFormatInField: false,
+          keyboardType: TextInputType.number,
+        ),
+        SizedBox(height: 24),
+        
+        ElevatedButton(
+          onPressed: _handleSave,
+          child: Text('Lưu'),
+        ),
+      ],
+    );
+  }
 }
 ```
 
-**Tại sao cần preserve type?**
-- Database schema đòi hỏi kiểu dữ liệu cụ thể
-- Prevent runtime errors khi save
-- Maintain data integrity
+**Lợi ích:**
+- ✅ Gọn gàng - chỉ 1 property `text`
+- ✅ Tự động sync 2 chiều: UI ↔ DataRow
+- ✅ Không cần khai báo controller
+- ✅ Không cần dispose
 
-### ListenableBuilder Optimization
+---
 
+### 2️⃣ **STATIC MODE** (Đơn giản)
+
+**Syntax:**
 ```dart
-ListenableBuilder(
-  listenable: Listenable.merge([
-    _controller,
-    if (dataSource != null) dataSource,
-    if (_boundRow != null) _boundRow!,
-    if (_visibilityBoundRow != null) _visibilityBoundRow!,
-  ]),
-  builder: (context, _) {
-    // ✅ Widget rebuild khi BẤT KỲ listenable nào thay đổi
-    return ...;
+int? selectedValue = 1;
+
+CyberComboBox(
+  text: selectedValue,  // ← Static value
+  onChanged: (value) {
+    setState(() {
+      selectedValue = value;
+    });
   },
+  displayMember: 'name',
+  valueMember: 'id',
+  dataSource: items,
+  label: 'Chọn',
 )
 ```
 
-**Smart rebuild:**
-- Controller changes → Rebuild
-- DataSource changes → Rebuild
-- Binding row changes → Rebuild
-- Visibility binding changes → Rebuild
-
----
-
-## 🧪 Testing Scenarios
-
-### Test 1: Basic Binding
-
+**Example:**
 ```dart
-test('binding sync 2 chiều', () {
-  final drEdit = CyberDataRow({'ma_kh': '001'});
-  
-  // Create widget với binding
-  final widget = CyberComboBox(
-    text: drEdit.bind('ma_kh'),
-    dataSource: dtKhachHang,
-    valueMember: 'ma_kh',
-    displayMember: 'ten_kh',
-  );
-  
-  // Test 1: Binding → UI
-  drEdit['ma_kh'] = '002';
-  expect(widget.getCurrentValue(), equals('002'));
-  
-  // Test 2: UI → Binding
-  widget.selectValue('003');
-  expect(drEdit['ma_kh'], equals('003'));
-});
-```
+class SimpleForm extends StatefulWidget {
+  @override
+  State<SimpleForm> createState() => _SimpleFormState();
+}
 
-### Test 2: External Controller Override
+class _SimpleFormState extends State<SimpleForm> {
+  int? selectedCategoryId;
+  late CyberDataTable categories;
 
-```dart
-test('external controller override internal', () {
-  final drEdit = CyberDataRow({'ma_kh': '001'});
-  final controller = CyberComboBoxController(value: '002');
-  
-  final widget = CyberComboBox(
-    text: drEdit.bind('ma_kh'),
-    controller: controller,  // ← External override
-  );
-  
-  // External controller có quyền cao hơn
-  expect(widget.getCurrentValue(), equals('002'));
-});
-```
+  @override
+  void initState() {
+    super.initState();
+    
+    categories = CyberDataTable();
+    final cat1 = CyberDataRow();
+    cat1['id'] = 1;
+    cat1['name'] = 'Category A';
+    categories.add(cat1);
+    
+    final cat2 = CyberDataRow();
+    cat2['id'] = 2;
+    cat2['name'] = 'Category B';
+    categories.add(cat2);
+  }
 
-### Test 3: Infinite Loop Prevention
-
-```dart
-test('no infinite loop khi sync', () {
-  final drEdit = CyberDataRow({'ma_kh': '001'});
-  int notifyCount = 0;
-  
-  drEdit.addListener(() => notifyCount++);
-  
-  final widget = CyberComboBox(
-    text: drEdit.bind('ma_kh'),
-    ...
-  );
-  
-  // User select
-  widget.selectValue('002');
-  
-  // Should trigger exactly 1 notification (không infinite loop)
-  expect(notifyCount, equals(1));
-});
+  @override
+  Widget build(BuildContext context) {
+    return CyberComboBox(
+      text: selectedCategoryId,
+      onChanged: (value) {
+        setState(() {
+          selectedCategoryId = value;
+        });
+        print('Selected: $value');
+      },
+      displayMember: 'name',
+      valueMember: 'id',
+      dataSource: categories,
+      label: 'Category',
+      hint: 'Select category',
+    );
+  }
+}
 ```
 
 ---
 
-## 📊 So sánh với pattern cũ
+### 3️⃣ **EXTERNAL CONTROLLER MODE** (Nâng cao)
 
-### ❌ Pattern cũ (Assertion không dùng cả 2)
-
+**Syntax:**
 ```dart
-const CyberComboBox({
-  this.text,
-  this.controller,
-  ...
-}) : assert(
-  controller == null || text == null,
-  'Không được dùng cả text và controller!',
+final controller = CyberComboBoxController(
+  dataSource: categories,
+  displayMember: 'categoryName',
+  valueMember: 'categoryId',
 );
+
+CyberComboBox(
+  controller: controller,
+  label: 'Category',
+)
+
+// Phải dispose
+controller.dispose();
 ```
 
-**Vấn đề:**
-- ❌ User phải chọn 1 trong 2
-- ❌ Không flexible
-- ❌ Phức tạp khi cần cả binding và control
-
-### ✅ Pattern mới (Internal + Binding)
-
+**Example:**
 ```dart
-const CyberComboBox({
-  this.text,        // ← Có thể vừa là binding vừa là value
-  this.controller,  // ← Optional override
-  ...
-});
+class AdvancedForm extends StatefulWidget {
+  @override
+  State<AdvancedForm> createState() => _AdvancedFormState();
+}
 
-// Internal controller luôn tồn tại
-_internalController = CyberComboBoxController(...);
+class _AdvancedFormState extends State<AdvancedForm> {
+  late CyberComboBoxController categoryController;
+  late CyberComboBoxController brandController;
+  late CyberDataTable categories;
+  late CyberDataTable brands;
 
-// Effective controller
-_controller = widget.controller ?? _internalController;
+  @override
+  void initState() {
+    super.initState();
+    
+    categories = CyberDataTable();
+    _loadCategories();
+    
+    brands = CyberDataTable();
+    _loadBrands();
+    
+    categoryController = CyberComboBoxController(
+      dataSource: categories,
+      displayMember: 'categoryName',
+      valueMember: 'categoryId',
+    );
+    
+    brandController = CyberComboBoxController(
+      dataSource: brands,
+      displayMember: 'brandName',
+      valueMember: 'brandId',
+    );
+    
+    // Listen to category changes
+    categoryController.addListener(_onCategoryChanged);
+  }
+
+  @override
+  void dispose() {
+    categoryController.dispose();
+    brandController.dispose();
+    super.dispose();
+  }
+
+  void _onCategoryChanged() {
+    print('Category changed: ${categoryController.value}');
+    print('Display: ${categoryController.getDisplayText()}');
+    
+    // Filter brands based on category...
+  }
+
+  void _handleClear() {
+    categoryController.clear();
+    brandController.clear();
+  }
+
+  void _handleValidate() {
+    if (!categoryController.isValidValue()) {
+      print('Invalid category!');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        CyberComboBox(
+          controller: categoryController,
+          label: 'Category',
+        ),
+        CyberComboBox(
+          controller: brandController,
+          label: 'Brand',
+        ),
+        Row(
+          children: [
+            ElevatedButton(onPressed: _handleClear, child: Text('Clear')),
+            ElevatedButton(onPressed: _handleValidate, child: Text('Validate')),
+          ],
+        ),
+      ],
+    );
+  }
+}
 ```
-
-**Ưu điểm:**
-- ✅ Flexible: dùng binding, controller, hoặc cả 2
-- ✅ Simple: không cần khai báo controller cho case đơn giản
-- ✅ Powerful: vẫn có controller khi cần
 
 ---
 
-## 🎓 Best Practices
+## 🔧 API Reference
 
-### ✅ DO
+### CyberComboBox Properties
 
 ```dart
-// 1. Dùng binding cho form thông thường
 CyberComboBox(
-  text: drEdit.bind('ma_kh'),
-  ...
+  // === BINDING / STATIC MODE ===
+  text: row.bind('field'),  // Value (CyberBindingExpression hoặc dynamic)
+  onChanged: (value) {},    // Callback (chỉ dùng static mode)
+  
+  // === EXTERNAL CONTROLLER ===
+  controller: myController,
+  
+  // === DATA SOURCE ===
+  dataSource: myDataTable,     // CyberDataTable
+  displayMember: 'nameField',  // Field name hiển thị
+  valueMember: 'idField',      // Field name giá trị
+  
+  // === UI ===
+  label: 'Label',
+  hint: 'Chọn...',
+  icon: Icons.category,
+  iconColor: Colors.blue,
+  backgroundColor: Colors.grey[100],
+  labelStyle: TextStyle(...),
+  textStyle: TextStyle(...),
+  
+  // === STATE ===
+  enabled: true,
+  isVisible: true,  // Có thể binding
+  isShowLabel: true,
+  isCheckEmpty: false,  // Required (hiển thị *)
+  
+  // === CALLBACKS ===
+  onLeaver: (value) {},
 )
+```
 
-// 2. Dùng controller khi cần programmatic control
-final controller = CyberComboBoxController();
-CyberComboBox(controller: controller, ...)
+### CyberComboBoxController API
+
+```dart
+// Tạo controller
+final controller = CyberComboBoxController(
+  value: initialValue,
+  enabled: true,
+  dataSource: myDataTable,
+  displayMember: 'nameField',
+  valueMember: 'idField',
+);
+
+// Getters (read-only)
+dynamic value = controller.value;
+bool enabled = controller.enabled;
+CyberDataTable? dataSource = controller.dataSource;
+String? displayMember = controller.displayMember;
+String? valueMember = controller.valueMember;
+
+// Setters
+controller.setValue(newValue);
+controller.setEnabled(false);
+controller.setDataSource(newDataTable);
+controller.setDisplayMember('newField');
+controller.setValueMember('newField');
+
+// Actions
 controller.clear();
+controller.reset(initialValue);
 
-// 3. Dùng onChanged để handle side effects
-CyberComboBox(
-  text: drEdit.bind('ma_kh'),
-  onChanged: (value) {
-    // Load related data
-    _loadCustomerDetails(value);
-  },
-)
-```
+// Helpers
+String? displayText = controller.getDisplayText();
+bool isValid = controller.isValidValue();
 
-### ❌ DON'T
+// Binding
+controller.bind(myRow, 'fieldName');
+controller.unbind();
 
-```dart
-// ❌ Đừng dùng cả binding và external controller cho cùng mục đích
-final controller = CyberComboBoxController();
-CyberComboBox(
-  text: drEdit.bind('ma_kh'),  // ← Binding
-  controller: controller,       // ← Controller cũng set value
-)
-// Conflict! Controller sẽ override binding
-
-// ❌ Đừng manually sync khi dùng binding
-CyberComboBox(
-  text: drEdit.bind('ma_kh'),
-  onChanged: (value) {
-    drEdit['ma_kh'] = value;  // ← KHÔNG CẦN! Tự động sync rồi
-  },
-)
-
-// ❌ Đừng dispose external controller khi widget còn dùng
-controller.dispose();  // ← Widget sẽ crash!
+// Dispose
+controller.dispose();
 ```
 
 ---
 
-## 🔍 Debugging Tips
+## 💡 Ví Dụ Thực Tế
 
-### Check Binding
-
-```dart
-// Add listener để debug
-drEdit.addListener(() {
-  print('drEdit changed: ma_kh = ${drEdit["ma_kh"]}');
-});
-```
-
-### Check Controller
+### Form nhập hóa đơn với Cascading ComboBoxes
 
 ```dart
-// Add listener để debug
-controller.addListener(() {
-  print('Controller: ${controller.value}');
-  print('DisplayText: ${controller.getDisplayText()}');
-});
-```
-
-### Check Sync Direction
-
-```dart
-void _syncFromBinding() {
-  print('SYNC FROM BINDING: ${_boundRow![_boundField!]}');
-  ...
+class InvoiceForm extends StatefulWidget {
+  @override
+  State<InvoiceForm> createState() => _InvoiceFormState();
 }
 
-void _syncToBinding() {
-  print('SYNC TO BINDING: ${_controller.value}');
-  ...
+class _InvoiceFormState extends State<InvoiceForm> {
+  late CyberDataRow invoiceRow;
+  late CyberDataTable customers;
+  late CyberDataTable products;
+  late CyberDataTable filteredProducts;
+
+  @override
+  void initState() {
+    super.initState();
+    
+    // Invoice data
+    invoiceRow = CyberDataRow();
+    invoiceRow['invoiceNumber'] = 'INV001';
+    invoiceRow['customerId'] = null;
+    invoiceRow['categoryId'] = null;
+    invoiceRow['productId'] = null;
+    invoiceRow['quantity'] = '';
+    
+    // Load data
+    customers = CyberDataTable();
+    products = CyberDataTable();
+    filteredProducts = CyberDataTable();
+    
+    _loadCustomers();
+    _loadProducts();
+    
+    // Listen to category changes để filter products
+    invoiceRow.addListener(_onInvoiceChanged);
+  }
+
+  @override
+  void dispose() {
+    invoiceRow.removeListener(_onInvoiceChanged);
+    super.dispose();
+  }
+
+  void _loadCustomers() {
+    final data = [
+      {'id': 1, 'name': 'Nguyễn Văn A'},
+      {'id': 2, 'name': 'Trần Thị B'},
+    ];
+    
+    for (var item in data) {
+      final row = CyberDataRow();
+      row['customerId'] = item['id'];
+      row['customerName'] = item['name'];
+      customers.add(row);
+    }
+  }
+
+  void _loadProducts() {
+    final data = [
+      {'id': 1, 'name': 'iPhone 15', 'categoryId': 1},
+      {'id': 2, 'name': 'Samsung S24', 'categoryId': 1},
+      {'id': 3, 'name': 'Dell XPS 15', 'categoryId': 2},
+      {'id': 4, 'name': 'MacBook Pro', 'categoryId': 2},
+    ];
+    
+    for (var item in data) {
+      final row = CyberDataRow();
+      row['productId'] = item['id'];
+      row['productName'] = item['name'];
+      row['categoryId'] = item['categoryId'];
+      products.add(row);
+    }
+  }
+
+  void _onInvoiceChanged() {
+    // Filter products khi category thay đổi
+    final categoryId = invoiceRow['categoryId'];
+    
+    if (categoryId == null) {
+      filteredProducts.clear();
+      setState(() {});
+      return;
+    }
+    
+    filteredProducts.clear();
+    for (int i = 0; i < products.rowCount; i++) {
+      final product = products[i];
+      if (product['categoryId'] == categoryId) {
+        filteredProducts.add(product);
+      }
+    }
+    
+    // Reset product selection
+    invoiceRow['productId'] = null;
+    
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(16),
+      child: Column(
+        children: [
+          // Invoice Number
+          CyberText(
+            text: invoiceRow.bind('invoiceNumber'),
+            label: 'Số hóa đơn',
+            enabled: false,
+            backgroundColor: Colors.grey[200],
+          ),
+          SizedBox(height: 16),
+          
+          // Customer ⭐
+          CyberComboBox(
+            text: invoiceRow.bind('customerId'),
+            displayMember: 'customerName',
+            valueMember: 'customerId',
+            dataSource: customers,
+            label: 'Khách hàng',
+            hint: 'Chọn khách hàng',
+            icon: Icons.person,
+            isCheckEmpty: true,
+          ),
+          SizedBox(height: 16),
+          
+          // Category ⭐ (cascading)
+          CyberComboBox(
+            text: invoiceRow.bind('categoryId'),
+            displayMember: 'categoryName',
+            valueMember: 'categoryId',
+            dataSource: _getCategoryDataTable(),
+            label: 'Danh mục',
+            hint: 'Chọn danh mục',
+            icon: Icons.category,
+            isCheckEmpty: true,
+          ),
+          SizedBox(height: 16),
+          
+          // Product ⭐ (filtered by category)
+          CyberComboBox(
+            text: invoiceRow.bind('productId'),
+            displayMember: 'productName',
+            valueMember: 'productId',
+            dataSource: filteredProducts,
+            label: 'Sản phẩm',
+            hint: invoiceRow['categoryId'] == null
+                ? 'Chọn danh mục trước'
+                : 'Chọn sản phẩm',
+            icon: Icons.shopping_bag,
+            enabled: invoiceRow['categoryId'] != null,
+          ),
+          SizedBox(height: 16),
+          
+          // Quantity
+          CyberText(
+            text: invoiceRow.bind('quantity'),
+            label: 'Số lượng',
+            keyboardType: TextInputType.number,
+            enabled: invoiceRow['productId'] != null,
+          ),
+          SizedBox(height: 24),
+          
+          ElevatedButton(
+            onPressed: _handleSave,
+            child: Text('Tạo hóa đơn'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  CyberDataTable _getCategoryDataTable() {
+    final table = CyberDataTable();
+    
+    final cat1 = CyberDataRow();
+    cat1['categoryId'] = 1;
+    cat1['categoryName'] = 'Điện thoại';
+    table.add(cat1);
+    
+    final cat2 = CyberDataRow();
+    cat2['categoryId'] = 2;
+    cat2['categoryName'] = 'Laptop';
+    table.add(cat2);
+    
+    return table;
+  }
+
+  void _handleSave() {
+    // Validate
+    if (invoiceRow['customerId'] == null) {
+      _showError('Vui lòng chọn khách hàng!');
+      return;
+    }
+    if (invoiceRow['categoryId'] == null) {
+      _showError('Vui lòng chọn danh mục!');
+      return;
+    }
+    
+    final data = invoiceRow.toMap();
+    print('Tạo hóa đơn: $data');
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
+  }
 }
 ```
 
 ---
 
-## 📚 Related Components
+## ✅ Best Practices
 
-CyberComboBox follows the same pattern as:
-
-- ✅ CyberTextField
-- ✅ CyberNumeric
-- ✅ CyberDate
-- ✅ CyberCheckbox
-- ✅ CyberLookup
-
-All use **Internal Controller + Binding** architecture!
-
----
-
-## 🚀 Migration Guide
-
-### From old pattern → new pattern
+### DO
 
 ```dart
-// ❌ Old: Phải chọn 1 trong 2
+// ✅ Dùng Binding Expression
 CyberComboBox(
-  text: '001',  // ← Hoặc
-  controller: controller,  // ← Hoặc
+  text: row.bind('categoryId'),
+  displayMember: 'name',
+  valueMember: 'id',
+  dataSource: categories,
 )
 
-// ✅ New: Flexible, có thể dùng cả 2
+// ✅ Set required với isCheckEmpty
 CyberComboBox(
-  text: drEdit.bind('ma_kh'),  // ← Binding
-  // controller tự động tạo internal
+  text: row.bind('categoryId'),
+  isCheckEmpty: true,  // Hiển thị dấu *
+  label: 'Category',
 )
 
-// hoặc
+// ✅ Cascading dropdowns
+void _onCategoryChanged() {
+  final categoryId = row['categoryId'];
+  // Filter dependent dropdown...
+}
+```
 
+### DON'T
+
+```dart
+// ❌ Đừng mix text và controller
 CyberComboBox(
-  text: drEdit.bind('ma_kh'),  // ← Binding
-  controller: externalController,  // ← Override khi cần
+  text: row.bind('categoryId'),
+  controller: myController,  // ❌ Conflict!
+)
+
+// ❌ Đừng quên set displayMember và valueMember
+CyberComboBox(
+  text: row.bind('categoryId'),
+  dataSource: categories,
+  // displayMember: ???  // ❌ Missing!
+  // valueMember: ???    // ❌ Missing!
+)
+
+// ❌ Đừng dùng onChanged với binding mode
+CyberComboBox(
+  text: row.bind('categoryId'),
+  onChanged: (value) => ...,  // ❌ Không cần!
 )
 ```
 
-No breaking changes - backward compatible!
-
 ---
 
-## 📝 Summary
+## 🎉 Kết Luận
 
-**CyberComboBox refactored:**
+**CyberComboBox với Binding Expression:**
 
-1. ✅ **Internal Controller** - Luôn tồn tại, tự động quản lý
-2. ✅ **Binding Support** - Sync 2 chiều với CyberDataRow
-3. ✅ **External Controller** - Optional override khi cần
-4. ✅ **No Assertion** - Flexible, không ép buộc chọn 1
-5. ✅ **ERP Philosophy** - Data row là trung tâm
-6. ✅ **Type Safe** - Preserve type khi sync
-7. ✅ **No Infinite Loop** - Smart guard với `_isUpdating` flag
-8. ✅ **Auto Dispose** - Memory leak safe
+✅ **Gọn gàng** - `text: row.bind('field')` thay vì khai báo controller  
+✅ **Tự động sync** - 2-way binding với CyberDataRow  
+✅ **iOS style** - Beautiful bottom sheet picker  
+✅ **Cascading** - Dễ dàng tạo dependent dropdowns  
+✅ **Type-safe** - Compile-time checking  
 
-**Recommended usage:**
+**Khuyến nghị:**
+- 🎯 Dùng **Binding Expression** cho 90% cases
+- 📝 Dùng **Static mode** cho simple forms
+- 🎛️ Dùng **External controller** khi cần logic phức tạp
 
-```dart
-CyberComboBox(
-  text: drEdit.bind('ma_kh'),  // ← Just this!
-  dataSource: dtKhachHang,
-  valueMember: 'ma_kh',
-  displayMember: 'ten_kh',
-)
-```
-
-Simple. Clean. Powerful. 🚀
+Happy coding! 🚀
