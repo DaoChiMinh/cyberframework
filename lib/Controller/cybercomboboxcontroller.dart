@@ -8,7 +8,8 @@ import 'package:cyberframework/cyberframework.dart';
 /// - DisplayMember/ValueMember
 /// - Enabled state
 /// - Clear/Reset
-/// - Binding to CyberDataRow
+///
+/// NOTE: Binding logic được xử lý ở widget level, không cần ở controller
 class CyberComboBoxController extends ChangeNotifier {
   dynamic _value;
   bool _enabled = true;
@@ -16,25 +17,24 @@ class CyberComboBoxController extends ChangeNotifier {
   String? _displayMember;
   String? _valueMember;
 
-  // === BINDING ===
-  CyberDataRow? _boundRow;
-  String? _boundField;
-  bool _isUpdating = false;
-
   CyberComboBoxController({
     dynamic value,
     bool enabled = true,
     CyberDataTable? dataSource,
     String? displayMember,
     String? valueMember,
-  }) : _value = value,
-       _enabled = enabled,
-       _dataSource = dataSource,
-       _displayMember = displayMember,
-       _valueMember = valueMember {
+  })  : _value = value,
+        _enabled = enabled,
+        _dataSource = dataSource,
+        _displayMember = displayMember,
+        _valueMember = valueMember {
     // Listen to dataSource changes
     _dataSource?.addListener(_onDataSourceChanged);
   }
+
+  // ============================================================================
+  // GETTERS
+  // ============================================================================
 
   /// Giá trị được chọn hiện tại
   dynamic get value => _value;
@@ -51,19 +51,14 @@ class CyberComboBoxController extends ChangeNotifier {
   /// ValueMember field name
   String? get valueMember => _valueMember;
 
+  // ============================================================================
+  // SETTERS
+  // ============================================================================
+
   /// Set giá trị được chọn
   void setValue(dynamic v) {
     if (_value == v) return;
-
-    _isUpdating = true;
     _value = v;
-
-    // Update binding nếu có
-    if (_boundRow != null && _boundField != null) {
-      _boundRow![_boundField!] = v;
-    }
-
-    _isUpdating = false;
     notifyListeners();
   }
 
@@ -102,6 +97,10 @@ class CyberComboBoxController extends ChangeNotifier {
     _valueMember = member;
     notifyListeners();
   }
+
+  // ============================================================================
+  // UTILITY METHODS
+  // ============================================================================
 
   /// Clear về null
   void clear() => setValue(null);
@@ -151,59 +150,53 @@ class CyberComboBoxController extends ChangeNotifier {
     return false;
   }
 
-  // === BINDING ===
+  /// Get selected row from dataSource
+  CyberDataRow? getSelectedRow() {
+    if (_value == null || _dataSource == null) return null;
+    if (_valueMember == null) return null;
 
-  /// Bind to CyberDataRow field
-  void bind(CyberDataRow row, String fieldName) {
-    unbind();
-
-    _boundRow = row;
-    _boundField = fieldName;
-
-    // Đọc giá trị ban đầu
-    _updateFromBinding();
-
-    // Lắng nghe thay đổi
-    _boundRow!.addListener(_onBindingChanged);
-  }
-
-  /// Unbind khỏi CyberDataRow
-  void unbind() {
-    if (_boundRow != null) {
-      _boundRow!.removeListener(_onBindingChanged);
-      _boundRow = null;
-      _boundField = null;
-    }
-  }
-
-  // === PRIVATE METHODS ===
-
-  void _updateFromBinding() {
-    if (_isUpdating || _boundRow == null || _boundField == null) return;
-
-    _isUpdating = true;
-    final newValue = _boundRow![_boundField!];
-
-    if (_value != newValue) {
-      _value = newValue;
-      notifyListeners();
+    try {
+      final length = _dataSource!.rowCount;
+      for (int i = 0; i < length; i++) {
+        final row = _dataSource![i];
+        final rowValue = row[_valueMember!];
+        if (rowValue?.toString() == _value?.toString()) {
+          return row;
+        }
+      }
+    } catch (e) {
+      return null;
     }
 
-    _isUpdating = false;
+    return null;
   }
 
-  void _onBindingChanged() {
-    _updateFromBinding();
-  }
+  // ============================================================================
+  // PRIVATE METHODS
+  // ============================================================================
 
   void _onDataSourceChanged() {
     notifyListeners();
   }
 
+  // ============================================================================
+  // DISPOSE
+  // ============================================================================
+
   @override
   void dispose() {
     _dataSource?.removeListener(_onDataSourceChanged);
-    unbind();
     super.dispose();
+  }
+
+  @override
+  String toString() {
+    return 'CyberComboBoxController('
+        'value: $_value, '
+        'enabled: $_enabled, '
+        'displayMember: $_displayMember, '
+        'valueMember: $_valueMember, '
+        'dataSource: ${_dataSource?.rowCount ?? 0} rows'
+        ')';
   }
 }

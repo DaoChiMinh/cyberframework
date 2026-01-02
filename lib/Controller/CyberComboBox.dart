@@ -1,12 +1,47 @@
 import 'package:cyberframework/cyberframework.dart';
 import 'package:flutter/cupertino.dart';
 
+/// CyberComboBox - ComboBox widget với data binding và internal controller
+/// 
+/// Triết lý:
+/// - Internal Controller: Widget tự quản lý state, không cần khai báo controller bên ngoài
+/// - Binding Support: Hỗ trợ binding trực tiếp qua thuộc tính `text`
+/// - External Controller: Optional, khi cần control từ code
+/// 
+/// Usage:
+/// ```dart
+/// // 1. Simple usage (không binding)
+/// CyberComboBox(
+///   text: "001",
+///   dataSource: dtKhachHang,
+///   valueMember: "ma_kh",
+///   displayMember: "ten_kh",
+/// )
+/// 
+/// // 2. Binding usage (ERP style)
+/// CyberComboBox(
+///   text: drEdit.bind("ma_kh"),
+///   dataSource: dtKhachHang,
+///   valueMember: "ma_kh",
+///   displayMember: "ten_kh",
+/// )
+/// 
+/// // 3. With external controller (advanced)
+/// final controller = CyberComboBoxController();
+/// CyberComboBox(
+///   controller: controller,
+///   dataSource: dtKhachHang,
+///   valueMember: "ma_kh",
+///   displayMember: "ten_kh",
+/// )
+/// ```
 class CyberComboBox extends StatefulWidget {
-  /// ⚠️ KHÔNG dùng cả text VÀ controller cùng lúc
   /// Binding đến field chứa giá trị được chọn (value binding)
+  /// Có thể là: null, value trực tiếp, hoặc CyberBindingExpression
   final dynamic text;
 
-  /// Controller để quản lý state từ bên ngoài
+  /// Controller để quản lý state từ bên ngoài (optional)
+  /// Nếu không cung cấp, widget tự tạo internal controller
   final CyberComboBoxController? controller;
 
   /// Field name để hiển thị (có thể binding)
@@ -77,184 +112,320 @@ class CyberComboBox extends StatefulWidget {
     this.isShowLabel = true,
     this.isVisible = true,
     this.isCheckEmpty = false,
-  }) : assert(
-         controller == null || text == null,
-         'CyberComboBox: không được dùng cả text và controller cùng lúc',
-       );
+  });
 
   @override
   State<CyberComboBox> createState() => _CyberComboBoxState();
 }
 
 class _CyberComboBoxState extends State<CyberComboBox> {
+  // ============================================================================
+  // BINDING STATE
+  // ============================================================================
+  
   CyberDataRow? _boundRow;
   String? _boundField;
   CyberDataRow? _visibilityBoundRow;
   String? _visibilityBoundField;
   bool _isUpdating = false;
 
-  /// ✅ Internal controller nếu không có external controller
-  CyberComboBoxController? _internalController;
-  CyberComboBoxController? get _effectiveController =>
+  // ============================================================================
+  // CONTROLLER STATE
+  // ============================================================================
+  
+  /// Internal controller - luôn tồn tại
+  late final CyberComboBoxController _internalController;
+  
+  /// Effective controller - ưu tiên external > internal
+  CyberComboBoxController get _controller =>
       widget.controller ?? _internalController;
 
-  /// ✅ Effective DataSource - ưu tiên controller > widget
-  CyberDataTable? get _effectiveDataSource =>
-      _effectiveController?.dataSource ?? widget.dataSource;
+  // ============================================================================
+  // LIFECYCLE
+  // ============================================================================
 
   @override
   void initState() {
     super.initState();
 
-    // ✅ Tạo internal controller nếu cần
-    if (widget.controller == null) {
-      _internalController = CyberComboBoxController(
-        value: null,
-        enabled: widget.enabled,
-        dataSource: widget.dataSource,
-        displayMember: _getDisplayMember(),
-        valueMember: _getValueMember(),
-      );
-    }
+    // ✅ Luôn tạo internal controller
+    _internalController = CyberComboBoxController(
+      value: _getInitialValue(),
+      enabled: widget.enabled,
+      dataSource: widget.dataSource,
+      displayMember: _getDisplayMember(),
+      valueMember: _getValueMember(),
+    );
 
     // Parse binding
     _parseBinding();
     _parseVisibilityBinding();
 
     // Đăng ký listeners
-    _registerBindingListeners();
-    _effectiveController?.addListener(_onControllerChanged);
+    _registerListeners();
   }
 
   @override
   void didUpdateWidget(CyberComboBox oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    bool bindingChanged = false;
-    bool visibilityBindingChanged = false;
-    bool controllerChanged = widget.controller != oldWidget.controller;
-
-    // ✅ Xử lý controller thay đổi
-    if (controllerChanged) {
-      oldWidget.controller?.removeListener(_onControllerChanged);
-
-      if (widget.controller == null) {
-        _internalController ??= CyberComboBoxController(
-          value: null,
-          enabled: widget.enabled,
-          dataSource: widget.dataSource,
-          displayMember: _getDisplayMember(),
-          valueMember: _getValueMember(),
-        );
-      } else {
-        _internalController?.dispose();
-        _internalController = null;
-      }
-
-      _effectiveController?.addListener(_onControllerChanged);
-    }
-
-    // ✅ Kiểm tra nếu binding đã thay đổi
+    // ✅ Kiểm tra binding changes
     if (widget.text != oldWidget.text) {
-      _unregisterBindingListeners();
+      _unregisterListeners();
       _parseBinding();
-      bindingChanged = true;
-    }
-
-    // ✅ Kiểm tra nếu visibility binding đã thay đổi
-    if (widget.isVisible != oldWidget.isVisible) {
-      if (!bindingChanged) {
-        _unregisterBindingListeners();
+      _registerListeners();
+      
+      // Sync initial value từ binding mới
+      if (!_isUpdating) {
+        _syncFromBinding();
       }
+    }
+
+    // ✅ Kiểm tra visibility binding changes
+    if (widget.isVisible != oldWidget.isVisible) {
       _parseVisibilityBinding();
-      visibilityBindingChanged = true;
     }
 
-    // ✅ Đăng ký lại listeners nếu có thay đổi
-    if (bindingChanged || visibilityBindingChanged) {
-      _registerBindingListeners();
-    }
-
-    // ✅ Update internal controller nếu widget properties thay đổi
-    if (widget.controller == null && _internalController != null) {
+    // ✅ Sync widget properties vào internal controller
+    if (widget.controller == null) {
       if (widget.dataSource != oldWidget.dataSource) {
-        _internalController!.setDataSource(widget.dataSource);
+        _internalController.setDataSource(widget.dataSource);
       }
       if (widget.displayMember != oldWidget.displayMember) {
-        _internalController!.setDisplayMember(_getDisplayMember());
+        _internalController.setDisplayMember(_getDisplayMember());
       }
       if (widget.valueMember != oldWidget.valueMember) {
-        _internalController!.setValueMember(_getValueMember());
+        _internalController.setValueMember(_getValueMember());
       }
       if (widget.enabled != oldWidget.enabled) {
-        _internalController!.setEnabled(widget.enabled);
+        _internalController.setEnabled(widget.enabled);
       }
     }
   }
 
   @override
   void dispose() {
-    _unregisterBindingListeners();
-    _effectiveController?.removeListener(_onControllerChanged);
-    _internalController?.dispose();
+    _unregisterListeners();
+    _internalController.dispose();
     super.dispose();
   }
 
-  /// ✅ Đăng ký listeners cho binding và datasource
-  void _registerBindingListeners() {
-    if (_boundRow != null) {
-      _boundRow!.addListener(_onBindingChanged);
-    }
-    if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
-      _visibilityBoundRow!.addListener(_onBindingChanged);
-    }
-  }
-
-  /// ✅ Hủy đăng ký listeners
-  void _unregisterBindingListeners() {
-    if (_boundRow != null) {
-      _boundRow!.removeListener(_onBindingChanged);
-    }
-    if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
-      _visibilityBoundRow!.removeListener(_onBindingChanged);
-    }
-  }
+  // ============================================================================
+  // BINDING MANAGEMENT
+  // ============================================================================
 
   void _parseBinding() {
-    if (widget.text == null) {
-      _boundRow = null;
-      _boundField = null;
-      return;
-    }
-
     if (widget.text is CyberBindingExpression) {
       final expr = widget.text as CyberBindingExpression;
       _boundRow = expr.row;
       _boundField = expr.fieldName;
-      return;
+    } else {
+      _boundRow = null;
+      _boundField = null;
     }
-
-    _boundRow = null;
-    _boundField = null;
   }
 
   void _parseVisibilityBinding() {
-    if (widget.isVisible == null) {
-      _visibilityBoundRow = null;
-      _visibilityBoundField = null;
-      return;
-    }
-
     if (widget.isVisible is CyberBindingExpression) {
       final expr = widget.isVisible as CyberBindingExpression;
       _visibilityBoundRow = expr.row;
       _visibilityBoundField = expr.fieldName;
-      return;
+    } else {
+      _visibilityBoundRow = null;
+      _visibilityBoundField = null;
+    }
+  }
+
+  void _registerListeners() {
+    // Binding listener
+    _boundRow?.addListener(_onBindingChanged);
+    
+    // Visibility binding listener
+    if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
+      _visibilityBoundRow!.addListener(_onVisibilityChanged);
+    }
+    
+    // Controller listener
+    _controller.addListener(_onControllerChanged);
+  }
+
+  void _unregisterListeners() {
+    _boundRow?.removeListener(_onBindingChanged);
+    
+    if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
+      _visibilityBoundRow!.removeListener(_onVisibilityChanged);
+    }
+    
+    _controller.removeListener(_onControllerChanged);
+  }
+
+  // ============================================================================
+  // LISTENERS
+  // ============================================================================
+
+  void _onBindingChanged() {
+    if (_isUpdating) return;
+    _syncFromBinding();
+  }
+
+  void _onVisibilityChanged() {
+    if (_isUpdating) return;
+    setState(() {}); // Rebuild for visibility change
+  }
+
+  void _onControllerChanged() {
+    if (_isUpdating) return;
+    _syncToBinding();
+  }
+
+  // ============================================================================
+  // SYNC LOGIC
+  // ============================================================================
+
+  /// Sync giá trị từ binding vào controller
+  void _syncFromBinding() {
+    if (_boundRow == null || _boundField == null) return;
+
+    _isUpdating = true;
+    try {
+      final bindingValue = _boundRow![_boundField!];
+      if (_controller.value != bindingValue) {
+        if (widget.controller == null) {
+          _internalController.setValue(bindingValue);
+        }
+        setState(() {});
+      }
+    } finally {
+      _isUpdating = false;
+    }
+  }
+
+  /// Sync giá trị từ controller vào binding
+  void _syncToBinding() {
+    if (_boundRow == null || _boundField == null) return;
+
+    _isUpdating = true;
+    try {
+      final controllerValue = _controller.value;
+      final bindingValue = _boundRow![_boundField!];
+      
+      if (bindingValue != controllerValue) {
+        // Preserve original type
+        if (bindingValue is String && controllerValue != null) {
+          _boundRow![_boundField!] = controllerValue.toString();
+        } else if (bindingValue is int && controllerValue is int) {
+          _boundRow![_boundField!] = controllerValue;
+        } else if (bindingValue is double && controllerValue is num) {
+          _boundRow![_boundField!] = controllerValue.toDouble();
+        } else {
+          _boundRow![_boundField!] = controllerValue;
+        }
+      }
+      
+      setState(() {});
+    } finally {
+      _isUpdating = false;
+    }
+  }
+
+  // ============================================================================
+  // VALUE GETTERS
+  // ============================================================================
+
+  /// Get giá trị khởi tạo ban đầu
+  dynamic _getInitialValue() {
+    // Priority 1: Binding
+    if (widget.text is CyberBindingExpression) {
+      final expr = widget.text as CyberBindingExpression;
+      try {
+        return expr.row[expr.fieldName];
+      } catch (e) {
+        return null;
+      }
     }
 
-    _visibilityBoundRow = null;
-    _visibilityBoundField = null;
+    // Priority 2: Direct value
+    if (widget.text != null && widget.text is! CyberBindingExpression) {
+      return widget.text;
+    }
+
+    return null;
   }
+
+  /// Get current value (ưu tiên binding > controller)
+  dynamic _getCurrentValue() {
+    // Priority 1: Binding (source of truth khi có binding)
+    if (_boundRow != null && _boundField != null) {
+      try {
+        return _boundRow![_boundField!];
+      } catch (e) {
+        return null;
+      }
+    }
+
+    // Priority 2: Controller
+    return _controller.value;
+  }
+
+  String _getDisplayMember() {
+    if (widget.displayMember is CyberBindingExpression) {
+      final expr = widget.displayMember as CyberBindingExpression;
+      try {
+        return expr.row[expr.fieldName]?.toString() ?? '';
+      } catch (e) {
+        return '';
+      }
+    }
+    return widget.displayMember?.toString() ?? '';
+  }
+
+  String _getValueMember() {
+    if (widget.valueMember is CyberBindingExpression) {
+      final expr = widget.valueMember as CyberBindingExpression;
+      try {
+        return expr.row[expr.fieldName]?.toString() ?? '';
+      } catch (e) {
+        return '';
+      }
+    }
+    return widget.valueMember?.toString() ?? '';
+  }
+
+  /// Get display text cho value hiện tại
+  String _getDisplayText() {
+    final currentValue = _getCurrentValue();
+    final dataSource = widget.dataSource ?? _controller.dataSource;
+
+    if (currentValue == null || dataSource == null) {
+      return widget.hint ?? '';
+    }
+
+    final valueMember = _getValueMember();
+    final displayMember = _getDisplayMember();
+
+    if (valueMember.isEmpty || displayMember.isEmpty) {
+      return widget.hint ?? '';
+    }
+
+    try {
+      final length = dataSource.rowCount;
+      for (int i = 0; i < length; i++) {
+        final row = dataSource[i];
+        final rowValue = row[valueMember];
+        if (rowValue?.toString() == currentValue?.toString()) {
+          return row[displayMember]?.toString() ?? '';
+        }
+      }
+    } catch (e) {
+      // Ignore errors
+    }
+
+    return widget.hint ?? '';
+  }
+
+  // ============================================================================
+  // VISIBILITY
+  // ============================================================================
 
   bool _parseBool(dynamic value) {
     if (value == null) return true;
@@ -280,151 +451,59 @@ class _CyberComboBoxState extends State<CyberComboBox> {
     return _parseBool(widget.isVisible);
   }
 
-  void _onBindingChanged() {
-    if (_isUpdating || _boundRow == null || _boundField == null) return;
-    setState(() {}); // Trigger rebuild
-  }
+  // ============================================================================
+  // UPDATE VALUE
+  // ============================================================================
 
-  void _onControllerChanged() {
-    if (_isUpdating) return;
-    setState(() {}); // Trigger rebuild
-  }
-
-  /// Get current selected value
-  /// Priority: controller > binding > text
-  dynamic _getCurrentValue() {
-    // ✅ Priority 1: Controller
-    if (_effectiveController != null) {
-      return _effectiveController!.value;
-    }
-
-    // ✅ Priority 2: Binding
-    if (_boundRow != null && _boundField != null) {
-      try {
-        return _boundRow![_boundField!];
-      } catch (e) {
-        return null;
-      }
-    }
-
-    // ✅ Priority 3: Direct value
-    if (widget.text != null && widget.text is! CyberBindingExpression) {
-      return widget.text;
-    }
-
-    return null;
-  }
-
-  /// Get display member field name
-  String _getDisplayMember() {
-    if (widget.displayMember is CyberBindingExpression) {
-      final expr = widget.displayMember as CyberBindingExpression;
-      try {
-        return expr.row[expr.fieldName]?.toString() ?? '';
-      } catch (e) {
-        return '';
-      }
-    }
-    return widget.displayMember?.toString() ?? '';
-  }
-
-  /// Get value member field name
-  String _getValueMember() {
-    if (widget.valueMember is CyberBindingExpression) {
-      final expr = widget.valueMember as CyberBindingExpression;
-      try {
-        return expr.row[expr.fieldName]?.toString() ?? '';
-      } catch (e) {
-        return '';
-      }
-    }
-    return widget.valueMember?.toString() ?? '';
-  }
-
-  /// Get display text for current value
-  String _getDisplayText() {
-    final currentValue = _getCurrentValue();
-
-    // ✅ Ưu tiên dùng controller's getDisplayText nếu có
-    if (_effectiveController != null) {
-      final displayText = _effectiveController!.getDisplayText();
-      if (displayText != null) return displayText;
-    }
-
-    if (currentValue == null || _effectiveDataSource == null) {
-      return widget.hint ?? '';
-    }
-
-    final valueMember = _getValueMember();
-    final displayMember = _getDisplayMember();
-
-    if (valueMember.isEmpty || displayMember.isEmpty) {
-      return widget.hint ?? '';
-    }
-
-    try {
-      // Find row with matching value
-      final length = _effectiveDataSource!.rowCount;
-      for (int i = 0; i < length; i++) {
-        final row = _effectiveDataSource![i];
-        final rowValue = row[valueMember];
-        if (rowValue?.toString() == currentValue?.toString()) {
-          final displayText = row[displayMember]?.toString() ?? '';
-          return displayText;
-        }
-      }
-    } catch (e) {
-      // Ignore errors
-    }
-
-    return widget.hint ?? '';
-  }
-
-  /// Update selected value
+  /// Cập nhật giá trị mới
   void _updateValue(dynamic newValue) {
-    final isEnabled = widget.enabled && (_effectiveController?.enabled ?? true);
-
-    if (!isEnabled) {
-      return;
-    }
+    final isEnabled = widget.enabled && _controller.enabled;
+    if (!isEnabled) return;
 
     _isUpdating = true;
-
-    // ✅ Update controller
-    if (widget.controller == null && _internalController != null) {
-      _internalController!.setValue(newValue);
-    }
-
-    // ✅ Update binding
-    if (_boundRow != null && _boundField != null) {
-      final originalValue = _boundRow![_boundField!];
-
-      // Preserve original type
-      if (originalValue is String && newValue != null) {
-        _boundRow![_boundField!] = newValue.toString();
-      } else if (originalValue is int && newValue is int) {
-        _boundRow![_boundField!] = newValue;
-      } else if (originalValue is double && newValue is num) {
-        _boundRow![_boundField!] = newValue.toDouble();
+    try {
+      // ✅ Update controller
+      if (widget.controller == null) {
+        _internalController.setValue(newValue);
       } else {
-        _boundRow![_boundField!] = newValue;
+        widget.controller!.setValue(newValue);
       }
-    }
 
-    // ✅ Callback
-    widget.onChanged?.call(newValue);
-    widget.onLeaver?.call(newValue);
+      // ✅ Update binding
+      if (_boundRow != null && _boundField != null) {
+        final originalValue = _boundRow![_boundField!];
 
-    setState(() {
+        // Preserve original type
+        if (originalValue is String && newValue != null) {
+          _boundRow![_boundField!] = newValue.toString();
+        } else if (originalValue is int && newValue is int) {
+          _boundRow![_boundField!] = newValue;
+        } else if (originalValue is double && newValue is num) {
+          _boundRow![_boundField!] = newValue.toDouble();
+        } else {
+          _boundRow![_boundField!] = newValue;
+        }
+      }
+
+      // ✅ Callbacks
+      widget.onChanged?.call(newValue);
+      widget.onLeaver?.call(newValue);
+
+      setState(() {});
+    } finally {
       _isUpdating = false;
-    });
+    }
   }
 
-  /// Show picker bottom sheet
-  Future<void> _showPicker() async {
-    final isEnabled = widget.enabled && (_effectiveController?.enabled ?? true);
+  // ============================================================================
+  // SHOW PICKER
+  // ============================================================================
 
-    if (!isEnabled || _effectiveDataSource == null) return;
+  Future<void> _showPicker() async {
+    final isEnabled = widget.enabled && _controller.enabled;
+    final dataSource = widget.dataSource ?? _controller.dataSource;
+
+    if (!isEnabled || dataSource == null) return;
 
     final valueMember = _getValueMember();
     final displayMember = _getDisplayMember();
@@ -439,7 +518,7 @@ class _CyberComboBoxState extends State<CyberComboBox> {
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) => _IOSPickerSheet(
-        dataSource: _effectiveDataSource!,
+        dataSource: dataSource,
         valueMember: valueMember,
         displayMember: displayMember,
         currentValue: currentValue,
@@ -450,24 +529,31 @@ class _CyberComboBoxState extends State<CyberComboBox> {
     );
   }
 
+  // ============================================================================
+  // BUILD
+  // ============================================================================
+
   @override
   Widget build(BuildContext context) {
     if (!_isVisible()) {
       return const SizedBox.shrink();
     }
 
-    // ✅ Lắng nghe controller và datasource changes
+    final dataSource = widget.dataSource ?? _controller.dataSource;
+
+    // ✅ Lắng nghe tất cả thay đổi
     return ListenableBuilder(
       listenable: Listenable.merge([
-        if (_effectiveController != null) _effectiveController!,
-        if (_effectiveDataSource != null) _effectiveDataSource!,
+        _controller,
+        if (dataSource != null) dataSource,
         if (_boundRow != null) _boundRow!,
+        if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow)
+          _visibilityBoundRow!,
       ]),
       builder: (context, _) {
         final displayText = _getDisplayText();
         final hasValue = displayText.isNotEmpty && displayText != widget.hint;
-        final isEnabled =
-            widget.enabled && (_effectiveController?.enabled ?? true);
+        final isEnabled = widget.enabled && _controller.enabled;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -483,8 +569,7 @@ class _CyberComboBoxState extends State<CyberComboBox> {
                   children: [
                     Text(
                       widget.label!,
-                      style:
-                          widget.labelStyle ??
+                      style: widget.labelStyle ??
                           const TextStyle(
                             fontSize: 14,
                             color: Color(0xFF555555),
@@ -514,7 +599,6 @@ class _CyberComboBoxState extends State<CyberComboBox> {
                   vertical: 12,
                 ),
                 decoration: BoxDecoration(
-                  // ✅ Background đồng bộ, bỏ border
                   color: isEnabled
                       ? (widget.backgroundColor ?? const Color(0xFFF5F5F5))
                       : const Color(0xFFE0E0E0),
@@ -538,8 +622,7 @@ class _CyberComboBoxState extends State<CyberComboBox> {
                     Expanded(
                       child: Text(
                         displayText,
-                        style:
-                            widget.textStyle ??
+                        style: widget.textStyle ??
                             TextStyle(
                               fontSize: 16,
                               color: hasValue
@@ -565,6 +648,10 @@ class _CyberComboBoxState extends State<CyberComboBox> {
     );
   }
 }
+
+// ============================================================================
+// IOS PICKER SHEET
+// ============================================================================
 
 /// iOS-style Picker Bottom Sheet
 class _IOSPickerSheet extends StatefulWidget {
