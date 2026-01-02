@@ -1,14 +1,25 @@
 import 'package:cyberframework/cyberframework.dart';
 import 'package:flutter/cupertino.dart';
 
+// ============================================================================
+// ✅ INTERNAL CONTROLLER + BINDING PATTERN
+// ============================================================================
+// Triết lý ERP/CyberFramework:
+// - Widget tự quản lý internal controller
+// - Không cần khai báo controller bên ngoài
+// - Binding qua thuộc tính text: dr.bind("field_name")
+// - Controller là single source of truth bên trong
+// ============================================================================
+
 class CyberTime extends StatefulWidget {
-  // ✅ SIMPLE MODE: Direct value binding
+  // ✅ BINDING SUPPORT: text có thể là:
+  // - CyberBindingExpression: dr.bind("gio_bat_dau")
+  // - TimeOfDay: giá trị trực tiếp
+  // - String: "14:30" (sẽ parse)
+  // - null: sử dụng initialValue
   final dynamic text;
 
-  // ✅ CONTROLLED MODE: Controller for external control
-  final CyberTimeController? controller;
-
-  // ✅ Initial value (only used when no controller and no binding)
+  // ✅ Initial value (chỉ dùng khi text == null)
   final TimeOfDay? initialValue;
 
   // UI Configuration
@@ -40,7 +51,6 @@ class CyberTime extends StatefulWidget {
   const CyberTime({
     super.key,
     this.text,
-    this.controller,
     this.initialValue,
     this.label,
     this.hint,
@@ -69,6 +79,9 @@ class CyberTime extends StatefulWidget {
 }
 
 class _CyberTimeState extends State<CyberTime> {
+  // ✅ INTERNAL CONTROLLER - Single Source of Truth
+  late CyberTimeController _controller;
+
   late TextEditingController _textController;
   late FocusNode _focusNode;
 
@@ -78,38 +91,36 @@ class _CyberTimeState extends State<CyberTime> {
   CyberDataRow? _visibilityBoundRow;
   String? _visibilityBoundField;
 
-  // ✅ SIMPLE MODE ONLY: Internal state
-  // CRITICAL: This is ONLY used when controller == null
-  TimeOfDay? _internalValue;
-
   bool _isUpdating = false;
   String? _validationError;
-
-  // ✅ Determine if using controller mode
-  bool get _isControlled => widget.controller != null;
 
   @override
   void initState() {
     super.initState();
 
+    // ✅ 1. Tạo internal controller
+    _controller = CyberTimeController();
+
+    // ✅ 2. Khởi tạo UI components
     _focusNode = FocusNode();
+    _textController = TextEditingController();
+
+    // ✅ 3. Parse binding
     _parseBinding();
     _parseVisibilityBinding();
 
-    // ✅ Initialize internal value ONLY for SIMPLE mode
-    if (!_isControlled) {
-      _internalValue = _getCurrentValueFromProps();
-    }
+    // ✅ 4. Load initial value vào controller
+    _loadInitialValue();
 
-    _updateTextController();
-
-    // ✅ Attach controller if provided
-    _attachController(widget.controller);
-
-    // Attach binding listeners
+    // ✅ 5. Attach listeners
+    _controller.addListener(_onControllerChanged);
     _attachBinding(_boundRow);
     _attachBinding(_visibilityBoundRow);
 
+    // ✅ 6. Update UI lần đầu
+    _updateTextController();
+
+    // ✅ 7. Focus listener
     _focusNode.addListener(() {
       if (_focusNode.hasFocus && widget.enabled) {
         _showTimePicker();
@@ -121,58 +132,34 @@ class _CyberTimeState extends State<CyberTime> {
   void didUpdateWidget(CyberTime oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    // ✅ 1. CRITICAL: Handle controller swap
-    if (oldWidget.controller != widget.controller) {
-      _detachController(oldWidget.controller);
-      _attachController(widget.controller);
-
-      // ✅ Reset internal state based on new mode
-      if (_isControlled) {
-        // Switched TO controlled mode - clear internal state
-        _internalValue = null;
-      } else {
-        // Switched TO simple mode - initialize internal state
-        _internalValue = _getCurrentValueFromProps();
-      }
-
-      _updateTextController();
-    }
-
-    // ✅ 2. Handle binding changes
+    // ✅ 1. Handle binding changes
     if (oldWidget.text != widget.text) {
       _detachBinding(_boundRow);
       _parseBinding();
       _attachBinding(_boundRow);
 
-      // Update internal state if in simple mode
-      if (!_isControlled) {
-        _internalValue = _getCurrentValueFromProps();
-      }
-
+      // Reload value from new binding
+      _loadValueFromBinding();
       _updateTextController();
     }
 
-    // ✅ 3. Handle visibility binding changes
+    // ✅ 2. Handle visibility binding changes
     if (oldWidget.isVisible != widget.isVisible) {
       _detachBinding(_visibilityBoundRow);
       _parseVisibilityBinding();
       _attachBinding(_visibilityBoundRow);
     }
 
-    // ✅ 4. Handle time range changes
+    // ✅ 3. Handle validation changes
     if (oldWidget.minTime != widget.minTime ||
-        oldWidget.maxTime != widget.maxTime) {
+        oldWidget.maxTime != widget.maxTime ||
+        oldWidget.validator != widget.validator) {
       _validate();
     }
 
-    // ✅ 5. Handle validator changes
-    if (oldWidget.validator != widget.validator) {
-      _validate();
-    }
-
-    // ✅ 6. Handle initial value changes (SIMPLE mode only)
-    if (!_isControlled && oldWidget.initialValue != widget.initialValue) {
-      _internalValue = widget.initialValue;
+    // ✅ 4. Handle initial value changes (khi không có binding)
+    if (_boundRow == null && oldWidget.initialValue != widget.initialValue) {
+      _controller.value = widget.initialValue;
       _updateTextController();
     }
   }
@@ -180,49 +167,43 @@ class _CyberTimeState extends State<CyberTime> {
   @override
   void dispose() {
     // ✅ Clean up all listeners
-    _detachController(widget.controller);
+    _controller.removeListener(_onControllerChanged);
     _detachBinding(_boundRow);
     _detachBinding(_visibilityBoundRow);
 
+    // ✅ Dispose controllers
+    _controller.dispose();
     _textController.dispose();
     _focusNode.dispose();
+
     super.dispose();
   }
 
   // =========================================================================
-  // LIFECYCLE MANAGEMENT - Controller
+  // ✅ INITIALIZATION - Load initial value vào controller
   // =========================================================================
 
-  /// ✅ Attach controller listener
-  void _attachController(CyberTimeController? controller) {
-    controller?.addListener(_onControllerChanged);
+  void _loadInitialValue() {
+    final initialValue = _getValueFromProps();
+    _controller.setSilently(initialValue);
   }
 
-  /// ✅ Detach controller listener
-  void _detachController(CyberTimeController? controller) {
-    controller?.removeListener(_onControllerChanged);
-  }
+  // =========================================================================
+  // ✅ CONTROLLER LISTENER - Controller → UI
+  // =========================================================================
 
-  /// ✅ Handle controller value changes
   void _onControllerChanged() {
     if (_isUpdating) return;
 
     _isUpdating = true;
 
-    final value = _getCurrentValue();
-    final displayValue = value != null ? _formatTime(value) : '';
+    // ✅ 1. Update text display
+    _updateTextController();
 
-    // Update text display
-    if (_textController.text != displayValue) {
-      _textController.text = displayValue;
-    }
+    // ✅ 2. Sync controller → binding (one-way: controller is source)
+    _syncControllerToBinding();
 
-    // Sync controller value to binding (if exists)
-    if (_boundRow != null && _boundField != null) {
-      _syncToBinding(value);
-    }
-
-    // Validate
+    // ✅ 3. Validate
     _validate();
 
     _isUpdating = false;
@@ -233,90 +214,7 @@ class _CyberTimeState extends State<CyberTime> {
   }
 
   // =========================================================================
-  // LIFECYCLE MANAGEMENT - Binding
-  // =========================================================================
-
-  /// ✅ Attach binding listener
-  void _attachBinding(CyberDataRow? row) {
-    if (row != null && row != _boundRow) {
-      row.addListener(_onBindingChanged);
-    } else if (row == _boundRow) {
-      row?.addListener(_onBindingChanged);
-    }
-  }
-
-  /// ✅ Detach binding listener
-  void _detachBinding(CyberDataRow? row) {
-    row?.removeListener(_onBindingChanged);
-  }
-
-  /// ✅ Handle binding value changes
-  void _onBindingChanged() {
-    if (_isUpdating || _boundRow == null || _boundField == null) return;
-
-    _isUpdating = true;
-
-    final value = _getCurrentValueFromProps();
-    final displayValue = value != null ? _formatTime(value) : '';
-
-    // Update text display
-    if (_textController.text != displayValue) {
-      _textController.text = displayValue;
-    }
-
-    // ✅ Sync to controller OR internal state (NO DUPLICATION)
-    if (_isControlled) {
-      // CONTROLLED MODE: Sync to controller only
-      if (!_sameTime(widget.controller!.value, value)) {
-        widget.controller!.setSilently(value);
-      }
-    } else {
-      // SIMPLE MODE: Sync to internal state only
-      _internalValue = value;
-    }
-
-    // Validate
-    _validate();
-
-    _isUpdating = false;
-
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
-  // =========================================================================
-  // VALUE MANAGEMENT - Single Source of Truth
-  // =========================================================================
-
-  /// ✅ Get current value from props (binding or direct value)
-  TimeOfDay? _getCurrentValueFromProps() {
-    if (_boundRow != null && _boundField != null) {
-      final rawValue = _boundRow![_boundField!];
-      return _parseTimeOfDay(rawValue);
-    } else if (widget.text != null && widget.text is! CyberBindingExpression) {
-      return _parseTimeOfDay(widget.text);
-    } else if (widget.initialValue != null) {
-      return widget.initialValue;
-    }
-    return null;
-  }
-
-  /// ✅ SINGLE SOURCE OF TRUTH
-  /// CRITICAL: Widget is STATELESS about data when controlled
-  TimeOfDay? _getCurrentValue() {
-    if (_isControlled) {
-      // ✅ CONTROLLED MODE: Controller is the ONLY source
-      // Widget does NOT keep any internal state
-      return widget.controller!.value;
-    } else {
-      // ✅ SIMPLE MODE: Internal state OR props
-      return _internalValue ?? _getCurrentValueFromProps();
-    }
-  }
-
-  // =========================================================================
-  // PARSING & FORMATTING - UI Logic Only
+  // ✅ BINDING MANAGEMENT
   // =========================================================================
 
   void _parseBinding() {
@@ -354,6 +252,106 @@ class _CyberTimeState extends State<CyberTime> {
     _visibilityBoundRow = null;
     _visibilityBoundField = null;
   }
+
+  void _attachBinding(CyberDataRow? row) {
+    row?.addListener(_onBindingChanged);
+  }
+
+  void _detachBinding(CyberDataRow? row) {
+    row?.removeListener(_onBindingChanged);
+  }
+
+  // ✅ BINDING LISTENER - Binding → Controller → UI
+  void _onBindingChanged() {
+    if (_isUpdating || _boundRow == null || _boundField == null) return;
+
+    _isUpdating = true;
+
+    // ✅ Load value từ binding vào controller
+    _loadValueFromBinding();
+
+    // ✅ Update UI (thông qua controller listener)
+    _updateTextController();
+
+    // ✅ Validate
+    _validate();
+
+    _isUpdating = false;
+
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  // =========================================================================
+  // ✅ VALUE FLOW - Unidirectional Data Flow
+  // =========================================================================
+
+  /// ✅ Get value từ props (binding hoặc direct value)
+  TimeOfDay? _getValueFromProps() {
+    // Priority 1: Binding
+    if (_boundRow != null && _boundField != null) {
+      final rawValue = _boundRow![_boundField!];
+      return _parseTimeOfDay(rawValue);
+    }
+
+    // Priority 2: Direct value
+    if (widget.text != null && widget.text is! CyberBindingExpression) {
+      return _parseTimeOfDay(widget.text);
+    }
+
+    // Priority 3: Initial value
+    if (widget.initialValue != null) {
+      return widget.initialValue;
+    }
+
+    return null;
+  }
+
+  /// ✅ Load value từ binding vào controller
+  void _loadValueFromBinding() {
+    final value = _getValueFromProps();
+    if (!_sameTime(_controller.value, value)) {
+      _controller.setSilently(value);
+    }
+  }
+
+  /// ✅ Sync controller → binding (one-way)
+  void _syncControllerToBinding() {
+    if (_boundRow == null || _boundField == null) return;
+
+    final controllerValue = _controller.value;
+    final originalValue = _boundRow![_boundField!];
+
+    // ✅ Nếu binding value là DateTime, preserve date part
+    if (originalValue is DateTime && controllerValue != null) {
+      final newDateTime = DateTime(
+        originalValue.year,
+        originalValue.month,
+        originalValue.day,
+        controllerValue.hour,
+        controllerValue.minute,
+        0,
+      );
+
+      if (originalValue != newDateTime) {
+        _boundRow![_boundField!] = newDateTime;
+      }
+      return;
+    }
+
+    // ✅ Ngược lại, sync as string
+    final timeString = controllerValue != null ? _formatTime(controllerValue) : '';
+    final currentBindingValue = _boundRow![_boundField!];
+
+    if (currentBindingValue != timeString) {
+      _boundRow![_boundField!] = timeString;
+    }
+  }
+
+  // =========================================================================
+  // ✅ PARSING & FORMATTING
+  // =========================================================================
 
   TimeOfDay? _parseTimeOfDay(dynamic value) {
     if (value == null) return null;
@@ -424,17 +422,20 @@ class _CyberTimeState extends State<CyberTime> {
   }
 
   // =========================================================================
-  // UPDATE LOGIC
+  // ✅ UI UPDATE
   // =========================================================================
 
   void _updateTextController() {
-    final timeOfDay = _getCurrentValue();
+    final timeOfDay = _controller.value;
     final displayValue = timeOfDay != null ? _formatTime(timeOfDay) : '';
-    _textController = TextEditingController(text: displayValue);
+
+    if (_textController.text != displayValue) {
+      _textController.text = displayValue;
+    }
   }
 
   void _validate() {
-    final value = _getCurrentValue();
+    final value = _controller.value;
 
     // Custom validator
     if (widget.validator != null) {
@@ -472,72 +473,30 @@ class _CyberTimeState extends State<CyberTime> {
     _validationError = null;
   }
 
-  void _syncToBinding(TimeOfDay? newTime) {
-    if (_boundRow == null || _boundField == null) return;
-
-    final originalValue = _boundRow![_boundField!];
-
-    if (originalValue is DateTime && newTime != null) {
-      final newDateTime = DateTime(
-        originalValue.year,
-        originalValue.month,
-        originalValue.day,
-        newTime.hour,
-        newTime.minute,
-        0,
-      );
-      if (_boundRow![_boundField!] != newDateTime) {
-        _boundRow![_boundField!] = newDateTime;
-      }
-    } else {
-      final timeString = newTime != null ? _formatTime(newTime) : '';
-      if (_boundRow![_boundField!] != timeString) {
-        _boundRow![_boundField!] = timeString;
-      }
-    }
-  }
+  // =========================================================================
+  // ✅ USER INTERACTION - UI → Controller → Binding
+  // =========================================================================
 
   void _updateValue(TimeOfDay newTime) {
     _isUpdating = true;
 
-    // ✅ Update state based on mode - NO DUPLICATION
-    if (_isControlled) {
-      // CONTROLLED MODE: Update controller ONLY
-      widget.controller!.value = newTime;
-      // DO NOT touch _internalValue - it should remain null
-    } else {
-      // SIMPLE MODE: Update internal state ONLY
-      _internalValue = newTime;
-      // DO NOT touch controller - it doesn't exist
-    }
+    // ✅ Update controller (single source of truth)
+    _controller.value = newTime;
+    // Controller listener sẽ tự động:
+    // - Update UI
+    // - Sync to binding
+    // - Validate
 
-    // Sync to binding
-    _syncToBinding(newTime);
-
-    // Update display
-    _textController.text = _formatTime(newTime);
-
-    // Validate
-    _validate();
-
-    // Callback
+    // ✅ User callback
     widget.onChanged?.call(newTime);
 
     _isUpdating = false;
-
-    if (mounted) {
-      setState(() {});
-    }
   }
-
-  // =========================================================================
-  // UI INTERACTION
-  // =========================================================================
 
   Future<void> _showTimePicker() async {
     _focusNode.unfocus();
 
-    final currentValue = _getCurrentValue() ?? TimeOfDay.now();
+    final currentValue = _controller.value ?? TimeOfDay.now();
 
     final result = await showModalBottomSheet<TimeOfDay>(
       context: context,
@@ -552,6 +511,7 @@ class _CyberTimeState extends State<CyberTime> {
     if (result != null) {
       _updateValue(result);
 
+      // ✅ onLeaver callback
       if (widget.onLeaver != null) {
         if (_boundRow != null && _boundField != null) {
           final originalValue = _boundRow![_boundField!];
@@ -574,6 +534,10 @@ class _CyberTimeState extends State<CyberTime> {
       }
     }
   }
+
+  // =========================================================================
+  // ✅ BUILD - Reactive UI
+  // =========================================================================
 
   @override
   Widget build(BuildContext context) {
@@ -642,23 +606,20 @@ class _CyberTimeState extends State<CyberTime> {
       finalWidget = textField;
     }
 
-    // ✅ Listen to controller for reactive updates (CONTROLLED MODE only)
-    if (_isControlled) {
-      return ListenableBuilder(
-        listenable: widget.controller!,
-        builder: (context, child) => finalWidget,
-      );
-    }
-
-    // ✅ Listen to binding (SIMPLE MODE)
-    if (_boundRow != null) {
-      return ListenableBuilder(
-        listenable: _boundRow!,
-        builder: (context, child) => finalWidget,
-      );
-    }
-
-    return finalWidget;
+    // ✅ Listen to controller for reactive updates
+    return ListenableBuilder(
+      listenable: _controller,
+      builder: (context, child) {
+        // ✅ Also listen to binding if exists
+        if (_boundRow != null) {
+          return ListenableBuilder(
+            listenable: _boundRow!,
+            builder: (context, child) => finalWidget,
+          );
+        }
+        return finalWidget;
+      },
+    );
   }
 
   InputDecoration _buildDecoration(String? errorText) {
@@ -711,8 +672,10 @@ class _CyberTimeState extends State<CyberTime> {
   }
 }
 
-// iOS Time Picker Sheet remains the same...
-// iOS Time Picker giữ nguyên...
+// ============================================================================
+// ✅ IOS TIME PICKER SHEET
+// ============================================================================
+
 class _IOSTimePickerSheet extends StatefulWidget {
   final TimeOfDay initialTime;
   final bool showSeconds;
