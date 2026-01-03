@@ -34,8 +34,15 @@ class CyberText extends StatefulWidget {
   /// Hint text bên trong field
   final String? hint;
 
-  /// Icon hiển thị bên trái
-  final IconData? icon;
+  /// Icon code hiển thị bên trái (VD: "e853")
+  /// Parse từ hex string sang IconData
+  final String? prefixIcon;
+
+  /// Kích thước border (đơn vị: pixel)
+  final int? borderSize;
+
+  /// Border radius (đơn vị: pixel)
+  final int? borderRadius;
 
   /// Loại bàn phím
   final TextInputType? keyboardType;
@@ -70,6 +77,9 @@ class CyberText extends StatefulWidget {
   /// Màu nền của field
   final Color? backgroundColor;
 
+  /// Màu border
+  final Color? borderColor;
+
   /// Màu khi focus (chưa dùng)
   final Color? focusColor;
 
@@ -94,7 +104,9 @@ class CyberText extends StatefulWidget {
     // UI
     this.label,
     this.hint,
-    this.icon,
+    this.prefixIcon,
+    this.borderSize = 1,
+    this.borderRadius,
     this.keyboardType,
     this.inputFormatters,
     this.maxLines = 1,
@@ -106,22 +118,23 @@ class CyberText extends StatefulWidget {
     this.isPassword = false,
     this.isShowLabel = true,
     this.backgroundColor,
+    this.borderColor = Colors.transparent,
     this.focusColor,
     this.labelStyle,
     this.onLeaver,
   }) : assert(
-          // Không được dùng cả text và controller cùng lúc
-          text == null || controller == null,
-          'CyberText: Không được truyền cả text và controller cùng lúc.\n'
-          'Chọn 1 trong 2:\n'
-          '- text: row.bind("field") hoặc text: "value"\n'
-          '- controller: myController',
-        ),
-        assert(
-          // Nếu text là String thì mới được dùng onChanged
-          text is! String || controller == null,
-          'CyberText: onChanged chỉ dùng với text mode, không dùng với controller mode',
-        );
+         // Không được dùng cả text và controller cùng lúc
+         text == null || controller == null,
+         'CyberText: Không được truyền cả text và controller cùng lúc.\n'
+         'Chọn 1 trong 2:\n'
+         '- text: row.bind("field") hoặc text: "value"\n'
+         '- controller: myController',
+       ),
+       assert(
+         // Nếu text là String thì mới được dùng onChanged
+         text is! String || controller == null,
+         'CyberText: onChanged chỉ dùng với text mode, không dùng với controller mode',
+       );
 
   @override
   State<CyberText> createState() => _CyberTextState();
@@ -305,10 +318,10 @@ class _CyberTextState extends State<CyberText> {
   /// Callback khi binding value thay đổi (từ code khác)
   void _onBindingChanged() {
     if (!mounted || _isInternalUpdate) return;
-    
+
     // Sync từ binding → controller → text
     final newValue = _currentBinding!.value?.toString() ?? '';
-    
+
     if (_activeController.value != newValue) {
       _isInternalUpdate = true;
       _activeController.setValue(newValue);
@@ -338,6 +351,19 @@ class _CyberTextState extends State<CyberText> {
   bool _isBindingExpressionMode() => widget.text is CyberBindingExpression;
   bool _isStaticTextMode() => widget.text is String;
 
+  /// Parse icon code từ hex string sang IconData
+  // IconData? _parseIconCode(String? iconCode) {
+  //   if (iconCode == null || iconCode.isEmpty) return null;
+
+  //   try {
+  //     // Parse hex string sang int (VD: "e853" -> 0xe853)
+  //     final codePoint = int.parse(iconCode, radix: 16);
+  //     return IconData(codePoint, fontFamily: 'MaterialIcons');
+  //   } catch (e) {
+  //     debugPrint('CyberText: Invalid icon code "$iconCode"');
+  //     return null;
+  //   }
+  // }
 
   // === SYNC CONTROLLER ↔ TEXT CONTROLLER (ANTI-LOOP) ===
 
@@ -455,7 +481,8 @@ class _CyberTextState extends State<CyberText> {
               children: [
                 Text(
                   widget.label!,
-                  style: widget.labelStyle ??
+                  style:
+                      widget.labelStyle ??
                       const TextStyle(
                         fontSize: 14,
                         color: Color(0xFF555555),
@@ -484,15 +511,37 @@ class _CyberTextState extends State<CyberText> {
 
   InputDecoration _buildDecoration() {
     final helperText = _activeController.helperText;
+    final iconData = widget.prefixIcon == null
+        ? null
+        : v_parseIcon(widget.prefixIcon!);
+    final borderWidth = widget.borderSize?.toDouble() ?? 0.0;
+    final radius = widget.borderRadius?.toDouble() ?? 4.0;
+    final effectiveBorderColor = widget.borderColor ?? Colors.grey;
+
+    // Tạo border style dựa vào borderSize
+    final borderStyle = borderWidth > 0
+        ? OutlineInputBorder(
+            borderRadius: BorderRadius.circular(radius),
+            borderSide: BorderSide(
+              color: effectiveBorderColor,
+              width: borderWidth,
+            ),
+          )
+        : null;
 
     return InputDecoration(
       hintText: widget.hint,
+      hintStyle: TextStyle(
+        color: Colors.grey.shade500, // tương đương secondaryLabel
+        fontSize: 15,
+        fontWeight: FontWeight.w400,
+      ),
       helperText: helperText,
       helperStyle: const TextStyle(
         color: Colors.blue,
         fontStyle: FontStyle.italic,
       ),
-      prefixIcon: widget.icon != null ? Icon(widget.icon, size: 20) : null,
+      prefixIcon: iconData != null ? Icon(iconData, size: 18) : null,
       suffixIcon: !widget.isPassword
           ? null
           : IconButton(
@@ -506,12 +555,13 @@ class _CyberTextState extends State<CyberText> {
                 });
               },
             ),
-      border: InputBorder.none,
-      enabledBorder: InputBorder.none,
-      focusedBorder: InputBorder.none,
-      errorBorder: InputBorder.none,
-      disabledBorder: InputBorder.none,
-      focusedErrorBorder: InputBorder.none,
+      // Áp dụng border nếu có borderSize > 0
+      border: borderStyle ?? InputBorder.none,
+      enabledBorder: borderStyle ?? InputBorder.none,
+      focusedBorder: borderStyle ?? InputBorder.none,
+      errorBorder: borderStyle ?? InputBorder.none,
+      disabledBorder: borderStyle ?? InputBorder.none,
+      focusedErrorBorder: borderStyle ?? InputBorder.none,
       filled: true,
       fillColor: widget.enabled
           ? (widget.backgroundColor ?? const Color(0xFFF5F5F5))
