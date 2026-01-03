@@ -542,6 +542,9 @@ class _CyberTextState extends State<CyberText> {
         fontStyle: FontStyle.italic,
       ),
       prefixIcon: iconData != null ? Icon(iconData, size: 18) : null,
+      prefixIconConstraints: iconData != null
+          ? const BoxConstraints(minWidth: 36, minHeight: 36)
+          : null,
       suffixIcon: !widget.isPassword
           ? null
           : IconButton(
