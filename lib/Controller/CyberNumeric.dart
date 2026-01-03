@@ -1,12 +1,12 @@
 import 'package:cyberframework/cyberframework.dart';
 
 /// CyberNumeric - Widget nhập liệu số với binding hỗ trợ
-/// 
+///
 /// Triết lý ERP/CyberFramework:
 /// - Internal Controller tự động (không cần khai báo)
 /// - Hỗ trợ binding: text: dr.bind("field_name")
 /// - Two-way binding tự động
-/// 
+///
 /// Ví dụ sử dụng:
 /// ```dart
 /// // Cách 1: Binding với CyberDataRow
@@ -15,13 +15,13 @@ import 'package:cyberframework/cyberframework.dart';
 ///   label: "Số lượng",
 ///   format: "#,##0.##",
 /// )
-/// 
+///
 /// // Cách 2: Giá trị tĩnh
 /// CyberNumeric(
 ///   text: 12345.67,
 ///   label: "Giá trị",
 /// )
-/// 
+///
 /// // Cách 3: External controller (advanced)
 /// final controller = CyberNumericController(value: 100);
 /// CyberNumeric(
@@ -31,7 +31,7 @@ import 'package:cyberframework/cyberframework.dart';
 /// ```
 class CyberNumeric extends StatefulWidget {
   /// ⚠️ KHÔNG dùng cả text VÀ controller cùng lúc
-  /// 
+  ///
   /// text hỗ trợ:
   /// - Binding: dr.bind("field_name")
   /// - Giá trị tĩnh: 123.45
@@ -44,11 +44,19 @@ class CyberNumeric extends StatefulWidget {
 
   final String? label;
   final String? hint;
-  
+
   /// Number format pattern: "###,###,##0.##" hoặc "#,##0.00"
   final String? format;
-  
-  final IconData? icon;
+
+  /// Icon code hiển thị bên trái (VD: "e853")
+  final String? prefixIcon;
+
+  /// Kích thước border (đơn vị: pixel)
+  final int? borderSize;
+
+  /// Border radius (đơn vị: pixel)
+  final int? borderRadius;
+
   final bool enabled;
   final dynamic isVisible;
   final TextStyle? style;
@@ -66,6 +74,7 @@ class CyberNumeric extends StatefulWidget {
 
   final bool isShowLabel;
   final Color? backgroundColor;
+  final Color? borderColor;
   final Color? focusColor;
   final TextStyle? labelStyle;
   final dynamic isCheckEmpty;
@@ -77,7 +86,9 @@ class CyberNumeric extends StatefulWidget {
     this.label,
     this.hint,
     this.format = "### ### ### ###.##",
-    this.icon,
+    this.prefixIcon,
+    this.borderSize = 1,
+    this.borderRadius,
     this.enabled = true,
     this.isVisible = true,
     this.style,
@@ -88,6 +99,7 @@ class CyberNumeric extends StatefulWidget {
     this.max,
     this.isShowLabel = true,
     this.backgroundColor,
+    this.borderColor = Colors.transparent,
     this.focusColor,
     this.labelStyle,
     this.isCheckEmpty = false,
@@ -113,7 +125,7 @@ class _CyberNumericState extends State<CyberNumeric> {
 
   /// ✅ Internal controller (tạo tự động nếu không có external controller)
   CyberNumericController? _internalController;
-  
+
   /// ✅ Effective controller - ưu tiên external, fallback internal
   CyberNumericController get _effectiveController =>
       widget.controller ?? _internalController!;
@@ -308,12 +320,11 @@ class _CyberNumericState extends State<CyberNumeric> {
     dynamic rawValue;
     if (_boundRow != null && _boundField != null) {
       rawValue = _boundRow![_boundField!];
-    } 
+    }
     // Priority 3: Static text value
     else if (widget.text != null) {
       rawValue = widget.text;
-    } 
-    else {
+    } else {
       return null;
     }
 
@@ -729,17 +740,40 @@ class _CyberNumericState extends State<CyberNumeric> {
   }
 
   InputDecoration _buildDecoration(bool isEnabled) {
+    final iconData = widget.prefixIcon == null
+        ? null
+        : v_parseIcon(widget.prefixIcon!);
+    final borderWidth = widget.borderSize?.toDouble() ?? 0.0;
+    final radius = widget.borderRadius?.toDouble() ?? 4.0;
+    final effectiveBorderColor = widget.borderColor ?? Colors.grey;
+
+    // Tạo border style dựa vào borderSize
+    final borderStyle = borderWidth > 0
+        ? OutlineInputBorder(
+            borderRadius: BorderRadius.circular(radius),
+            borderSide: BorderSide(
+              color: effectiveBorderColor,
+              width: borderWidth,
+            ),
+          )
+        : null;
+
     return InputDecoration(
       hintText: widget.hint,
-      prefixIcon: widget.icon != null ? Icon(widget.icon, size: 20) : null,
+      hintStyle: TextStyle(
+        color: Colors.grey.shade500,
+        fontSize: 15,
+        fontWeight: FontWeight.w400,
+      ),
+      prefixIcon: iconData != null ? Icon(iconData, size: 18) : null,
 
-      // ✅ Bỏ border
-      border: InputBorder.none,
-      enabledBorder: InputBorder.none,
-      focusedBorder: InputBorder.none,
-      errorBorder: InputBorder.none,
-      disabledBorder: InputBorder.none,
-      focusedErrorBorder: InputBorder.none,
+      // Áp dụng border nếu có borderSize > 0
+      border: borderStyle ?? InputBorder.none,
+      enabledBorder: borderStyle ?? InputBorder.none,
+      focusedBorder: borderStyle ?? InputBorder.none,
+      errorBorder: borderStyle ?? InputBorder.none,
+      disabledBorder: borderStyle ?? InputBorder.none,
+      focusedErrorBorder: borderStyle ?? InputBorder.none,
 
       // ✅ Background đồng bộ
       filled: true,

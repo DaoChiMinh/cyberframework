@@ -2,12 +2,12 @@ import 'package:cyberframework/cyberframework.dart';
 import 'package:flutter/cupertino.dart';
 
 /// CyberComboBox - ComboBox widget với data binding và internal controller
-/// 
+///
 /// Triết lý:
 /// - Internal Controller: Widget tự quản lý state, không cần khai báo controller bên ngoài
 /// - Binding Support: Hỗ trợ binding trực tiếp qua thuộc tính `text`
 /// - External Controller: Optional, khi cần control từ code
-/// 
+///
 /// Usage:
 /// ```dart
 /// // 1. Simple usage (không binding)
@@ -17,7 +17,7 @@ import 'package:flutter/cupertino.dart';
 ///   valueMember: "ma_kh",
 ///   displayMember: "ten_kh",
 /// )
-/// 
+///
 /// // 2. Binding usage (ERP style)
 /// CyberComboBox(
 ///   text: drEdit.bind("ma_kh"),
@@ -25,7 +25,7 @@ import 'package:flutter/cupertino.dart';
 ///   valueMember: "ma_kh",
 ///   displayMember: "ten_kh",
 /// )
-/// 
+///
 /// // 3. With external controller (advanced)
 /// final controller = CyberComboBoxController();
 /// CyberComboBox(
@@ -65,8 +65,14 @@ class CyberComboBox extends StatefulWidget {
   /// Style cho text được chọn
   final TextStyle? textStyle;
 
-  /// Icon
-  final IconData? icon;
+  /// Icon code hiển thị bên trái (VD: "e853")
+  final String? prefixIcon;
+
+  /// Kích thước border (đơn vị: pixel)
+  final int? borderSize;
+
+  /// Border radius (đơn vị: pixel)
+  final int? borderRadius;
 
   /// Có enable hay không
   final bool enabled;
@@ -102,13 +108,15 @@ class CyberComboBox extends StatefulWidget {
     this.hint,
     this.labelStyle,
     this.textStyle,
-    this.icon,
+    this.prefixIcon,
+    this.borderSize = 1,
+    this.borderRadius,
     this.enabled = true,
     this.onChanged,
     this.onLeaver,
     this.iconColor,
     this.backgroundColor,
-    this.borderColor,
+    this.borderColor = Colors.transparent,
     this.isShowLabel = true,
     this.isVisible = true,
     this.isCheckEmpty = false,
@@ -122,7 +130,7 @@ class _CyberComboBoxState extends State<CyberComboBox> {
   // ============================================================================
   // BINDING STATE
   // ============================================================================
-  
+
   CyberDataRow? _boundRow;
   String? _boundField;
   CyberDataRow? _visibilityBoundRow;
@@ -132,10 +140,10 @@ class _CyberComboBoxState extends State<CyberComboBox> {
   // ============================================================================
   // CONTROLLER STATE
   // ============================================================================
-  
+
   /// Internal controller - luôn tồn tại
   late final CyberComboBoxController _internalController;
-  
+
   /// Effective controller - ưu tiên external > internal
   CyberComboBoxController get _controller =>
       widget.controller ?? _internalController;
@@ -174,7 +182,7 @@ class _CyberComboBoxState extends State<CyberComboBox> {
       _unregisterListeners();
       _parseBinding();
       _registerListeners();
-      
+
       // Sync initial value từ binding mới
       if (!_isUpdating) {
         _syncFromBinding();
@@ -239,23 +247,23 @@ class _CyberComboBoxState extends State<CyberComboBox> {
   void _registerListeners() {
     // Binding listener
     _boundRow?.addListener(_onBindingChanged);
-    
+
     // Visibility binding listener
     if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
       _visibilityBoundRow!.addListener(_onVisibilityChanged);
     }
-    
+
     // Controller listener
     _controller.addListener(_onControllerChanged);
   }
 
   void _unregisterListeners() {
     _boundRow?.removeListener(_onBindingChanged);
-    
+
     if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
       _visibilityBoundRow!.removeListener(_onVisibilityChanged);
     }
-    
+
     _controller.removeListener(_onControllerChanged);
   }
 
@@ -308,7 +316,7 @@ class _CyberComboBoxState extends State<CyberComboBox> {
     try {
       final controllerValue = _controller.value;
       final bindingValue = _boundRow![_boundField!];
-      
+
       if (bindingValue != controllerValue) {
         // Preserve original type
         if (bindingValue is String && controllerValue != null) {
@@ -321,7 +329,7 @@ class _CyberComboBoxState extends State<CyberComboBox> {
           _boundRow![_boundField!] = controllerValue;
         }
       }
-      
+
       setState(() {});
     } finally {
       _isUpdating = false;
@@ -569,7 +577,8 @@ class _CyberComboBoxState extends State<CyberComboBox> {
                   children: [
                     Text(
                       widget.label!,
-                      style: widget.labelStyle ??
+                      style:
+                          widget.labelStyle ??
                           const TextStyle(
                             fontSize: 14,
                             color: Color(0xFF555555),
@@ -592,28 +601,25 @@ class _CyberComboBoxState extends State<CyberComboBox> {
             // ComboBox
             InkWell(
               onTap: isEnabled ? _showPicker : null,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(
+                widget.borderRadius?.toDouble() ?? 4.0,
+              ),
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
                   vertical: 12,
                 ),
-                decoration: BoxDecoration(
-                  color: isEnabled
-                      ? (widget.backgroundColor ?? const Color(0xFFF5F5F5))
-                      : const Color(0xFFE0E0E0),
-                  borderRadius: BorderRadius.circular(8),
-                ),
+                decoration: _buildDecoration(isEnabled),
                 child: Row(
                   children: [
                     // Icon (optional)
-                    if (widget.icon != null) ...[
+                    if (widget.prefixIcon != null) ...[
                       Icon(
-                        widget.icon,
+                        v_parseIcon(widget.prefixIcon!),
                         color: isEnabled
                             ? (widget.iconColor ?? Colors.grey[600])
                             : Colors.grey[400],
-                        size: 20,
+                        size: 18,
                       ),
                       const SizedBox(width: 12),
                     ],
@@ -622,12 +628,14 @@ class _CyberComboBoxState extends State<CyberComboBox> {
                     Expanded(
                       child: Text(
                         displayText,
-                        style: widget.textStyle ??
+                        style:
+                            widget.textStyle ??
                             TextStyle(
-                              fontSize: 16,
+                              fontSize: 15,
                               color: hasValue
                                   ? (isEnabled ? Colors.black87 : Colors.grey)
-                                  : Colors.grey[500],
+                                  : Colors.grey.shade500,
+                              fontWeight: hasValue ? null : FontWeight.w400,
                             ),
                       ),
                     ),
@@ -645,6 +653,22 @@ class _CyberComboBoxState extends State<CyberComboBox> {
           ],
         );
       },
+    );
+  }
+
+  BoxDecoration _buildDecoration(bool isEnabled) {
+    final borderWidth = widget.borderSize?.toDouble() ?? 0.0;
+    final radius = widget.borderRadius?.toDouble() ?? 4.0;
+    final effectiveBorderColor = widget.borderColor ?? Colors.grey;
+
+    return BoxDecoration(
+      color: isEnabled
+          ? (widget.backgroundColor ?? const Color(0xFFF5F5F5))
+          : const Color(0xFFE0E0E0),
+      borderRadius: BorderRadius.circular(radius),
+      border: borderWidth > 0
+          ? Border.all(color: effectiveBorderColor, width: borderWidth)
+          : null,
     );
   }
 }

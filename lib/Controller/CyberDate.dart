@@ -2,12 +2,12 @@ import 'package:cyberframework/cyberframework.dart';
 import 'package:intl/intl.dart';
 
 /// CyberDate - Widget chọn ngày với binding hỗ trợ
-/// 
+///
 /// Triết lý ERP/CyberFramework:
 /// - Internal Controller tự động (không cần khai báo)
 /// - Hỗ trợ binding: text: dr.bind("ngay_sinh")
 /// - Two-way binding tự động
-/// 
+///
 /// Ví dụ sử dụng:
 /// ```dart
 /// // Cách 1: Binding với CyberDataRow
@@ -16,13 +16,13 @@ import 'package:intl/intl.dart';
 ///   label: "Ngày sinh",
 ///   format: "dd/MM/yyyy",
 /// )
-/// 
+///
 /// // Cách 2: Giá trị tĩnh
 /// CyberDate(
 ///   text: DateTime.now(),
 ///   label: "Ngày hiện tại",
 /// )
-/// 
+///
 /// // Cách 3: External controller (advanced)
 /// final controller = CyberDateController();
 /// CyberDate(
@@ -32,7 +32,7 @@ import 'package:intl/intl.dart';
 /// ```
 class CyberDate extends StatefulWidget {
   /// ⚠️ KHÔNG dùng cả text VÀ controller cùng lúc
-  /// 
+  ///
   /// text hỗ trợ:
   /// - Binding: dr.bind("ngay_sinh")
   /// - Giá trị tĩnh: DateTime.now()
@@ -45,25 +45,34 @@ class CyberDate extends StatefulWidget {
 
   final String? label;
   final String? hint;
-  
+
   /// Date format: "dd/MM/yyyy", "yyyy-MM-dd", etc.
   final String format;
-  
-  final IconData? icon;
+
+  /// Icon code hiển thị bên trái (VD: "e935")
+  final String? prefixIcon;
+
+  /// Kích thước border (đơn vị: pixel)
+  final int? borderSize;
+
+  /// Border radius (đơn vị: pixel)
+  final int? borderRadius;
+
   final bool enabled;
   final TextStyle? style;
   final InputDecoration? decoration;
-  
+
   /// Callback khi giá trị thay đổi
   final ValueChanged<DateTime?>? onChanged;
   final Function(dynamic)? onLeaver;
-  
+
   /// Giới hạn ngày
   final DateTime? minDate;
   final DateTime? maxDate;
-  
+
   final bool isShowLabel;
   final Color? backgroundColor;
+  final Color? borderColor;
   final Color? focusColor;
   final TextStyle? labelStyle;
   final dynamic isVisible;
@@ -85,7 +94,9 @@ class CyberDate extends StatefulWidget {
     this.label,
     this.hint,
     this.format = "dd/MM/yyyy",
-    this.icon,
+    this.prefixIcon,
+    this.borderSize = 1,
+    this.borderRadius,
     this.enabled = true,
     this.style,
     this.decoration,
@@ -95,6 +106,7 @@ class CyberDate extends StatefulWidget {
     this.maxDate,
     this.isShowLabel = true,
     this.backgroundColor,
+    this.borderColor = Colors.transparent,
     this.focusColor,
     this.labelStyle,
     this.isVisible = true,
@@ -129,7 +141,7 @@ class _CyberDateState extends State<CyberDate> {
 
   /// ✅ Internal controller (tạo tự động nếu không có external controller)
   CyberDateController? _internalController;
-  
+
   /// ✅ Effective controller - ưu tiên external, fallback internal
   CyberDateController get _effectiveController =>
       widget.controller ?? _internalController!;
@@ -145,7 +157,7 @@ class _CyberDateState extends State<CyberDate> {
 
     _textController = TextEditingController();
     _focusNode = FocusNode();
-    
+
     _setupDateFormat();
     _setupDateRange();
     _parseBinding();
@@ -352,12 +364,11 @@ class _CyberDateState extends State<CyberDate> {
     dynamic rawValue;
     if (_boundRow != null && _boundField != null) {
       rawValue = _boundRow![_boundField!];
-    } 
+    }
     // Priority 3: Static text value
     else if (widget.text != null) {
       rawValue = widget.text;
-    } 
-    else {
+    } else {
       return null;
     }
 
@@ -669,12 +680,51 @@ class _CyberDateState extends State<CyberDate> {
 
   InputDecoration _buildDecoration(String? errorText) {
     final hasError = errorText != null;
+    final iconData = widget.prefixIcon != null
+        ? v_parseIcon(widget.prefixIcon!)
+        : null;
+    final borderWidth = widget.borderSize?.toDouble() ?? 0.0;
+    final radius = widget.borderRadius?.toDouble() ?? 4.0;
+    final effectiveBorderColor = hasError
+        ? Colors.red
+        : (widget.borderColor ?? Colors.grey);
+
+    // Tạo border style dựa vào borderSize và error state
+    final borderStyle = (borderWidth > 0 || hasError)
+        ? OutlineInputBorder(
+            borderRadius: BorderRadius.circular(radius),
+            borderSide: BorderSide(
+              color: effectiveBorderColor,
+              width: hasError ? 1.0 : borderWidth,
+            ),
+          )
+        : null;
+
+    final focusedBorderStyle = hasError
+        ? OutlineInputBorder(
+            borderRadius: BorderRadius.circular(radius),
+            borderSide: const BorderSide(color: Colors.red, width: 2),
+          )
+        : (borderWidth > 0
+              ? OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(radius),
+                  borderSide: BorderSide(
+                    color: effectiveBorderColor,
+                    width: borderWidth,
+                  ),
+                )
+              : null);
 
     return InputDecoration(
       hintText: widget.hint ?? 'Chọn ngày',
-      prefixIcon: widget.icon != null
-          ? Icon(widget.icon, size: 20)
-          : const Icon(Icons.calendar_today, size: 20),
+      hintStyle: TextStyle(
+        color: Colors.grey.shade500,
+        fontSize: 15,
+        fontWeight: FontWeight.w400,
+      ),
+      prefixIcon: iconData != null
+          ? Icon(iconData, size: 18)
+          : const Icon(Icons.calendar_today, size: 18),
       suffixIcon: widget.enabled
           ? IconButton(
               icon: const Icon(Icons.arrow_drop_down, size: 20),
@@ -682,34 +732,13 @@ class _CyberDateState extends State<CyberDate> {
             )
           : null,
 
-      // ✅ Border for error state
-      border: hasError
-          ? OutlineInputBorder(
-              borderSide: const BorderSide(color: Colors.red),
-              borderRadius: BorderRadius.circular(8),
-            )
-          : InputBorder.none,
-      enabledBorder: hasError
-          ? OutlineInputBorder(
-              borderSide: const BorderSide(color: Colors.red),
-              borderRadius: BorderRadius.circular(8),
-            )
-          : InputBorder.none,
-      focusedBorder: hasError
-          ? OutlineInputBorder(
-              borderSide: const BorderSide(color: Colors.red, width: 2),
-              borderRadius: BorderRadius.circular(8),
-            )
-          : InputBorder.none,
-      errorBorder: OutlineInputBorder(
-        borderSide: const BorderSide(color: Colors.red),
-        borderRadius: BorderRadius.circular(8),
-      ),
+      // ✅ Border based on error state and borderSize
+      border: borderStyle ?? InputBorder.none,
+      enabledBorder: borderStyle ?? InputBorder.none,
+      focusedBorder: focusedBorderStyle ?? InputBorder.none,
+      errorBorder: borderStyle ?? InputBorder.none,
       disabledBorder: InputBorder.none,
-      focusedErrorBorder: OutlineInputBorder(
-        borderSide: const BorderSide(color: Colors.red, width: 2),
-        borderRadius: BorderRadius.circular(8),
-      ),
+      focusedErrorBorder: focusedBorderStyle ?? InputBorder.none,
 
       // Background
       filled: true,

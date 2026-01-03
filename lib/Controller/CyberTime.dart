@@ -26,12 +26,22 @@ class CyberTime extends StatefulWidget {
   final String? label;
   final String? hint;
   final String format;
-  final IconData? icon;
+
+  /// Icon code hiển thị bên trái (VD: "e8b5")
+  final String? prefixIcon;
+
+  /// Kích thước border (đơn vị: pixel)
+  final int? borderSize;
+
+  /// Border radius (đơn vị: pixel)
+  final int? borderRadius;
+
   final bool enabled;
   final TextStyle? style;
   final InputDecoration? decoration;
   final bool isShowLabel;
   final Color? backgroundColor;
+  final Color? borderColor;
   final Color? focusColor;
   final TextStyle? labelStyle;
   final dynamic isVisible;
@@ -55,12 +65,15 @@ class CyberTime extends StatefulWidget {
     this.label,
     this.hint,
     this.format = "HH:mm",
-    this.icon,
+    this.prefixIcon,
+    this.borderSize = 1,
+    this.borderRadius,
     this.enabled = true,
     this.style,
     this.decoration,
     this.isShowLabel = true,
     this.backgroundColor,
+    this.borderColor = Colors.transparent,
     this.focusColor,
     this.labelStyle,
     this.isVisible = true,
@@ -341,7 +354,9 @@ class _CyberTimeState extends State<CyberTime> {
     }
 
     // ✅ Ngược lại, sync as string
-    final timeString = controllerValue != null ? _formatTime(controllerValue) : '';
+    final timeString = controllerValue != null
+        ? _formatTime(controllerValue)
+        : '';
     final currentBindingValue = _boundRow![_boundField!];
 
     if (currentBindingValue != timeString) {
@@ -624,45 +639,66 @@ class _CyberTimeState extends State<CyberTime> {
 
   InputDecoration _buildDecoration(String? errorText) {
     final hasError = errorText != null;
+    final iconData = widget.prefixIcon != null
+        ? v_parseIcon(widget.prefixIcon!)
+        : null;
+    final borderWidth = widget.borderSize?.toDouble() ?? 0.0;
+    final radius = widget.borderRadius?.toDouble() ?? 4.0;
+    final effectiveBorderColor = hasError
+        ? Colors.red
+        : (widget.borderColor ?? Colors.grey);
+
+    // Tạo border style dựa vào borderSize và error state
+    final borderStyle = (borderWidth > 0 || hasError)
+        ? OutlineInputBorder(
+            borderRadius: BorderRadius.circular(radius),
+            borderSide: BorderSide(
+              color: effectiveBorderColor,
+              width: hasError ? 1.0 : borderWidth,
+            ),
+          )
+        : null;
+
+    final focusedBorderStyle = hasError
+        ? OutlineInputBorder(
+            borderRadius: BorderRadius.circular(radius),
+            borderSide: const BorderSide(color: Colors.red, width: 2),
+          )
+        : (borderWidth > 0
+              ? OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(radius),
+                  borderSide: BorderSide(
+                    color: effectiveBorderColor,
+                    width: borderWidth,
+                  ),
+                )
+              : null);
 
     return InputDecoration(
       hintText: widget.hint ?? 'Chọn giờ',
-      prefixIcon: widget.icon != null
-          ? Icon(widget.icon, size: 20)
-          : const Icon(Icons.access_time, size: 20),
+      hintStyle: TextStyle(
+        color: Colors.grey.shade500,
+        fontSize: 15,
+        fontWeight: FontWeight.w400,
+      ),
+      prefixIcon: iconData != null
+          ? Icon(iconData, size: 18)
+          : const Icon(Icons.access_time, size: 18),
       suffixIcon: widget.enabled
           ? IconButton(
               icon: const Icon(Icons.arrow_drop_down, size: 20),
               onPressed: _showTimePicker,
             )
           : null,
-      border: hasError
-          ? OutlineInputBorder(
-              borderSide: const BorderSide(color: Colors.red),
-              borderRadius: BorderRadius.circular(8),
-            )
-          : InputBorder.none,
-      enabledBorder: hasError
-          ? OutlineInputBorder(
-              borderSide: const BorderSide(color: Colors.red),
-              borderRadius: BorderRadius.circular(8),
-            )
-          : InputBorder.none,
-      focusedBorder: hasError
-          ? OutlineInputBorder(
-              borderSide: const BorderSide(color: Colors.red, width: 2),
-              borderRadius: BorderRadius.circular(8),
-            )
-          : InputBorder.none,
-      errorBorder: OutlineInputBorder(
-        borderSide: const BorderSide(color: Colors.red),
-        borderRadius: BorderRadius.circular(8),
-      ),
+
+      // ✅ Border based on error state and borderSize
+      border: borderStyle ?? InputBorder.none,
+      enabledBorder: borderStyle ?? InputBorder.none,
+      focusedBorder: focusedBorderStyle ?? InputBorder.none,
+      errorBorder: borderStyle ?? InputBorder.none,
       disabledBorder: InputBorder.none,
-      focusedErrorBorder: OutlineInputBorder(
-        borderSide: const BorderSide(color: Colors.red, width: 2),
-        borderRadius: BorderRadius.circular(8),
-      ),
+      focusedErrorBorder: focusedBorderStyle ?? InputBorder.none,
+
       filled: true,
       fillColor: widget.enabled
           ? (widget.backgroundColor ?? const Color(0xFFF5F5F5))
