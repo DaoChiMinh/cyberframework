@@ -24,6 +24,8 @@ export 'package:cyberframework/Module/Info/deviceinfo.dart';
 export 'package:cyberframework/Module/Info/userinfo.dart';
 export 'package:cyberframework/Module/cyber_vietnamese_utils.dart';
 //cybercheckboxcontroller
+export 'package:cyberframework/Controller/cyberotpcontroller.dart';
+export 'package:cyberframework/Controller/cyberotp.dart';
 export 'package:cyberframework/Controller/cybercheckboxcontroller.dart';
 export 'package:cyberframework/Controller/cybercameracontroller.dart';
 export 'package:cyberframework/Controller/cyberimagecontroller.dart';
