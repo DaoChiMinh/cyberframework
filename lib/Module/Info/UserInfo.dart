@@ -105,7 +105,7 @@ class UserInfo {
     if (dtlogin.containerColumn("loginotp")) {
       LoginOTP = loginRow["loginotp"] == null
           ? false
-          : loginRow["loginotp"]!.toString() == "1";
+          : loginRow["loginotp"]! == 1;
     }
 
     if (dtlogin.containerColumn("id_otp")) {
