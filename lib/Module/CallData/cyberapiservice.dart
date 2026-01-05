@@ -3,7 +3,6 @@
 import 'package:cyberframework/cyberframework.dart';
 import 'package:http/http.dart' as http;
 
-/// ✅ OPTIMIZED: API Service with lifecycle awareness & proper cache management
 class CyberApiService with WidgetsBindingObserver {
   static final CyberApiService _instance = CyberApiService._internal();
   factory CyberApiService() => _instance;
@@ -265,10 +264,6 @@ class CyberApiService with WidgetsBindingObserver {
     }
   }
 
-  // ============================================================================
-  // ⚡ OPTIMIZED CACHE MANAGEMENT
-  // ============================================================================
-
   Future<InternetCheckResult> _performInternetCheckWithCache(
     BuildContext context,
   ) async {
@@ -323,10 +318,6 @@ class CyberApiService with WidgetsBindingObserver {
     _cacheTime = null;
   }
 
-  // ============================================================================
-  // ✅ ERROR ANALYSIS
-  // ============================================================================
-
   Future<_ErrorInfo> _analyzeNetworkError() async {
     final connectivity = CyberConnectivityService();
     final currentResults = await connectivity.checkConnectivity();
@@ -371,10 +362,6 @@ class CyberApiService with WidgetsBindingObserver {
       errorType: InternetErrorType.none,
     );
   }
-
-  // ============================================================================
-  // UI HELPERS
-  // ============================================================================
 
   void _showError(
     BuildContext context,
@@ -434,11 +421,6 @@ class CyberApiService with WidgetsBindingObserver {
     );
   }
 
-  // ============================================================================
-  // PUBLIC METHODS
-  // ============================================================================
-
-  /// Reset cache & VPN state
   void resetState() {
     _initialVPNState = null;
     _invalidateCache();
