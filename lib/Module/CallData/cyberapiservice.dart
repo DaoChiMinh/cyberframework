@@ -431,6 +431,166 @@ class CyberApiService with WidgetsBindingObserver {
     _invalidateCache();
   }
 
+  String dnsUrl = 'https://mauiapisys.cybersoft.com.vn/api/DsDonVi';
+
+  Future<ReturnData> v_dns({
+    required BuildContext context,
+    String dns = '',
+    bool showLoading = true,
+    bool showError = true,
+  }) async {
+    // ✅ Check if app is paused
+    if (_isAppPaused) {
+      return ReturnData(
+        status: false,
+        message: 'App is in background',
+        isConnect: false,
+      );
+    }
+
+    // ⚡ Internet check with cache
+    if (enableInternetCheck) {
+      final checkResult = await _performInternetCheckWithCache(context);
+      if (!checkResult.isValid) {
+        if (showError && context.mounted) {
+          _showError(context, checkResult.message, checkResult.errorType);
+        }
+        return ReturnData(
+          status: false,
+          message: checkResult.message,
+          isConnect: false,
+        );
+      }
+
+      _initialVPNState ??= checkResult.isUsingVPN;
+    }
+
+    if (showLoading && context.mounted) {
+      showLoadingOverlay(context);
+    }
+
+    try {
+      final url = Uri.parse(dnsUrl);
+
+      final response = await http
+          .post(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+              'Cyber-cetificate': await DeviceInfo.cetificate,
+              'Cyber-Mac': await DeviceInfo.macdevice,
+              'Access-Control-Allow-Origin': '*',
+            },
+            body: jsonEncode(dns),
+          )
+          .timeout(timeout);
+
+      if (showLoading && context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+
+      if (response.statusCode != 200) {
+        final returnData = ReturnData(
+          status: false,
+          message: 'HTTP ${response.statusCode}: ${response.reasonPhrase}',
+          isConnect: true,
+        );
+
+        if (showError && context.mounted) {
+          _showError(context, returnData.message!, InternetErrorType.none);
+        }
+
+        return returnData;
+      }
+
+      final encryptedData = response.body;
+
+      if (encryptedData.isEmpty) {
+        final returnData = ReturnData(
+          status: false,
+          message: 'Response không hợp lệ',
+          isConnect: true,
+        );
+
+        if (showError && context.mounted) {
+          _showError(context, returnData.message!, InternetErrorType.none);
+        }
+
+        return returnData;
+      }
+
+      final returnData = parseResponse(encryptedData);
+
+      // ✅ Show server error if needed
+      if (!returnData.isValid() &&
+          showError &&
+          context.mounted &&
+          returnData.isConnect == true) {
+        _showError(
+          context,
+          returnData.message ?? 'Lỗi từ máy chủ',
+          InternetErrorType.none,
+        );
+      }
+
+      return returnData;
+    } on SocketException {
+      if (showLoading && context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+
+      _invalidateCache();
+
+      final errorInfo = await _analyzeNetworkError();
+      final returnData = ReturnData(
+        status: false,
+        message: errorInfo.message,
+        isConnect: false,
+      );
+
+      if (showError && context.mounted) {
+        _showError(context, errorInfo.message, errorInfo.errorType);
+      }
+
+      return returnData;
+    } on TimeoutException {
+      if (showLoading && context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+
+      _invalidateCache();
+
+      final errorInfo = await _analyzeTimeoutError();
+      final returnData = ReturnData(
+        status: false,
+        message: errorInfo.message,
+        isConnect: false,
+      );
+
+      if (showError && context.mounted) {
+        _showError(context, errorInfo.message, errorInfo.errorType);
+      }
+
+      return returnData;
+    } catch (e) {
+      if (showLoading && context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+
+      final returnData = ReturnData(
+        status: false,
+        message: 'Lỗi: $e',
+        isConnect: false,
+      );
+
+      if (showError && context.mounted) {
+        _showError(context, returnData.message!, InternetErrorType.none);
+      }
+
+      return returnData;
+    }
+  }
+
   /// ✅ Cleanup (call when app terminates)
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);

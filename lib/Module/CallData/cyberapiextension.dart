@@ -19,4 +19,17 @@ extension CyberApiExtension on BuildContext {
       showError: showError,
     );
   }
+
+  Future<ReturnData> v_dns({
+    String dns = '',
+    bool showLoading = true,
+    bool showError = true,
+  }) {
+    return CyberApiService().v_dns(
+      context: this,
+      dns: dns,
+      showLoading: showLoading,
+      showError: showError,
+    );
+  }
 }
