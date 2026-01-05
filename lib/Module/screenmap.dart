@@ -5,7 +5,7 @@ final _getIt = GetIt.instance;
 // ignore: non_constant_identifier_names
 final Map<String, String> _factoryMap_form = {};
 // ignore: non_constant_identifier_names
-final Map<String, CyberContentViewForm Function()> _factoryMap_contentView = {};
+final Map<String, String> _factoryMap_contentView = {};
 
 void buildFactoryMap() {
   _factoryMap_form.clear();
@@ -26,7 +26,7 @@ void buildFactoryMap() {
     final contentViews = _getIt.getAll<CyberContentViewForm>();
     for (var view in contentViews) {
       final lowerName = view.runtimeType.toString().toLowerCase();
-      _factoryMap_contentView[lowerName] = () => view;
+      _factoryMap_contentView[lowerName] = view.runtimeType.toString();
     }
     // ignore: empty_catches
   } catch (e) {}
@@ -73,12 +73,21 @@ CyberContentViewWidget? V_getView(
   dynamic objectData,
 }) {
   final normalizedName = viewName.toLowerCase().trim();
-  final factory = _factoryMap_contentView[normalizedName];
+  final strfactory = _factoryMap_contentView[normalizedName];
 
-  if (factory == null) return null;
+  if (strfactory == null) return null;
+
+  CyberContentViewForm? frm;
+  try {
+    frm = _getIt.get<CyberContentViewForm>(instanceName: strfactory);
+  } catch (e) {
+    frm = null;
+  }
+
+  if (frm == null) return null;
 
   return CyberContentViewWidget(
-    formBuilder: factory,
+    formBuilder: () => frm!,
     cpName: cpName,
     strParameter: strParameter,
     objectData: objectData,
@@ -93,11 +102,18 @@ CyberContentViewForm? V_getViewInstance(
   dynamic objectData,
 }) {
   final normalizedName = viewName.toLowerCase().trim();
-  final factory = _factoryMap_contentView[normalizedName];
+  final strfactory = _factoryMap_contentView[normalizedName];
 
-  if (factory == null) return null;
+  if (strfactory == null) return null;
+  CyberContentViewForm? frm;
+  try {
+    frm = _getIt.get<CyberContentViewForm>(instanceName: strfactory);
+  } catch (e) {
+    frm = null;
+  }
 
-  final instance = factory();
+  if (frm == null) return null;
+  final instance = (() => frm!)();
   // Initialize instance with parameters using internal setters
   instance.internalCpName = cpName;
   instance.internalStrParameter = strParameter;
