@@ -3,7 +3,7 @@ import 'package:get_it/get_it.dart';
 
 final _getIt = GetIt.instance;
 // ignore: non_constant_identifier_names
-final Map<String, CyberForm Function()> _factoryMap_form = {};
+final Map<String, String> _factoryMap_form = {};
 // ignore: non_constant_identifier_names
 final Map<String, CyberContentViewForm Function()> _factoryMap_contentView = {};
 
@@ -16,7 +16,7 @@ void buildFactoryMap() {
     final forms = _getIt.getAll<CyberForm>();
     for (var form in forms) {
       final lowerName = form.runtimeType.toString().toLowerCase();
-      _factoryMap_form[lowerName] = () => form;
+      _factoryMap_form[lowerName] = form.runtimeType.toString();
     }
     // ignore: empty_catches
   } catch (e) {}
@@ -43,13 +43,21 @@ CyberFormView? V_getScreen(
   bool isMainScreen = false,
 }) {
   final normalizedName = strfrm.toLowerCase().trim();
-  final factory = _factoryMap_form[normalizedName];
+  String? strfactory = _factoryMap_form[normalizedName];
 
-  if (factory == null) return null;
+  if (strfactory == null) return null;
+  CyberForm? frm;
+  try {
+    frm = _getIt.get<CyberForm>(instanceName: strfactory);
+  } catch (e) {
+    frm = null;
+  }
+
+  if (frm == null) return null;
 
   return CyberFormView(
     title: title,
-    formBuilder: factory,
+    formBuilder: () => frm!,
     cp_name: cpName,
     strparameter: strparameter,
     hideAppBar: hideAppBar,
