@@ -1,0 +1,50 @@
+# =========================
+# IDE / Editor
+# =========================
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# =========================
+# Build / Tooling
+# =========================
+.build/
+.buildlog/
+.dart_tool/
+.flutter-plugins-dependencies
+build/
+coverage/
+
+# =========================
+# OS / Temp
+# =========================
+.DS_Store
+*.log
+*.swp
+*.class
+*.pyc
+
+# =========================
+# SCM / History
+# =========================
+.svn/
+.history/
+.swiftpm/
+migrate_working_dir/
+
+# =========================
+# Docs generated
+# =========================
+**/doc/api/
+
+# =========================
+# Explicitly KEEP source
+# =========================
+!lib/**
+!example/**
+!pubspec.yaml
+!README.md
+!CHANGELOG.md
+!LICENSE
