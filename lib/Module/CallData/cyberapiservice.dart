@@ -145,9 +145,12 @@ class CyberApiService with WidgetsBindingObserver {
       final requestStr = await dataPost.convertToRequestString();
       baseUrl = await DeviceInfo.servername;
       if (baseUrl == "") {
-        baseUrl = 'https://mauiapidms.cybersoft.com.vn/api/CyberAPI';
+        baseUrl = 'https://mauiapidms.cybersoft.com.vn/';
       }
-
+      if (!baseUrl.endsWith("/")) {
+        baseUrl += "/";
+      }
+      baseUrl += "api/CyberAPI";
       final url = Uri.parse(baseUrl);
 
       final response = await http
