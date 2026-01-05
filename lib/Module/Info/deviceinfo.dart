@@ -20,6 +20,10 @@ class DeviceInfo extends ChangeNotifier {
   static Future<void> seturlBanner(String value) async =>
       await AppStorage.set("urlBanner", value);
 
+  static Future<String> get apicon async => await AppStorage.get("apicon");
+  static Future<void> setapicon(String value) async =>
+      await AppStorage.set("apicon", value);
+
   static Future<String> get macdevice async =>
       await AppStorage.get("macdevice");
   static Future<void> setmacdevice(String value) async =>
