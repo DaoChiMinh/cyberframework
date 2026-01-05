@@ -104,45 +104,17 @@ class UserInfo {
     comment = loginRow["Comment"]?.toString() ?? "";
     ma_dvcs = loginRow["ma_dvcs"]?.toString() ?? "";
 
-    // ✅ Handle isOTP với nhiều format khác nhau
-    if (dtlogin.containerColumn("isOTP")) {
-      final otpValue = loginRow["isOTP"];
-      if (otpValue is bool) {
-        isOTP = otpValue ? "1" : "0";
-      } else if (otpValue is String) {
-        isOTP = otpValue;
-      } else if (otpValue is int) {
-        isOTP = otpValue.toString();
-      } else {
-        isOTP = "0";
-      }
-    } else if (dtlogin.containerColumn("isotp")) {
-      // ✅ Fallback cho lowercase field
-      final otpValue = loginRow["isotp"];
-      if (otpValue is bool) {
-        isOTP = otpValue ? "1" : "0";
-      } else if (otpValue is String) {
-        isOTP = otpValue;
-      } else if (otpValue is int) {
-        isOTP = otpValue.toString();
-      } else {
-        isOTP = "0";
-      }
-    } else {
-      isOTP = "0";
-    }
-
     // ✅ Handle id_otp
     if (dtlogin.containerColumn("loginotp")) {
-      LoginOTP = loginRow["id_otp"] == null
+      LoginOTP = loginRow["loginotp"] == null
           ? false
-          : loginRow["id_otp"]!.toString() == "1";
+          : loginRow["loginotp"]!.toString() == "1";
     }
 
     if (dtlogin.containerColumn("id_otp")) {
       id_otp = loginRow["id_otp"]?.toString() ?? "";
     } else if (dtlogin.containerColumn("idotp")) {
-      // ✅ Fallback cho lowercase
+      // ✅ Fallback cho lowercases
       id_otp = loginRow["idotp"]?.toString() ?? "";
     } else {
       id_otp = "";
