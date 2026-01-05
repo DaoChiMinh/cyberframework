@@ -153,7 +153,7 @@ class CyberApiService with WidgetsBindingObserver {
       } else {
         baseUrl = "${baseUrl}api/CyberAPI";
       }
-      baseUrl.V_MsgBox(context);
+
       final url = Uri.parse(baseUrl);
 
       final response = await http
