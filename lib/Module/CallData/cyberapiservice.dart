@@ -147,10 +147,13 @@ class CyberApiService with WidgetsBindingObserver {
       if (baseUrl == "") {
         baseUrl = 'https://mauiapidms.cybersoft.com.vn/';
       }
+
       if (!baseUrl.endsWith("/")) {
-        baseUrl += "/";
+        baseUrl = "$baseUrl/api/CyberAPI";
+      } else {
+        baseUrl = "${baseUrl}api/CyberAPI";
       }
-      baseUrl += "api/CyberAPI";
+      baseUrl.V_MsgBox(context);
       final url = Uri.parse(baseUrl);
 
       final response = await http
@@ -260,7 +263,7 @@ class CyberApiService with WidgetsBindingObserver {
 
       final returnData = ReturnData(
         status: false,
-        message: 'Lỗi: $e',
+        message: 'Error: $e',
         isConnect: false,
       );
 
