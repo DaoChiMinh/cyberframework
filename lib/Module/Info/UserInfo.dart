@@ -18,7 +18,7 @@ class UserInfo {
   static String isOTP = "";
   // ignore: non_constant_identifier_names
   static String id_otp = "";
-
+  static bool LoginOTP = false;
   // ignore: non_constant_identifier_names
   static Future<bool> V_Login(
     BuildContext contex, {
@@ -104,6 +104,12 @@ class UserInfo {
     }
 
     // ✅ Handle id_otp
+    if (dtlogin.containerColumn("loginotp")) {
+      LoginOTP = loginRow["id_otp"] == null
+          ? false
+          : loginRow["id_otp"]!.toString() == "1";
+    }
+
     if (dtlogin.containerColumn("id_otp")) {
       id_otp = loginRow["id_otp"]?.toString() ?? "";
     } else if (dtlogin.containerColumn("idotp")) {
@@ -112,6 +118,7 @@ class UserInfo {
     } else {
       id_otp = "";
     }
+
     // ✅ Cập nhật Language theo biến M_Lan từ server
     if (dtlogin.containerColumn("M_Lan")) {
       String languageCode = loginRow["M_Lan"]?.toString() ?? "";
