@@ -2,98 +2,47 @@ import 'package:cyberframework/cyberframework.dart';
 
 class CyberOTP extends StatefulWidget {
   // === BINDING / STATIC MODE ===
-  /// Giá trị của OTP - có thể là:
-  /// - `CyberBindingExpression` (từ `row.bind('field')`) → Binding mode
-  /// - `String` → Static mode (VD: "123456")
-  /// - `null` → Không có giá trị
   final dynamic text;
-
-  /// Callback khi OTP thay đổi (chỉ dùng với static String mode)
   final ValueChanged<String>? onChanged;
 
-  /// Callback khi OTP đã nhập đầy đủ
-  final ValueChanged<String>? onCompleted;
-
   // === EXTERNAL CONTROLLER MODE ===
-  /// Controller tự quản lý từ bên ngoài
-  /// ⚠️ Nếu dùng mode này thì KHÔNG dùng text
   final CyberOTPController? controller;
 
   // === OTP PROPERTIES ===
-  /// Số lượng ô OTP (mặc định: 6)
   final int length;
-
-  /// Có phải ô password (ẩn giá trị) không
   final bool isPassword;
 
   // === VALIDATION ===
-  /// Bắt buộc nhập (hiển thị dấu * đỏ)
   final bool isCheckEmpty;
 
   // === UI PROPERTIES ===
-  /// Label hiển thị phía trên
   final String? label;
-
-  /// Hint text cho mỗi ô (thường là số thứ tự hoặc để trống)
   final String? hint;
-
-  /// Khoảng cách giữa các ô
   final double spacing;
-
-  /// Kích thước mỗi ô
   final double boxSize;
-
-  /// Border radius của mỗi ô
   final double borderRadius;
-
-  /// Độ dày border
   final double borderWidth;
-
-  /// Màu nền của ô
   final Color? backgroundColor;
-
-  /// Màu border khi không focus
   final Color? borderColor;
-
-  /// Màu border khi focus
   final Color? focusedBorderColor;
-
-  /// Màu text
   final Color? textColor;
-
-  /// Font size của text
   final double? fontSize;
-
-  /// Có cho phép nhập hay không
   final bool enabled;
-
-  /// Có hiển thị widget hay không
   final bool isVisible;
-
-  /// Có hiển thị label phía trên không
   final bool isShowLabel;
-
-  /// Style của label
   final TextStyle? labelStyle;
 
   // === CALLBACKS ===
-  /// Callback khi focus ra khỏi tất cả các ô
   final VoidCallback? onLeaver;
 
   const CyberOTP({
     super.key,
-    // Binding / Static mode
     this.text,
     this.onChanged,
-    this.onCompleted,
-    // External controller mode
     this.controller,
-    // OTP properties
     this.length = 6,
     this.isPassword = false,
-    // Validation
     this.isCheckEmpty = false,
-    // UI
     this.label,
     this.hint,
     this.spacing = 8.0,
@@ -113,14 +62,7 @@ class CyberOTP extends StatefulWidget {
   }) : assert(length > 0 && length <= 10, 'CyberOTP: length phải từ 1 đến 10'),
        assert(
          text == null || controller == null,
-         'CyberOTP: Không được truyền cả text và controller cùng lúc.\n'
-         'Chọn 1 trong 2:\n'
-         '- text: row.bind("field") hoặc text: "value"\n'
-         '- controller: myController',
-       ),
-       assert(
-         text is! String || controller == null,
-         'CyberOTP: onChanged chỉ dùng với text mode, không dùng với controller mode',
+         'CyberOTP: Không được truyền cả text và controller cùng lúc',
        );
 
   @override
@@ -132,14 +74,11 @@ class _CyberOTPState extends State<CyberOTP> {
   late List<TextEditingController> _textControllers;
   late List<FocusNode> _focusNodes;
 
-  /// Internal controller - TỰ ĐỘNG tạo nếu không có external controller
   late CyberOTPController _internalController;
 
-  /// Controller thực sự đang dùng (internal hoặc external)
   CyberOTPController get _activeController =>
       widget.controller ?? _internalController;
 
-  /// Binding hiện tại (nếu đang dùng binding mode)
   CyberBindingExpression? _currentBinding;
 
   // === FLAG CHỐNG LOOP ===
@@ -149,10 +88,8 @@ class _CyberOTPState extends State<CyberOTP> {
   void initState() {
     super.initState();
 
-    // === TẠO INTERNAL CONTROLLER ===
     _internalController = _createInternalController();
 
-    // === TẠO TEXT CONTROLLERS & FOCUS NODES ===
     _textControllers = List.generate(
       widget.length,
       (index) => TextEditingController(),
@@ -160,8 +97,8 @@ class _CyberOTPState extends State<CyberOTP> {
 
     _focusNodes = List.generate(widget.length, (index) => FocusNode());
 
-    // === SETUP INITIAL VALUE ===
-    _syncFromController();
+    // ✅ SYNC CONTROLLER → UI
+    _syncControllerToUI();
 
     // === LẮNG NGHE CONTROLLER ===
     _activeController.addListener(_onControllerChanged);
@@ -172,7 +109,6 @@ class _CyberOTPState extends State<CyberOTP> {
       _focusNodes[i].addListener(() => _onFocusChanged(i));
     }
 
-    // === SETUP BINDING (nếu có) ===
     _setupBindingListener();
   }
 
@@ -180,12 +116,10 @@ class _CyberOTPState extends State<CyberOTP> {
   void didUpdateWidget(CyberOTP oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    // === XỬ LÝ THAY ĐỔI LENGTH ===
     if (widget.length != oldWidget.length) {
       _recreateControllers();
     }
 
-    // === XỬ LÝ THAY ĐỔI CONTROLLER ===
     if (widget.controller != oldWidget.controller) {
       if (oldWidget.controller != null) {
         oldWidget.controller!.removeListener(_onControllerChanged);
@@ -199,10 +133,9 @@ class _CyberOTPState extends State<CyberOTP> {
       }
 
       _activeController.addListener(_onControllerChanged);
-      _syncFromController();
+      _syncControllerToUI();
     }
 
-    // === XỬ LÝ THAY ĐỔI TEXT/BINDING ===
     if (widget.text != oldWidget.text) {
       _cleanupBindingListener();
       _setupBindingListener();
@@ -214,10 +147,9 @@ class _CyberOTPState extends State<CyberOTP> {
         _activeController.addListener(_onControllerChanged);
       }
 
-      _syncFromController();
+      _syncControllerToUI();
     }
 
-    // === XỬ LÝ THAY ĐỔI VALIDATION ===
     if (widget.controller == null) {
       if (widget.isCheckEmpty != oldWidget.isCheckEmpty) {
         _internalController.setCheckEmpty(widget.isCheckEmpty);
@@ -246,10 +178,91 @@ class _CyberOTPState extends State<CyberOTP> {
     super.dispose();
   }
 
-  // === HELPER METHODS ===
+  // ========================================
+  // ✅ TẬP TRUNG MAPPING: CONTROLLER ↔ UI
+  // ========================================
+
+  /// ✅ SYNC: Controller → UI (TextControllers)
+  /// Gọi khi: Controller thay đổi, init, rebuild
+  void _syncControllerToUI() {
+    final digits = _activeController.digits;
+
+    _isInternalUpdate = true;
+
+    for (int i = 0; i < widget.length; i++) {
+      final digit = i < digits.length ? digits[i] : '';
+      if (_textControllers[i].text != digit) {
+        _textControllers[i].text = digit;
+      }
+    }
+
+    _isInternalUpdate = false;
+
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  /// ✅ SYNC: UI (TextControllers) → Controller
+  /// Gọi khi: User nhập, paste, autofill
+  void _syncUIToController() {
+    final digits = _textControllers.map((c) => c.text).toList();
+    final value = digits.join();
+
+    if (_activeController.value != value) {
+      _isInternalUpdate = true;
+      _activeController.setValue(value);
+      _isInternalUpdate = false;
+
+      // Static mode callback
+      if (_isStaticTextMode() && widget.controller == null) {
+        widget.onChanged?.call(value);
+      }
+    }
+  }
+
+  // ========================================
+  // ✅ XỬ LÝ PASTE OTP (QUAN TRỌNG)
+  // ========================================
+
+  /// ✅ Xử lý paste OTP: "123456" → tách ra 6 ô
+  void _handlePaste(int startIndex, String pastedText) {
+    // Chỉ giữ lại các số
+    final digits = pastedText.replaceAll(RegExp(r'\D'), '');
+
+    if (digits.isEmpty) return;
+
+    _isInternalUpdate = true;
+
+    // Tách từng số vào các ô
+    for (
+      int i = 0;
+      i < digits.length && (startIndex + i) < widget.length;
+      i++
+    ) {
+      _textControllers[startIndex + i].text = digits[i];
+    }
+
+    _isInternalUpdate = false;
+
+    // Sync về controller
+    _syncUIToController();
+
+    // Focus vào ô cuối cùng đã paste (hoặc ô cuối nếu paste đủ)
+    final lastIndex = (startIndex + digits.length - 1).clamp(
+      0,
+      widget.length - 1,
+    );
+    if (lastIndex < widget.length) {
+      _focusNodes[lastIndex].requestFocus();
+    }
+  }
+
+  // ========================================
+  // HELPER METHODS
+  // ========================================
 
   void _recreateControllers() {
-    // Dispose old controllers
     for (var controller in _textControllers) {
       controller.dispose();
     }
@@ -257,7 +270,6 @@ class _CyberOTPState extends State<CyberOTP> {
       focusNode.dispose();
     }
 
-    // Create new controllers
     _textControllers = List.generate(
       widget.length,
       (index) => TextEditingController(),
@@ -265,13 +277,12 @@ class _CyberOTPState extends State<CyberOTP> {
 
     _focusNodes = List.generate(widget.length, (index) => FocusNode());
 
-    // Setup listeners
     for (int i = 0; i < widget.length; i++) {
       _textControllers[i].addListener(() => _onTextChanged(i));
       _focusNodes[i].addListener(() => _onFocusChanged(i));
     }
 
-    _syncFromController();
+    _syncControllerToUI();
   }
 
   CyberOTPController _createInternalController() {
@@ -324,28 +335,13 @@ class _CyberOTPState extends State<CyberOTP> {
   bool _isBindingExpressionMode() => widget.text is CyberBindingExpression;
   bool _isStaticTextMode() => widget.text is String;
 
-  // === SYNC CONTROLLER ↔ TEXT CONTROLLERS ===
+  // ========================================
+  // EVENT HANDLERS
+  // ========================================
 
   void _onControllerChanged() {
     if (!mounted || _isInternalUpdate) return;
-    _syncFromController();
-  }
-
-  void _syncFromController() {
-    final value = _activeController.value ?? '';
-    final digits = _activeController.digits;
-
-    _isInternalUpdate = true;
-
-    for (int i = 0; i < widget.length; i++) {
-      final digit = i < digits.length ? digits[i] : '';
-      if (_textControllers[i].text != digit) {
-        _textControllers[i].text = digit;
-      }
-    }
-
-    _isInternalUpdate = false;
-    setState(() {});
+    _syncControllerToUI();
   }
 
   void _onTextChanged(int index) {
@@ -353,54 +349,28 @@ class _CyberOTPState extends State<CyberOTP> {
 
     final text = _textControllers[index].text;
 
-    // Chỉ cho phép 1 ký tự số
+    // ✅ PASTE: Nếu paste nhiều ký tự → xử lý paste
     if (text.length > 1) {
-      final lastChar = text[text.length - 1];
-      _textControllers[index].text = lastChar;
-      _textControllers[index].selection = TextSelection.fromPosition(
-        TextPosition(offset: 1),
-      );
+      _handlePaste(index, text);
       return;
     }
 
-    // Nếu không phải số, xóa
+    // Chỉ cho phép 1 ký tự số
     if (text.isNotEmpty && !RegExp(r'^\d$').hasMatch(text)) {
       _textControllers[index].text = '';
       return;
     }
 
-    // Update controller
-    _updateControllerFromFields();
+    // ✅ Sync về controller
+    _syncUIToController();
 
     // Auto focus next field khi nhập xong
     if (text.isNotEmpty && index < widget.length - 1) {
       _focusNodes[index + 1].requestFocus();
     }
-
-    // Trigger onCompleted nếu đã nhập đủ
-    if (_activeController.isComplete) {
-      widget.onCompleted?.call(_activeController.value!);
-    }
-  }
-
-  void _updateControllerFromFields() {
-    final digits = _textControllers.map((c) => c.text).toList();
-    final value = digits.join();
-
-    if (_activeController.value != value) {
-      _isInternalUpdate = true;
-      _activeController.setValue(value);
-      _isInternalUpdate = false;
-
-      // Static mode callback
-      if (_isStaticTextMode() && widget.controller == null) {
-        widget.onChanged?.call(value);
-      }
-    }
   }
 
   void _onFocusChanged(int index) {
-    // Check nếu tất cả ô đều không focus → trigger onLeaver
     if (!_focusNodes[index].hasFocus) {
       final anyFocused = _focusNodes.any((node) => node.hasFocus);
       if (!anyFocused) {
@@ -409,21 +379,22 @@ class _CyberOTPState extends State<CyberOTP> {
     }
   }
 
-  // === HANDLE BACKSPACE ===
   bool _handleKeyEvent(int index, KeyEvent event) {
     if (event is KeyDownEvent &&
         event.logicalKey == LogicalKeyboardKey.backspace) {
-      // Nếu ô hiện tại rỗng và không phải ô đầu tiên → nhảy về ô trước
       if (_textControllers[index].text.isEmpty && index > 0) {
         _focusNodes[index - 1].requestFocus();
-        // Xóa ô trước
         _textControllers[index - 1].clear();
-        _updateControllerFromFields();
+        _syncUIToController();
         return true;
       }
     }
     return false;
   }
+
+  // ========================================
+  // BUILD UI
+  // ========================================
 
   @override
   Widget build(BuildContext context) {
@@ -497,9 +468,7 @@ class _CyberOTPState extends State<CyberOTP> {
     return KeyboardListener(
       focusNode: FocusNode(),
       onKeyEvent: (event) {
-        if (_handleKeyEvent(index, event)) {
-          // Event đã được xử lý
-        }
+        _handleKeyEvent(index, event);
       },
       child: SizedBox(
         width: widget.boxSize,
@@ -518,7 +487,7 @@ class _CyberOTPState extends State<CyberOTP> {
             color: effectiveTextColor,
           ),
           decoration: InputDecoration(
-            counterText: '', // Ẩn counter text
+            counterText: '',
             hintText: widget.hint,
             filled: true,
             fillColor: enabled

@@ -1,21 +1,6 @@
 import 'package:cyberframework/cyberframework.dart';
 
 /// Controller quản lý STATE và BUSINESS LOGIC cho OTP
-/// KHÔNG biết gì về UI, TextEditingController, FocusNode
-///
-/// **SỬ DỤNG:**
-/// ```dart
-/// // Tạo thông thường
-/// final controller = CyberOTPController(length: 6);
-///
-/// // Tạo với binding sẵn
-/// final controller = CyberOTPController.withBinding(
-///   dataRow: myRow,
-///   fieldName: 'otpCode',
-///   length: 6,
-///   isCheckEmpty: true,
-/// );
-/// ```
 class CyberOTPController extends ChangeNotifier {
   // === PRIVATE STATE ===
   String? _value;
@@ -31,6 +16,9 @@ class CyberOTPController extends ChangeNotifier {
   // === VALIDATION ===
   bool _isCheckEmpty;
 
+  // ✅ CALLBACK: onCompleted từ Controller
+  ValueChanged<String>? _onCompleted;
+
   // === PUBLIC GETTERS ===
   String? get value => _value;
   bool get enabled => _enabled;
@@ -38,7 +26,6 @@ class CyberOTPController extends ChangeNotifier {
   bool get isCheckEmpty => _isCheckEmpty;
   int get length => _length;
 
-  /// Danh sách các chữ số (mỗi phần tử là 1 ký tự)
   List<String> get digits {
     if (_value == null || _value!.isEmpty) {
       return List.filled(_length, '');
@@ -49,11 +36,9 @@ class CyberOTPController extends ChangeNotifier {
       return chars.sublist(0, _length);
     }
 
-    // Pad với empty string nếu chưa đủ
     return [...chars, ...List.filled(_length - chars.length, '')];
   }
 
-  /// Check xem đã nhập đủ chưa
   bool get isComplete => _value != null && _value!.length == _length;
 
   CyberOTPController({
@@ -61,25 +46,28 @@ class CyberOTPController extends ChangeNotifier {
     int length = 6,
     bool isCheckEmpty = false,
     bool enabled = true,
+    ValueChanged<String>? onCompleted,
   }) : _value = initialValue,
        _length = length,
        _enabled = enabled,
-       _isCheckEmpty = isCheckEmpty {
+       _isCheckEmpty = isCheckEmpty,
+       _onCompleted = onCompleted {
     _validate();
   }
 
-  /// Factory constructor để tạo controller với binding ngay từ đầu
   factory CyberOTPController.withBinding({
     required CyberDataRow dataRow,
     required String fieldName,
     int length = 6,
     bool isCheckEmpty = false,
     bool enabled = true,
+    ValueChanged<String>? onCompleted,
   }) {
     final controller = CyberOTPController(
       length: length,
       isCheckEmpty: isCheckEmpty,
       enabled: enabled,
+      onCompleted: onCompleted,
     );
 
     controller.bind(dataRow, fieldName);
@@ -90,14 +78,12 @@ class CyberOTPController extends ChangeNotifier {
 
   /// Set giá trị OTP
   void setValue(String? value) {
-    // Chỉ cho phép số
     if (value != null &&
         value.isNotEmpty &&
         !RegExp(r'^\d+$').hasMatch(value)) {
       return;
     }
 
-    // Giới hạn độ dài
     if (value != null && value.length > _length) {
       value = value.substring(0, _length);
     }
@@ -107,24 +93,32 @@ class CyberOTPController extends ChangeNotifier {
     _isUpdating = true;
     _value = value;
 
-    // Update binding nếu có
     if (_boundRow != null && _boundField != null) {
       _boundRow![_boundField!] = value;
     }
 
     _validate();
+
+    // ✅ TRIGGER onCompleted từ Controller (không phải Widget)
+    if (isComplete && _onCompleted != null) {
+      _onCompleted!(_value!);
+    }
+
     _isUpdating = false;
     notifyListeners();
   }
 
-  /// Enable/disable field
+  /// ✅ Set onCompleted callback
+  void setOnCompleted(ValueChanged<String>? onCompleted) {
+    _onCompleted = onCompleted;
+  }
+
   void setEnabled(bool enabled) {
     if (_enabled == enabled) return;
     _enabled = enabled;
     notifyListeners();
   }
 
-  /// Set validation rule
   void setCheckEmpty(bool checkEmpty) {
     if (_isCheckEmpty == checkEmpty) return;
     _isCheckEmpty = checkEmpty;
@@ -132,12 +126,10 @@ class CyberOTPController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Set length (thay đổi số lượng ô)
   void setLength(int length) {
     if (_length == length) return;
     _length = length;
 
-    // Trim value nếu vượt quá length mới
     if (_value != null && _value!.length > _length) {
       _value = _value!.substring(0, _length);
       _validate();
@@ -146,10 +138,8 @@ class CyberOTPController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Clear value
   void clear() => setValue(null);
 
-  /// Validate giá trị hiện tại
   bool validate() {
     _validate();
     notifyListeners();
@@ -205,7 +195,6 @@ class CyberOTPController extends ChangeNotifier {
       return;
     }
 
-    // Valid nếu đã nhập đủ length
     _isValid = _value != null && _value!.length == _length;
   }
 
