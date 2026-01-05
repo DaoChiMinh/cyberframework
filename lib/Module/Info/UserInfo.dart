@@ -20,6 +20,35 @@ class UserInfo {
   static String id_otp = "";
   static bool LoginOTP = false;
   // ignore: non_constant_identifier_names
+  static Future<bool> V_LoginOTP(
+    BuildContext contex, {
+    String Ma_otp = "",
+    bool isShowMsg = true,
+    bool isShowloading = true,
+  }) async {
+    String _certificate = await DeviceInfo.cetificate;
+    String _strTokenId = await strTokenId;
+    ReturnData returnDatalogin = await contex.callApi(
+      functionName: "CP_APPNBSysLoginCheckOTP",
+      parameter: "$id_otp#$Ma_otp#$_strTokenId#$_certificate##",
+      showError: isShowMsg,
+      showLoading: isShowloading,
+    );
+    if (!returnDatalogin.isValid()) {
+      return false;
+    }
+    CyberDataset? dslogin = returnDatalogin.toCyberDataset();
+    if (dslogin == null) {
+      return false;
+    }
+    if (!dslogin.checkStatus(contex, isShowMsg: isShowMsg)) return false;
+    CyberDataTable? dtlogin = dslogin[0];
+    if (dtlogin == null || dtlogin.rowCount == 0) {
+      return false;
+    }
+    return true;
+  }
+
   static Future<bool> V_Login(
     BuildContext contex, {
     String userName = "",
