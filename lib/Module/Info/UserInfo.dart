@@ -19,6 +19,8 @@ class UserInfo {
   // ignore: non_constant_identifier_names
   static String id_otp = "";
   static bool LoginOTP = false;
+
+  static String _strTokenKey = "";
   // ignore: non_constant_identifier_names
   static Future<bool> V_LoginOTP(
     BuildContext contex, {
@@ -27,10 +29,10 @@ class UserInfo {
     bool isShowloading = true,
   }) async {
     String _certificate = await DeviceInfo.cetificate;
-    String _strTokenId = await strTokenId;
+
     ReturnData returnDatalogin = await contex.callApi(
       functionName: "CP_APPNBSysLoginCheckOTP",
-      parameter: "$id_otp#$Ma_otp#$_strTokenId#$_certificate##",
+      parameter: "$id_otp#$Ma_otp#$_strTokenKey#$_certificate##",
       showError: isShowMsg,
       showLoading: isShowloading,
     );
@@ -46,6 +48,7 @@ class UserInfo {
     if (dtlogin == null || dtlogin.rowCount == 0) {
       return false;
     }
+    await setstrTokenId(_strTokenKey);
     return true;
   }
 
@@ -93,12 +96,6 @@ class UserInfo {
     // ✅ Get first row safely
     final loginRow = dtlogin[0];
 
-    // ✅ Save token
-    final tokenKey = loginRow["tokenkey"]?.toString();
-    if (tokenKey != null && tokenKey.isNotEmpty) {
-      await setstrTokenId(tokenKey);
-    }
-
     // ✅ Safe field extraction với null handling
     user_name = loginRow["User_name"]?.toString() ?? "";
     comment = loginRow["Comment"]?.toString() ?? "";
@@ -118,6 +115,17 @@ class UserInfo {
       id_otp = loginRow["idotp"]?.toString() ?? "";
     } else {
       id_otp = "";
+    }
+
+    // ✅ Save token
+    final tokenKey = loginRow["tokenkey"]?.toString();
+    if (tokenKey != null && tokenKey.isNotEmpty) {
+      _strTokenKey = tokenKey;
+
+      // nếu không login bằng OTP thì lưu lại tokenkey
+      if (!LoginOTP) {
+        await setstrTokenId(tokenKey);
+      }
     }
 
     // ✅ Cập nhật Language theo biến M_Lan từ server
