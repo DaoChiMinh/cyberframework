@@ -51,7 +51,6 @@ dependencies:
   package_info_plus: ^9.0.0      # App version info
   google_sign_in: ^7.2.0
   sign_in_with_apple: ^7.0.1  # Nếu cần Apple Sign In
-  flutter_microsoft_authentication: ^1.1.2
 
 dev_dependencies:
   flutter_test:
