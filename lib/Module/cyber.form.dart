@@ -145,6 +145,7 @@ class _CyberFormViewState extends State<CyberFormView>
               : _buildAppBar(),
           backgroundColor: _form.backgroundColor ?? Colors.white,
           body: _buildBodyWithSpeedMonitor(),
+          bottomNavigationBar: _buildBottomNavigationBar(),
         ),
       ),
     );
@@ -157,6 +158,16 @@ class _CyberFormViewState extends State<CyberFormView>
     return body;
   }
 
+  // ✅ NEW METHOD
+  Widget? _buildBottomNavigationBar() {
+    // Ẩn nếu form yêu cầu
+    if (_form.hideBottomNavigationBar == true) {
+      return null;
+    }
+
+    // Cho phép form custom bottom navigation bar
+    return _form.buildBottomNavigationBar(context);
+  }
   // ... rest of code giữ nguyên
 
   PreferredSizeWidget _buildAppBar() {
@@ -356,7 +367,7 @@ abstract class CyberForm {
   Color? get backgroundColor => null;
   bool? get hideAppBar => null;
   bool? get showSpeedMonitor => null;
-
+  bool? get hideBottomNavigationBar => null;
   // ============================================================================
   // ✅ ANIMATION PROPERTIES
   // ============================================================================
@@ -806,7 +817,7 @@ abstract class CyberForm {
   Widget buildBody(BuildContext context);
   Widget? buildLoadingWidget() => null;
   Widget? buildErrorWidget(String error) => null;
-
+  Widget? buildBottomNavigationBar(BuildContext context) => null;
   // ============================================================================
   // HELPER METHODS
   // ============================================================================
