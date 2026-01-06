@@ -195,9 +195,8 @@ class _CyberFormViewState extends State<CyberFormView>
 
   Widget _buildBodyWithSpeedMonitor() {
     final body = _buildBody();
-    final showMonitor =
-        widget.showSpeedMonitor || _form.showSpeedMonitor == true;
-
+    // final showMonitor = widget.showSpeedMonitor || _form.showSpeedMonitor == true;
+    final showMonitor = _form.showSpeedMonitor ?? widget.showSpeedMonitor;
     var position = widget.speedMonitorPosition;
     if (widget.isMainScreen &&
         (_form.hideAppBar ?? widget.hideAppBar) &&
