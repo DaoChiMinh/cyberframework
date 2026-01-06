@@ -80,7 +80,6 @@ class CyberLanguageService extends ChangeNotifier {
   /// Call this in main.dart before runApp()
   Future<void> initialize() async {
     if (_isInitialized) {
-      debugPrint('⚠️ Language service already initialized');
       return;
     }
 
@@ -90,11 +89,7 @@ class CyberLanguageService extends ChangeNotifier {
 
       if (savedLanguage.isNotEmpty) {
         _currentLanguage = CyberLanguage.fromCode(savedLanguage);
-        debugPrint('✅ Loaded saved language: ${_currentLanguage.name}');
       } else {
-        debugPrint(
-          'ℹ️ No saved language, using default: ${_currentLanguage.name}',
-        );
         // ✅ Save default language for next time
         await AppStorage.set(_storageKey, _currentLanguage.code);
       }
@@ -102,7 +97,6 @@ class CyberLanguageService extends ChangeNotifier {
       _isInitialized = true;
       notifyListeners();
     } catch (e) {
-      debugPrint('❌ Error initializing language service: $e');
       _currentLanguage = CyberLanguage.vietnamese;
       _isInitialized = true;
       notifyListeners();
@@ -116,7 +110,6 @@ class CyberLanguageService extends ChangeNotifier {
   /// Change current language
   Future<void> setLanguage(CyberLanguage language) async {
     if (_currentLanguage == language) {
-      debugPrint('ℹ️ Language already set to: ${language.name}');
       return;
     }
 
@@ -130,10 +123,7 @@ class CyberLanguageService extends ChangeNotifier {
 
       // ✅ Update server if user is logged in
       await _updateLanguageOnServer();
-
-      debugPrint('✅ Language changed to: ${language.name}');
     } catch (e) {
-      debugPrint('❌ Error setting language: $e');
       rethrow;
     }
   }
@@ -188,13 +178,11 @@ class CyberLanguageService extends ChangeNotifier {
       final strTokenId = await UserInfo.strTokenId;
 
       if (strTokenId.isEmpty) {
-        debugPrint('ℹ️ User not logged in, skipping server update');
         return;
       }
 
       final context = AppNavigator.context;
       if (context == null || !context.mounted) {
-        debugPrint('⚠️ No valid context, skipping server update');
         return;
       }
 
@@ -210,16 +198,7 @@ class CyberLanguageService extends ChangeNotifier {
         showLoading: false,
         showError: false,
       );
-
-      if (result.isValid()) {
-        debugPrint('✅ Language updated on server: $languageParam');
-      } else {
-        debugPrint('⚠️ Server update failed, but continuing...');
-      }
-    } catch (e) {
-      // ✅ Don't rethrow - language change should work even if server update fails
-      debugPrint('❌ Error updating language on server: $e');
-    }
+    } catch (e) {}
   }
 
   // ============================================================================
@@ -232,7 +211,6 @@ class CyberLanguageService extends ChangeNotifier {
     _currentLanguage = CyberLanguage.vietnamese;
     _isInitialized = false;
     notifyListeners();
-    debugPrint('🗑️ Cleared saved language');
   }
 }
 
