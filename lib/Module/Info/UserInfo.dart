@@ -26,6 +26,8 @@ class UserInfo {
   static Future<bool> V_LoginOTP(
     BuildContext contex, {
     String Ma_otp = "",
+    String Ma_Dvcs = "",
+    String User_Name = "",
     bool isShowMsg = true,
     bool isShowloading = true,
   }) async {
@@ -33,7 +35,8 @@ class UserInfo {
 
     ReturnData returnDatalogin = await contex.callApi(
       functionName: "CP_APPNBSysLoginCheckOTP",
-      parameter: "$id_otp#$Ma_otp#$_strTokenKey#$_certificate##",
+      parameter:
+          "$id_otp#$Ma_otp#$_strTokenKey#$_certificate#$Ma_Dvcs#$User_Name",
       showError: isShowMsg,
       showLoading: isShowloading,
     );
