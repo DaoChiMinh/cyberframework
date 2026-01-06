@@ -109,7 +109,7 @@ class CyberDataset extends ChangeNotifier {
       }
 
       if (msgValue == 'Y' && isShowMsg) {
-        await message.V_MsgBox(contex, type: CyberMsgBoxType.warning);
+        await message.V_MsgBox(contex, type: CyberMsgBoxType.defaultType);
       }
     }
 
