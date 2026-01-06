@@ -47,7 +47,7 @@ class UserInfo {
     if (dslogin == null) {
       return false;
     }
-    if (!dslogin.checkStatus(contex, isShowMsg: isShowMsg)) return false;
+    if (!await dslogin.checkStatus(contex, isShowMsg: isShowMsg)) return false;
     CyberDataTable? dtlogin = dslogin[0];
     if (dtlogin == null || dtlogin.rowCount == 0) {
       return false;
@@ -91,7 +91,7 @@ class UserInfo {
       return false;
     }
     // ignore: use_build_context_synchronously
-    if (!dslogin.checkStatus(contex, isShowMsg: isShowMsg)) return false;
+    if (!await dslogin.checkStatus(contex, isShowMsg: isShowMsg)) return false;
     CyberDataTable? dtlogin = dslogin[0];
     if (dtlogin == null || dtlogin.rowCount == 0) {
       return false;

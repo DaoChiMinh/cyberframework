@@ -80,7 +80,7 @@ class CyberDataset extends ChangeNotifier {
     }
   }
 
-  bool checkStatus(BuildContext contex, {bool isShowMsg = true}) {
+  Future<bool> checkStatus(BuildContext contex, {bool isShowMsg = true}) async {
     if (_isDisposed) {
       return false;
     }
@@ -103,13 +103,13 @@ class CyberDataset extends ChangeNotifier {
 
       if (statusValue == 'N') {
         if (isShowMsg) {
-          message.V_MsgBox(contex, type: CyberMsgBoxType.error);
+          await message.V_MsgBox(contex, type: CyberMsgBoxType.error);
         }
         return false;
       }
 
       if (msgValue == 'Y' && isShowMsg) {
-        message.V_MsgBox(contex, type: CyberMsgBoxType.warning);
+        await message.V_MsgBox(contex, type: CyberMsgBoxType.warning);
       }
     }
 
