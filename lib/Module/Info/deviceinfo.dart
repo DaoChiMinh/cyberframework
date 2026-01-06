@@ -32,7 +32,7 @@ class DeviceInfo extends ChangeNotifier {
   static Future<String> get cetificate async {
     String cer = await AppStorage.get("cetificate");
     if (cer == "") {
-      cer = manufacturer();
+      cer = manufacturer;
       if (cer == "") {
         var uuid = Uuid();
         cer = uuid.v1();
@@ -44,8 +44,9 @@ class DeviceInfo extends ChangeNotifier {
 
   static Future<void> setcetificate(String value) async =>
       await AppStorage.set("cetificate", value);
-  static String displayDeviceName() => CyberDeviceInfo().displayDeviceName;
-  static String deviceName() => CyberDeviceInfo().deviceName;
-  static String deviceId() => CyberDeviceInfo().deviceId;
-  static String manufacturer() => CyberDeviceInfo().manufacturer;
+  static String get displayDeviceName => CyberDeviceInfo().displayDeviceName;
+  static String get deviceName => CyberDeviceInfo().deviceName;
+  static String get deviceId => CyberDeviceInfo().deviceId;
+  static String get manufacturer => CyberDeviceInfo().manufacturer;
+  static String get appVersion => CyberDeviceInfo().appVersion;
 }

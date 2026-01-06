@@ -14,12 +14,13 @@ class UserInfo {
   static String user_name = "";
   // ignore: non_constant_identifier_names
   static String ma_dvcs = "";
+  static String ten_cty = "";
   static String comment = "";
   static String isOTP = "";
   // ignore: non_constant_identifier_names
   static String id_otp = "";
   static bool LoginOTP = false;
-
+  static String isadmin = "0";
   static String _strTokenKey = "";
   // ignore: non_constant_identifier_names
   static Future<bool> V_LoginOTP(
@@ -100,7 +101,8 @@ class UserInfo {
     user_name = loginRow["User_name"]?.toString() ?? "";
     comment = loginRow["Comment"]?.toString() ?? "";
     ma_dvcs = loginRow["ma_dvcs"]?.toString() ?? "";
-
+    ten_cty = loginRow["m_ten_cty"]?.toString() ?? "";
+    isadmin = loginRow["is_admin"]?.toString() ?? "0";
     // ✅ Handle id_otp
     if (dtlogin.containerColumn("loginotp")) {
       LoginOTP = loginRow["loginotp"] == null
