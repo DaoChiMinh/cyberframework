@@ -14,7 +14,7 @@ class CyberButton extends StatelessWidget {
     super.key,
     required this.label,
     this.onClick,
-    this.backgroundColor = const Color(0xFF0F3D34),
+    this.backgroundColor = const Color(0xFF00D287),
     this.textColor = Colors.white,
     this.borderRadius = 30.0,
     this.paddingVertical = 12.0,
