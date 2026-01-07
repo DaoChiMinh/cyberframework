@@ -362,11 +362,27 @@ abstract class CyberForm {
   // PROPERTIES - Override in subclass
   // ============================================================================
 
-  String? get title => null;
-  Color? get backgroundColor => null;
-  bool? get hideAppBar => null;
-  bool? get showSpeedMonitor => null;
-  bool? get hideBottomNavigationBar => null;
+  String? _title;
+  Color? _backgroundColor;
+  bool? _hideAppBar;
+  bool? _showSpeedMonitor;
+  bool? _hideBottomNavigationBar;
+
+  // Getters với fallback cho override
+  String? get title => _title;
+  set title(String? value) => _title = value;
+
+  Color? get backgroundColor => _backgroundColor;
+  set backgroundColor(Color? value) => _backgroundColor = value;
+
+  bool? get hideAppBar => _hideAppBar;
+  set hideAppBar(bool? value) => _hideAppBar = value;
+
+  bool? get showSpeedMonitor => _showSpeedMonitor;
+  set showSpeedMonitor(bool? value) => _showSpeedMonitor = value;
+
+  bool? get hideBottomNavigationBar => _hideBottomNavigationBar;
+  set hideBottomNavigationBar(bool? value) => _hideBottomNavigationBar = value;
   // ============================================================================
   // ✅ ANIMATION PROPERTIES
   // ============================================================================
