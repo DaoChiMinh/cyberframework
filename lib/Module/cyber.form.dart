@@ -176,7 +176,7 @@ class _CyberFormViewState extends State<CyberFormView>
         widget.speedMonitorPosition == SpeedMonitorPosition.appBar;
 
     return AppBar(
-      backgroundColor: Color(0xFF0F3D34),
+      backgroundColor: Color(0xFF00D287),
       iconTheme: IconThemeData(color: Colors.white),
       title: Text(
         _form.title ?? widget.title,
@@ -371,7 +371,7 @@ abstract class CyberForm {
   bool? _hideAppBar;
   bool? _showSpeedMonitor;
   bool? _hideBottomNavigationBar;
-  Color? textColorDefault = Color(0xFF0F3D34);
+  Color? textColorDefault = Color(0xFF00D287);
   // Getters với fallback cho override
   String? get title => _title;
   set title(String? value) => _title = value;
