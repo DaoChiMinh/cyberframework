@@ -19,6 +19,7 @@ export 'package:cyberframework/Module/Data/cyberdatarow.dart';
 export 'package:cyberframework/Module/Data/cyberdatatable.dart';
 export 'package:cyberframework/Module/Data/cyberdataset.dart';
 //cyber_device_info.dart
+export 'package:cyberframework/Module/appinfo.dart';
 export 'package:cyberframework/Module/Info/cyber_device_info.dart';
 export 'package:cyberframework/Module/Info/deviceinfo.dart';
 export 'package:cyberframework/Module/Info/userinfo.dart';

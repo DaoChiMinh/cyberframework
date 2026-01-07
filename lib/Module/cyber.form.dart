@@ -177,6 +177,7 @@ class _CyberFormViewState extends State<CyberFormView>
 
     return AppBar(
       backgroundColor: Color(0xFF0F3D34),
+      iconTheme: IconThemeData(color: Colors.white),
       title: Text(
         _form.title ?? widget.title,
         style: TextStyle(color: Colors.white),

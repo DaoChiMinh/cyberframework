@@ -14,7 +14,7 @@ class CyberButton extends StatelessWidget {
     super.key,
     required this.label,
     this.onClick,
-    this.backgroundColor = const Color(0xFF00D287),
+    this.backgroundColor = const Color(0xFF0F3D34),
     this.textColor = Colors.white,
     this.borderRadius = 30.0,
     this.paddingVertical = 12.0,
@@ -29,7 +29,7 @@ class CyberButton extends StatelessWidget {
       child: ElevatedButton(
         onPressed: isReadOnly ? null : onClick,
         style: ElevatedButton.styleFrom(
-          backgroundColor: Color(0xFF00D287),
+          backgroundColor: backgroundColor,
           foregroundColor: textColor,
           padding: EdgeInsets.symmetric(
             vertical: paddingVertical,
