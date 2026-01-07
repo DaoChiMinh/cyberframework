@@ -49,6 +49,24 @@ class CyberDataRow extends ChangeNotifier implements ICyberIdentifiable {
     }
   }
 
+  Future<bool> checkEmpty(
+    BuildContext contex,
+    String fieldName,
+    String MsgBoxVN,
+    String MsgBoxEN,
+  ) async {
+    if (this[fieldName] == "") {
+      if (MsgBoxEN == "") MsgBoxEN = MsgBoxVN;
+      await setText(
+        MsgBoxVN,
+        MsgBoxEN,
+      ).V_MsgBox(contex, type: CyberMsgBoxType.error);
+
+      return false;
+    }
+
+    return true;
+  }
   // ============================================================================
   // ✅ IDENTITY CONTRACT IMPLEMENTATION
   // ============================================================================
