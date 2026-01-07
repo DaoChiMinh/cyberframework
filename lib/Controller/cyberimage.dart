@@ -5,7 +5,7 @@ import 'package:cyberframework/cyberframework.dart';
 /// ============================================================================
 /// CyberImage - Internal Controller + Binding Pattern
 /// ============================================================================
-/// 
+///
 /// TRIẾT LÝ:
 /// 1. Thuộc tính `text` là PRIMARY SOURCE - có thể binding trực tiếp
 /// 2. Controller (nếu có) chỉ để điều khiển programmatically
@@ -13,7 +13,7 @@ import 'package:cyberframework/cyberframework.dart';
 /// 4. Sync 2 chiều: text binding <-> controller <-> UI
 ///
 /// CÁCH DÙNG:
-/// 
+///
 /// // Cách 1: Chỉ binding (không cần controller)
 /// CyberImage(
 ///   text: drEdit.bind("image_url"),
@@ -34,11 +34,11 @@ import 'package:cyberframework/cyberframework.dart';
 
 class CyberImage extends StatefulWidget {
   final CyberImageController? controller;
-  
+
   /// Thuộc tính text - có thể binding với CyberDataRow
   /// Hỗ trợ: String, CyberBindingExpression, null
   final dynamic text;
-  
+
   final String? label;
   final dynamic isUpload;
   final dynamic isView;
@@ -114,18 +114,17 @@ class CyberImage extends StatefulWidget {
 }
 
 class _CyberImageState extends State<CyberImage> {
-  
   /// Internal controller (tự tạo nếu không có từ bên ngoài)
   CyberImageController? _internalController;
 
   /// Binding references
   CyberDataRow? _boundRow;
   String? _boundField;
-  
+
   /// Visibility binding
   CyberDataRow? _visibilityBoundRow;
   String? _visibilityBoundField;
-  
+
   /// Fit binding
   CyberDataRow? _fitBoundRow;
   String? _fitBoundField;
@@ -255,7 +254,7 @@ class _CyberImageState extends State<CyberImage> {
       _isSyncing = true;
       _effectiveController.syncFromBinding(newValue);
       _isSyncing = false;
-      
+
       if (mounted) {
         setState(() {});
       }
@@ -293,12 +292,12 @@ class _CyberImageState extends State<CyberImage> {
 
     if (controllerUrl != bindingUrl) {
       _isSyncing = true;
-      
+
       // Sync controller → binding
       if (_boundRow != null && _boundField != null) {
         _boundRow![_boundField!] = controllerUrl ?? '';
       }
-      
+
       _isSyncing = false;
     }
 
@@ -945,40 +944,70 @@ class _CyberImageState extends State<CyberImage> {
     }
   }
 
+  /// ✅ FIX: Placeholder responsive với kích thước nhỏ
   Widget _buildPlaceholder() {
-    return widget.placeholder ??
-        Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.image_outlined, size: 64, color: Colors.grey[400]),
-              const SizedBox(height: 8),
-              Text(
-                _canUpload() ? 'Nhấn để thêm ảnh' : 'Chưa có ảnh',
-                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-              ),
-            ],
-          ),
-        );
+    if (widget.placeholder != null) return widget.placeholder!;
+
+    final height = widget.height ?? 200;
+    final isSmall = height < 120;
+
+    return Center(
+      child: isSmall
+          ? Icon(
+              Icons.image_outlined,
+              size: height * 0.4, // Scale icon theo height
+              color: Colors.grey[400],
+            )
+          : Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.image_outlined, size: 64, color: Colors.grey[400]),
+                const SizedBox(height: 8),
+                Text(
+                  _canUpload() ? 'Nhấn để thêm ảnh' : 'Chưa có ảnh',
+                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                ),
+              ],
+            ),
+    );
   }
 
   Widget _buildLoading() {
-    return const Center(child: CircularProgressIndicator());
+    final height = widget.height ?? 200;
+    final isSmall = height < 120;
+
+    return Center(
+      child: SizedBox(
+        width: isSmall ? height * 0.3 : 40,
+        height: isSmall ? height * 0.3 : 40,
+        child: const CircularProgressIndicator(strokeWidth: 3),
+      ),
+    );
   }
 
+  /// ✅ FIX: Error widget responsive với kích thước nhỏ
   Widget _buildErrorWidget() {
+    final height = widget.height ?? 200;
+    final isSmall = height < 120;
+
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.broken_image, size: 64, color: Colors.grey[400]),
-          const SizedBox(height: 8),
-          Text(
-            'Không thể tải ảnh',
-            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-          ),
-        ],
-      ),
+      child: isSmall
+          ? Icon(
+              Icons.broken_image,
+              size: height * 0.4, // Scale icon theo height
+              color: Colors.grey[400],
+            )
+          : Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.broken_image, size: 64, color: Colors.grey[400]),
+                const SizedBox(height: 8),
+                Text(
+                  'Lỗi tải ảnh',
+                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                ),
+              ],
+            ),
     );
   }
 }
