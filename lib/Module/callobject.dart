@@ -287,6 +287,7 @@ Future<bool> V_callform(
       );
       break;
     case "callconfirm":
+    case "call":
       // Gọi điện thoại với dialog xác nhận
       await PhoneHandler.makePhoneCall(
         strfrm,
