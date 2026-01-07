@@ -21,6 +21,8 @@ class UserInfo {
   static String id_otp = "";
   static bool LoginOTP = false;
   static String isadmin = "0";
+  static bool istantrang = false;
+  static bool ischangpass = false;
   static String _strTokenKey = "";
   // ignore: non_constant_identifier_names
   static Future<bool> V_LoginOTP(
@@ -106,11 +108,26 @@ class UserInfo {
     ma_dvcs = loginRow["ma_dvcs"]?.toString() ?? "";
     ten_cty = loginRow["m_ten_cty"]?.toString() ?? "";
     isadmin = loginRow["is_admin"]?.toString() ?? "0";
+
     // ✅ Handle id_otp
     if (dtlogin.containerColumn("loginotp")) {
       LoginOTP = loginRow["loginotp"] == null
           ? false
           : loginRow["loginotp"]! == 1.0;
+    }
+
+    if (dtlogin.containerColumn("tamtrang")) {
+      istantrang = loginRow["tamtrang"] == null
+          ? false
+          : loginRow["tamtrang"]! == 1.0 ||
+                loginRow["tamtrang"].toString() == "1";
+    }
+
+    if (dtlogin.containerColumn("changepass")) {
+      ischangpass = loginRow["changepass"] == null
+          ? false
+          : loginRow["changepass"]! == 1.0 ||
+                loginRow["changepass"].toString() == "1";
     }
 
     if (dtlogin.containerColumn("id_otp")) {
