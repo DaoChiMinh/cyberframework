@@ -163,6 +163,137 @@ class CyberDataRow extends ChangeNotifier implements ICyberIdentifiable {
     }
   }
 
+  String getString(String fieldName, [String defaultValue = '']) {
+    final value = this[fieldName];
+    if (value == null) return defaultValue;
+    return value.toString();
+  }
+
+  /// Lấy giá trị int với default value
+  int getInt(String fieldName, [int defaultValue = 0]) {
+    final value = this[fieldName];
+    if (value == null) return defaultValue;
+
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) {
+      if (value.isEmpty) return defaultValue;
+      return int.tryParse(value) ?? defaultValue;
+    }
+
+    return defaultValue;
+  }
+
+  /// Lấy giá trị double/decimal với default value
+  double getDouble(String fieldName, [double defaultValue = 0.0]) {
+    final value = this[fieldName];
+    if (value == null) return defaultValue;
+
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) {
+      if (value.isEmpty) return defaultValue;
+      return double.tryParse(value) ?? defaultValue;
+    }
+
+    return defaultValue;
+  }
+
+  /// Alias cho getDouble (tương tự decimal trong C#)
+  double getDecimal(String fieldName, [double defaultValue = 0.0]) {
+    return getDouble(fieldName, defaultValue);
+  }
+
+  /// Lấy giá trị DateTime với default value
+  DateTime getDateTime(String fieldName, [DateTime? defaultValue]) {
+    defaultValue ??= DateTime.now();
+    final value = this[fieldName];
+
+    if (value == null) return defaultValue;
+    if (value is DateTime) return value;
+
+    if (value is String) {
+      if (value.isEmpty) return defaultValue;
+      try {
+        return DateTime.parse(value);
+      } catch (e) {
+        return defaultValue;
+      }
+    }
+
+    return defaultValue;
+  }
+
+  /// Lấy giá trị bool với default value
+  bool getBool(String fieldName, [bool defaultValue = false]) {
+    final value = this[fieldName];
+
+    if (value == null) return defaultValue;
+    if (value is bool) return value;
+
+    if (value is int) return value == 1;
+    if (value is String) {
+      final lower = value.toLowerCase();
+      return lower == '1' || lower == 'true' || lower == 'yes';
+    }
+
+    return defaultValue;
+  }
+
+  /// SET methods với auto conversion
+
+  /// Set string value
+  void setString(String fieldName, String value) {
+    setValue(fieldName, value);
+  }
+
+  /// Set int value
+  void setInt(String fieldName, int value) {
+    setValue(fieldName, value);
+  }
+
+  /// Set double/decimal value
+  void setDouble(String fieldName, double value) {
+    setValue(fieldName, value);
+  }
+
+  /// Set DateTime value
+  void setDateTime(String fieldName, DateTime value) {
+    setValue(fieldName, value);
+  }
+
+  /// Set bool value (convert to 1/0 hoặc true/false tùy config)
+  void setBool(String fieldName, bool value, {bool useNumeric = false}) {
+    setValue(fieldName, useNumeric ? (value ? 1 : 0) : value);
+  }
+
+  // ============================================================================
+  // GENERIC GET/SET WITH TYPE INFERENCE
+  // ============================================================================
+
+  /// Generic getter với type inference
+  /// Sử dụng: row.getTyped<int>('age')
+  T getTyped<T>(String fieldName, [T? defaultValue]) {
+    if (T == String) {
+      return (getString(fieldName, defaultValue as String? ?? '') as T);
+    } else if (T == int) {
+      return (getInt(fieldName, defaultValue as int? ?? 0) as T);
+    } else if (T == double) {
+      return (getDouble(fieldName, defaultValue as double? ?? 0.0) as T);
+    } else if (T == DateTime) {
+      return (getDateTime(fieldName, defaultValue as DateTime?) as T);
+    } else if (T == bool) {
+      return (getBool(fieldName, defaultValue as bool? ?? false) as T);
+    }
+
+    // Fallback to direct access
+    return (this[fieldName] ?? defaultValue) as T;
+  }
+
+  /// Generic setter với type inference
+  void setTyped<T>(String fieldName, T value) {
+    setValue(fieldName, value);
+  }
   // ============================================================================
   // ENHANCED LISTENER MANAGEMENT
   // ============================================================================
