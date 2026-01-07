@@ -39,7 +39,7 @@ class CyberPopup {
     this.boxShadow,
     this.onClose,
     this.onShow,
-    this.transitionDuration = const Duration(milliseconds: 300),
+    this.transitionDuration = const Duration(milliseconds: 100),
     this.isScrollControlled = true,
   });
 
@@ -136,7 +136,7 @@ class CyberPopup {
           margin: margin ?? const EdgeInsets.symmetric(horizontal: 20),
           padding: padding,
           decoration: BoxDecoration(
-            color: backgroundColor ?? Colors.white,
+            color: backgroundColor ?? Colors.transparent,
             borderRadius: borderRadius ?? BorderRadius.circular(12),
             boxShadow: boxShadow != null
                 ? [boxShadow!]
@@ -198,11 +198,21 @@ class CyberPopup {
         return FadeTransition(opacity: animation, child: child);
       case PopupAnimation.scale:
         return ScaleTransition(
-          scale: Tween<double>(
-            begin: 0.8,
-            end: 1.0,
-          ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
-          child: child,
+          scale:
+              Tween<double>(
+                begin: 0.95, // ✅ Tăng từ 0.8 lên 0.95 để giảm hiệu ứng nháy
+                end: 1.0,
+              ).animate(
+                CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeOutCubic, // ✅ Smooth hơn
+                ),
+              ),
+          child: FadeTransition(
+            // ✅ Thêm fade để mượt hơn
+            opacity: animation,
+            child: child,
+          ),
         );
       case PopupAnimation.slideAndFade:
         return FadeTransition(
