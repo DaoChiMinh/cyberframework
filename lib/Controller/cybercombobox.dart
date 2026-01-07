@@ -586,11 +586,11 @@ class _CyberComboBoxState extends State<CyberComboBox> {
                           ),
                     ),
                     if (_isCheckEmpty())
-                      const Text(
+                      Text(
                         ' *',
                         style: TextStyle(
                           fontSize: 14,
-                          color: Colors.red,
+                          color: Appinfo.textColorOrangeDefault,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
