@@ -562,7 +562,7 @@ class _CyberListViewState extends State<CyberListView> {
                 controller: _searchController,
                 style: const TextStyle(fontSize: 16),
                 decoration: InputDecoration(
-                  hintText: 'Tìm kiếm',
+                  hintText: setText('Tìm kiếm', "Search"),
                   hintStyle: TextStyle(
                     color: CupertinoColors.systemGrey.resolveFrom(context),
                     fontSize: 16,
@@ -691,8 +691,11 @@ class _CyberListViewState extends State<CyberListView> {
               const SizedBox(height: 16),
               Text(
                 _currentSearchText.isNotEmpty
-                    ? 'Không tìm thấy kết quả cho "$_currentSearchText"'
-                    : 'Không có dữ liệu',
+                    ? setText(
+                        'Không tìm thấy kết quả cho "$_currentSearchText"',
+                        'No results found for "$_currentSearchText"',
+                      )
+                    : setText('Không có dữ liệu', "No data available"),
                 style: const TextStyle(fontSize: 16, color: Colors.grey),
               ),
             ],
