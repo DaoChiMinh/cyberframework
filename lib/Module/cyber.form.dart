@@ -370,7 +370,7 @@ abstract class CyberForm {
   bool? _hideAppBar;
   bool? _showSpeedMonitor;
   bool? _hideBottomNavigationBar;
-  Color? XanhChu = Color(0xFF0F3D34);
+  Color? textColorDefault = Color(0xFF0F3D34);
   // Getters với fallback cho override
   String? get title => _title;
   set title(String? value) => _title = value;
