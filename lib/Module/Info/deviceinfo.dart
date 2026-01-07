@@ -49,4 +49,5 @@ class DeviceInfo extends ChangeNotifier {
   static String get deviceId => CyberDeviceInfo().deviceId;
   static String get manufacturer => CyberDeviceInfo().manufacturer;
   static String get appVersion => CyberDeviceInfo().appVersion;
+  static String get platform => CyberDeviceInfo().platform;
 }
