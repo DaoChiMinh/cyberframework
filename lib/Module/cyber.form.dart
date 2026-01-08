@@ -376,6 +376,7 @@ abstract class CyberForm {
   bool? _hideBottomNavigationBar;
   Color? textColorDefault = Color(0xFF00D287);
   Color? TextColorBlue = Color(0xFF145A4A);
+  Color? TextColorGray = Color.fromARGB(255, 224, 224, 224);
   // Getters với fallback cho override
   String? get title => _title;
   set title(String? value) => _title = value;
