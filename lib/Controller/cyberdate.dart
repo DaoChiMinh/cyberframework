@@ -29,6 +29,14 @@ import 'package:intl/intl.dart';
 ///   controller: controller,
 ///   label: "Điều khiển từ ngoài",
 /// )
+///
+/// // Cách 4: Với nullValue
+/// CyberDate(
+///   text: dr.bind("ngay_het_han"),
+///   label: "Ngày hết hạn",
+///   nullValue: DateTime(1900, 1, 1), // Mặc định, có thể không cần khai báo
+///   showClearButton: true, // Hiển thị nút Clear
+/// )
 /// ```
 class CyberDate extends StatefulWidget {
   /// ⚠️ KHÔNG dùng cả text VÀ controller cùng lúc
@@ -87,6 +95,16 @@ class CyberDate extends StatefulWidget {
   /// Error text to display
   final String? errorText;
 
+  /// Giá trị null - nếu date bằng giá trị này thì hiển thị hint text
+  /// Mặc định: 01/01/1900
+  final DateTime? nullValue;
+
+  /// Hiển thị nút Clear để xóa giá trị (set về nullValue)
+  final bool showClearButton;
+
+  /// Default null value: 01/01/1900
+  static final DateTime defaultNullValue = DateTime(1900, 1, 1);
+
   const CyberDate({
     super.key,
     this.text,
@@ -114,6 +132,8 @@ class CyberDate extends StatefulWidget {
     this.formatter,
     this.validator,
     this.errorText,
+    this.nullValue,
+    this.showClearButton = true,
   }) : assert(
          controller == null || text == null,
          'CyberDate: không được dùng cả text và controller cùng lúc',
@@ -252,6 +272,11 @@ class _CyberDateState extends State<CyberDate> {
     if (oldWidget.enabled != widget.enabled) {
       setState(() {});
     }
+
+    // ✅ Xử lý nullValue changes
+    if (widget.nullValue != oldWidget.nullValue) {
+      _updateTextController();
+    }
   }
 
   @override
@@ -352,12 +377,22 @@ class _CyberDateState extends State<CyberDate> {
   // VALUE MANAGEMENT
   // ============================================================================
 
+  /// ✅ Kiểm tra xem date có phải là nullValue không
+  bool _isNullValue(DateTime? date) {
+    if (date == null) return true;
+    final nullVal = widget.nullValue ?? CyberDate.defaultNullValue;
+    return date.year == nullVal.year &&
+        date.month == nullVal.month &&
+        date.day == nullVal.day;
+  }
+
   /// ✅ Single source of truth for current value
   /// Priority: controller > binding > text
   DateTime? _getCurrentValue() {
     // Priority 1: External controller
     if (widget.controller != null) {
-      return widget.controller!.value;
+      final value = widget.controller!.value;
+      return _isNullValue(value) ? null : value;
     }
 
     // Priority 2: Binding
@@ -373,7 +408,8 @@ class _CyberDateState extends State<CyberDate> {
     }
 
     // ✅ Convert sang DateTime?
-    return _parseDateTime(rawValue);
+    final parsed = _parseDateTime(rawValue);
+    return _isNullValue(parsed) ? null : parsed;
   }
 
   /// ✅ Parse dynamic value sang DateTime?
@@ -394,14 +430,18 @@ class _CyberDateState extends State<CyberDate> {
   }
 
   /// ✅ Format DateTime sang String để hiển thị
-  String _formatDate(DateTime date) {
+  /// Nếu là nullValue thì trả về empty string để hiển thị hint
+  String _formatDate(DateTime? date) {
+    if (date == null || _isNullValue(date)) {
+      return '';
+    }
     return _dateFormat.format(date);
   }
 
   /// ✅ Update text controller từ binding/controller
   void _updateTextController() {
     final value = _getCurrentValue();
-    final displayValue = value != null ? _formatDate(value) : '';
+    final displayValue = _formatDate(value);
     _textController.text = displayValue;
     _validate();
   }
@@ -413,7 +453,7 @@ class _CyberDateState extends State<CyberDate> {
     _isUpdating = true;
 
     final value = _effectiveController.value;
-    final displayValue = value != null ? _formatDate(value) : '';
+    final displayValue = _formatDate(value);
 
     // Update text display
     if (_textController.text != displayValue) {
@@ -445,7 +485,7 @@ class _CyberDateState extends State<CyberDate> {
     _isUpdating = true;
 
     final value = _getCurrentValue();
-    final displayValue = value != null ? _formatDate(value) : '';
+    final displayValue = _formatDate(value);
 
     // Update text display
     if (_textController.text != displayValue) {
@@ -537,6 +577,38 @@ class _CyberDateState extends State<CyberDate> {
     }
   }
 
+  /// ✅ Clear value (set về nullValue)
+  void _clearValue() {
+    _isUpdating = true;
+
+    final nullVal = widget.nullValue ?? CyberDate.defaultNullValue;
+
+    // ✅ Update controller/binding
+    if (widget.controller == null) {
+      _internalController!.value = nullVal;
+    }
+
+    if (_boundRow != null && _boundField != null) {
+      _boundRow![_boundField!] = nullVal;
+    }
+
+    // Update display - sẽ hiển thị hint text vì là nullValue
+    _textController.text = '';
+
+    // Validate
+    _validate();
+
+    // Callback với null
+    widget.onChanged?.call(null);
+
+    _isUpdating = false;
+
+    // Trigger rebuild
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
   Future<void> _showDatePicker() async {
     // Unfocus to avoid keyboard
     _focusNode.unfocus();
@@ -604,6 +676,7 @@ class _CyberDateState extends State<CyberDate> {
       listenable: _effectiveController,
       builder: (context, _) {
         final currentError = widget.errorText ?? _validationError;
+        final hasValue = _textController.text.isNotEmpty;
 
         Widget textField = TextField(
           controller: _textController,
@@ -611,7 +684,8 @@ class _CyberDateState extends State<CyberDate> {
           readOnly: true,
           enabled: widget.enabled,
           style: widget.style,
-          decoration: widget.decoration ?? _buildDecoration(currentError),
+          decoration:
+              widget.decoration ?? _buildDecoration(currentError, hasValue),
           onTap: widget.enabled ? _showDatePicker : null,
         );
 
@@ -678,7 +752,7 @@ class _CyberDateState extends State<CyberDate> {
     );
   }
 
-  InputDecoration _buildDecoration(String? errorText) {
+  InputDecoration _buildDecoration(String? errorText, bool hasValue) {
     final hasError = errorText != null;
     final iconData = widget.prefixIcon != null
         ? v_parseIcon(widget.prefixIcon!)
@@ -715,6 +789,38 @@ class _CyberDateState extends State<CyberDate> {
                 )
               : null);
 
+    // ✅ Suffix icon: Hiển thị Clear hoặc Dropdown
+    Widget? suffixWidget;
+    if (widget.enabled) {
+      if (hasValue && widget.showClearButton) {
+        // Hiển thị nút Clear khi có giá trị
+        suffixWidget = Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.clear, size: 18),
+              onPressed: _clearValue,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
+            const SizedBox(width: 4),
+            IconButton(
+              icon: const Icon(Icons.arrow_drop_down, size: 20),
+              onPressed: _showDatePicker,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
+          ],
+        );
+      } else {
+        // Chỉ hiển thị dropdown khi không có giá trị
+        suffixWidget = IconButton(
+          icon: const Icon(Icons.arrow_drop_down, size: 20),
+          onPressed: _showDatePicker,
+        );
+      }
+    }
+
     return InputDecoration(
       hintText: widget.hint ?? 'Chọn ngày',
       hintStyle: TextStyle(
@@ -725,12 +831,7 @@ class _CyberDateState extends State<CyberDate> {
       prefixIcon: iconData != null
           ? Icon(iconData, size: 18)
           : const Icon(Icons.calendar_today, size: 18),
-      suffixIcon: widget.enabled
-          ? IconButton(
-              icon: const Icon(Icons.arrow_drop_down, size: 20),
-              onPressed: _showDatePicker,
-            )
-          : null,
+      suffixIcon: suffixWidget,
 
       // ✅ Border based on error state and borderSize
       border: borderStyle ?? InputBorder.none,
