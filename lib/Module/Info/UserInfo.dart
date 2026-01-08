@@ -16,6 +16,8 @@ class UserInfo {
   static String ma_dvcs = "";
   static String ten_cty = "";
   static String comment = "";
+  static String chucvu = "";
+  static String dienthoai = "";
   static String isOTP = "";
   // ignore: non_constant_identifier_names
   static String id_otp = "";
@@ -108,6 +110,8 @@ class UserInfo {
     ma_dvcs = loginRow["ma_dvcs"]?.toString() ?? "";
     ten_cty = loginRow["m_ten_cty"]?.toString() ?? "";
     isadmin = loginRow["is_admin"]?.toString() ?? "0";
+    chucvu = loginRow["chuc_vu"]?.toString() ?? "";
+    dienthoai = loginRow["telephone"]?.toString() ?? "";
 
     // ✅ Handle id_otp
     if (dtlogin.containerColumn("loginotp")) {
