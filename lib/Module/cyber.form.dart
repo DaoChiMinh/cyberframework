@@ -36,7 +36,7 @@ class CyberFormView extends StatefulWidget {
     required this.strparameter,
     this.objectdata,
     this.hideAppBar = false,
-    this.showSpeedMonitor = true,
+    this.showSpeedMonitor = false,
     this.speedMonitorPosition = SpeedMonitorPosition.appBar,
     this.isMainScreen = false,
     this.enablePageAnimation = true, // ✅ NEW
@@ -178,9 +178,12 @@ class _CyberFormViewState extends State<CyberFormView>
     return AppBar(
       backgroundColor: Color(0xFF00D287),
       iconTheme: IconThemeData(color: Colors.white),
-      title: Text(
-        _form.title ?? widget.title,
-        style: TextStyle(color: Colors.white),
+      title: Center(
+        child: Text(
+          _form.title ?? widget.title,
+          style: TextStyle(color: Colors.white),
+          textAlign: TextAlign.center,
+        ),
       ),
       actions: showInAppBar
           ? [
