@@ -12,6 +12,8 @@ class CyberTab {
   final String strParameter;
   final dynamic objectData;
   final IconData? icon;
+  final int? badgeCount; // ✅ Badge số lượng
+  final Color? badgeColor; // ✅ Màu badge
 
   const CyberTab({
     required this.label,
@@ -20,6 +22,8 @@ class CyberTab {
     this.strParameter = "",
     this.objectData,
     this.icon,
+    this.badgeCount,
+    this.badgeColor,
   });
 
   @override
@@ -57,12 +61,9 @@ class _CachedView {
     if (isDisposed) return;
     isDisposed = true;
 
-    // ✅ Try to dispose ContentView if possible
-    // ContentView should implement a dispose method or use proper lifecycle
     try {
       if (widget is StatefulWidget) {
         // StatefulWidget disposal is handled by Flutter framework
-        // when removed from tree, but we mark it as disposed
       }
     } catch (e) {
       // Silent error - disposal is best-effort
@@ -71,10 +72,10 @@ class _CachedView {
 }
 
 // ============================================================================
-// ✅ OPTIMIZED WIDGET - CyberTabView
+// ✅ OPTIMIZED WIDGET - CyberTabView (Smooth Animation)
 // ============================================================================
 
-/// TabView với lazy loading, proper disposal, và optimized rendering
+/// TabView với lazy loading, smooth animation, và giao diện đẹp
 class CyberTabView extends StatefulWidget {
   final List<CyberTab> tabs;
   final int initialIndex;
@@ -82,20 +83,18 @@ class CyberTabView extends StatefulWidget {
   final Color? textColorTab;
   final Color? selectBackColorTab;
   final Color? selectTextColorTab;
-  final Color? indicatorColor;
   final double? tabBarHeight;
-  final bool isScrollable;
   final bool keepAlive;
   final Function(int index)? onTabChanged;
 
-  // ✅ Advanced options (merged from Advanced version)
-  final TabBarIndicatorSize? indicatorSize;
-  final EdgeInsets? labelPadding;
-  final EdgeInsets? indicatorPadding;
-  final Decoration? indicator;
-  final bool enableFeedback;
+  // ✅ Styling options
   final BorderRadius? tabBorderRadius;
   final double? tabSpacing;
+  final bool isScrollable; // ✅ Enable scroll cho nhiều tabs
+
+  // ✅ Animation options
+  final Duration? animationDuration;
+  final Curve? animationCurve;
 
   const CyberTabView({
     super.key,
@@ -105,18 +104,14 @@ class CyberTabView extends StatefulWidget {
     this.textColorTab,
     this.selectBackColorTab,
     this.selectTextColorTab,
-    this.indicatorColor,
     this.tabBarHeight,
-    this.isScrollable = true,
     this.keepAlive = false,
     this.onTabChanged,
-    this.indicatorSize,
-    this.labelPadding,
-    this.indicatorPadding,
-    this.indicator,
-    this.enableFeedback = true,
     this.tabBorderRadius,
     this.tabSpacing,
+    this.isScrollable = false, // ✅ Default false cho segmented style
+    this.animationDuration,
+    this.animationCurve,
   });
 
   @override
@@ -129,8 +124,8 @@ class _CyberTabViewState extends State<CyberTabView>
   final Map<int, _CachedView> _cachedViews = {};
   int _currentIndex = 0;
 
-  // ✅ Cache TabBarView children to avoid regeneration
-  List<Widget>? _cachedChildren;
+  // ✅ Pre-build all views to avoid rebuild jank
+  final Map<int, Widget> _prebuiltViews = {};
 
   @override
   void initState() {
@@ -140,25 +135,29 @@ class _CyberTabViewState extends State<CyberTabView>
       length: widget.tabs.length,
       vsync: this,
       initialIndex: widget.initialIndex,
+      animationDuration:
+          widget.animationDuration ?? const Duration(milliseconds: 300),
     );
 
     _tabController.addListener(_handleTabChange);
+
+    // ✅ Pre-build current view
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _preloadView(_currentIndex);
+    });
   }
 
   @override
   void didUpdateWidget(CyberTabView oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    // ✅ Invalidate children cache if tabs changed
     if (widget.tabs != oldWidget.tabs) {
-      _cachedChildren = null;
+      _prebuiltViews.clear();
 
-      // ✅ Dispose removed tabs
       if (!widget.keepAlive) {
         _disposeAllCachedViews();
       }
 
-      // Recreate controller if tab count changed
       if (widget.tabs.length != oldWidget.tabs.length) {
         _tabController.removeListener(_handleTabChange);
         _tabController.dispose();
@@ -168,6 +167,8 @@ class _CyberTabViewState extends State<CyberTabView>
           length: widget.tabs.length,
           vsync: this,
           initialIndex: _currentIndex,
+          animationDuration:
+              widget.animationDuration ?? const Duration(milliseconds: 300),
         );
         _tabController.addListener(_handleTabChange);
       }
@@ -176,10 +177,12 @@ class _CyberTabViewState extends State<CyberTabView>
 
   void _handleTabChange() {
     if (!mounted) return;
-    if (_tabController.indexIsChanging) return;
 
     final newIndex = _tabController.index;
     if (newIndex != _currentIndex) {
+      // ✅ Pre-load next view before animation completes
+      _preloadView(newIndex);
+
       // ✅ Dispose old view if not keeping alive
       if (!widget.keepAlive && _cachedViews.containsKey(_currentIndex)) {
         _cachedViews[_currentIndex]?.dispose();
@@ -188,10 +191,31 @@ class _CyberTabViewState extends State<CyberTabView>
 
       setState(() {
         _currentIndex = newIndex;
-        _cachedChildren = null; // ✅ Invalidate children cache
       });
 
       widget.onTabChanged?.call(newIndex);
+    }
+  }
+
+  /// ✅ Pre-load view to prevent jank
+  void _preloadView(int index) {
+    if (_prebuiltViews.containsKey(index)) return;
+
+    final tab = widget.tabs[index];
+    final view = V_getView(
+      tab.viewName,
+      cpName: tab.cpName,
+      strParameter: tab.strParameter,
+      objectData: tab.objectData,
+    );
+
+    if (view != null) {
+      setState(() {
+        _prebuiltViews[index] = view;
+        if (widget.keepAlive) {
+          _cachedViews[index] = _CachedView(view);
+        }
+      });
     }
   }
 
@@ -199,31 +223,31 @@ class _CyberTabViewState extends State<CyberTabView>
   void dispose() {
     _tabController.removeListener(_handleTabChange);
     _tabController.dispose();
-
-    // ✅ Dispose all cached views properly
     _disposeAllCachedViews();
-
+    _prebuiltViews.clear();
     super.dispose();
   }
 
-  /// ✅ Properly dispose all cached views
   void _disposeAllCachedViews() {
     for (var cachedView in _cachedViews.values) {
       cachedView.dispose();
     }
     _cachedViews.clear();
-    _cachedChildren = null;
   }
 
   /// ✅ Build tab content with proper caching
   Widget _buildTabContent(int index) {
+    // Return pre-built view
+    if (_prebuiltViews.containsKey(index)) {
+      return _prebuiltViews[index]!;
+    }
+
     // Return cached view if available
     if (_cachedViews.containsKey(index)) {
       final cached = _cachedViews[index]!;
       if (!cached.isDisposed) {
         return cached.widget;
       }
-      // Remove disposed view
       _cachedViews.remove(index);
     }
 
@@ -238,7 +262,6 @@ class _CyberTabViewState extends State<CyberTabView>
 
     if (view == null) {
       final errorWidget = _buildErrorWidget(tab);
-
       if (widget.keepAlive) {
         _cachedViews[index] = _CachedView(errorWidget);
       }
@@ -250,10 +273,10 @@ class _CyberTabViewState extends State<CyberTabView>
       _cachedViews[index] = _CachedView(view);
     }
 
+    _prebuiltViews[index] = view;
     return view;
   }
 
-  /// ✅ Build error widget
   Widget _buildErrorWidget(CyberTab tab) {
     return Center(
       child: Column(
@@ -275,109 +298,84 @@ class _CyberTabViewState extends State<CyberTabView>
     );
   }
 
-  /// ✅ Build tab bar items (optimized - no indexOf)
-  List<Widget> _buildTabs() {
+  /// ✅ Build segmented tab bar (pill style)
+  Widget _buildTabBar() {
+    final container = Container(
+      margin: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: widget.backColorTab ?? const Color(0xFFE8F5E9),
+        borderRadius: widget.tabBorderRadius ?? BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: widget.isScrollable
+          ? SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: _buildSegmentedTabs(),
+              ),
+            )
+          : Row(children: _buildSegmentedTabs()),
+    );
+
+    return widget.tabBarHeight != null
+        ? SizedBox(height: widget.tabBarHeight, child: container)
+        : container;
+  }
+
+  /// ✅ Build segmented tabs
+  List<Widget> _buildSegmentedTabs() {
     return List.generate(widget.tabs.length, (index) {
       final tab = widget.tabs[index];
       final isSelected = index == _currentIndex;
 
-      return Container(
-        margin: EdgeInsets.symmetric(horizontal: widget.tabSpacing ?? 4),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? (widget.selectBackColorTab ?? Theme.of(context).primaryColor)
-              : Colors.transparent,
-          borderRadius:
-              widget.tabBorderRadius ??
-              const BorderRadius.vertical(top: Radius.circular(8)),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Tab(
-          icon: tab.icon != null ? Icon(tab.icon, size: 20) : null,
-          text: tab.label,
-          height: widget.tabBarHeight ?? 48,
-        ),
+      final tabWidget = _AnimatedSegmentedTab(
+        isSelected: isSelected,
+        tab: tab,
+        selectBackColorTab: widget.selectBackColorTab,
+        selectTextColorTab: widget.selectTextColorTab,
+        textColorTab: widget.textColorTab,
+        tabSpacing: widget.tabSpacing,
+        animationDuration:
+            widget.animationDuration ?? const Duration(milliseconds: 250),
+        animationCurve: widget.animationCurve ?? Curves.easeInOut,
+        onTap: () => _tabController.animateTo(index),
       );
-    });
-  }
 
-  /// ✅ Build TabBarView children (cached)
-  List<Widget> _buildChildren() {
-    // Return cached children if available
-    if (_cachedChildren != null) {
-      return _cachedChildren!;
-    }
-
-    // Build new children list
-    _cachedChildren = List.generate(widget.tabs.length, (index) {
-      // Only build active tab or cached tabs
-      if (index == _currentIndex || _cachedViews.containsKey(index)) {
-        return _buildTabContent(index);
+      // ✅ Scrollable: không wrap, để tự sizing
+      if (widget.isScrollable) {
+        return tabWidget;
       }
-      // Placeholder for unloaded tabs
-      return const SizedBox.shrink();
-    }, growable: false);
 
-    return _cachedChildren!;
+      // ✅ Fixed: wrap trong Expanded để chia đều
+      return Expanded(child: tabWidget);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    // Colors
-    final backColorTab = widget.backColorTab ?? Colors.grey[200]!;
-    final textColorTab = widget.textColorTab ?? Colors.black87;
-    //final selectBackColorTab = widget.selectBackColorTab ?? theme.primaryColor;
-    final selectTextColorTab = widget.selectTextColorTab ?? Colors.white;
-    final indicatorColor = widget.indicatorColor ?? theme.primaryColor;
-
     return Column(
       children: [
-        // ✅ Tab Bar (optimized)
-        Container(
-          height: widget.tabBarHeight ?? 48,
-          decoration: BoxDecoration(
-            color: backColorTab,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: TabBar(
-            controller: _tabController,
-            isScrollable: widget.isScrollable,
-            indicatorColor: indicatorColor,
-            indicatorWeight: 3,
-            indicatorSize: widget.indicatorSize,
-            labelPadding:
-                widget.labelPadding ??
-                const EdgeInsets.symmetric(horizontal: 16),
-            indicatorPadding: widget.indicatorPadding ?? EdgeInsets.zero,
-            indicator: widget.indicator,
-            enableFeedback: widget.enableFeedback,
-            labelColor: selectTextColorTab,
-            unselectedLabelColor: textColorTab,
-            labelStyle: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-            ),
-            unselectedLabelStyle: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.normal,
-            ),
-            tabs: _buildTabs(), // ✅ Optimized tab building
-          ),
-        ),
+        // ✅ Segmented Tab Bar (pill style)
+        _buildTabBar(),
 
-        // ✅ Tab Content (cached children)
+        // ✅ Tab Content (smooth transition)
         Expanded(
           child: TabBarView(
             controller: _tabController,
-            children: _buildChildren(), // ✅ Cached children list
+            physics: const BouncingScrollPhysics(),
+            children: List.generate(
+              widget.tabs.length,
+              (index) => _buildTabContent(index),
+            ),
           ),
         ),
       ],
@@ -386,10 +384,132 @@ class _CyberTabViewState extends State<CyberTabView>
 }
 
 // ============================================================================
-// ✅ BACKWARD COMPATIBILITY - CyberTabViewAdvanced
+// ✅ ANIMATED SEGMENTED TAB - Pill style với nền chung
 // ============================================================================
 
-/// Advanced TabView - Now just an alias to CyberTabView
-/// All advanced features are merged into main CyberTabView
+class _AnimatedSegmentedTab extends StatelessWidget {
+  final bool isSelected;
+  final CyberTab tab;
+  final Color? selectBackColorTab;
+  final Color? selectTextColorTab;
+  final Color? textColorTab;
+  final double? tabSpacing;
+  final Duration animationDuration;
+  final Curve animationCurve;
+  final VoidCallback onTap;
+
+  const _AnimatedSegmentedTab({
+    required this.isSelected,
+    required this.tab,
+    this.selectBackColorTab,
+    this.selectTextColorTab,
+    this.textColorTab,
+    this.tabSpacing,
+    required this.animationDuration,
+    required this.animationCurve,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Colors cho segmented style
+    final selectedBg = selectBackColorTab ?? const Color(0xFF4CAF50);
+    final selectedText = selectTextColorTab ?? Colors.white;
+    final unselectedText = textColorTab ?? const Color(0xFF2E7D32);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: animationDuration,
+        curve: animationCurve,
+        margin: EdgeInsets.symmetric(horizontal: tabSpacing ?? 2),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        constraints: const BoxConstraints(minHeight: 40),
+        decoration: BoxDecoration(
+          // ✅ Tab active: màu nổi bật + shadow
+          // ✅ Tab inactive: trong suốt
+          color: isSelected ? selectedBg : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: selectedBg.withValues(alpha: 0.4),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Icon (if exists)
+            if (tab.icon != null) ...[
+              Icon(
+                tab.icon,
+                size: 18,
+                color: isSelected ? selectedText : unselectedText,
+              ),
+              const SizedBox(width: 6),
+            ],
+
+            // Label
+            Flexible(
+              child: AnimatedDefaultTextStyle(
+                duration: animationDuration,
+                curve: animationCurve,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                  color: isSelected ? selectedText : unselectedText,
+                ),
+                child: Text(
+                  tab.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+
+            // Badge
+            if (tab.badgeCount != null && tab.badgeCount! > 0) ...[
+              const SizedBox(width: 8),
+              AnimatedContainer(
+                duration: animationDuration,
+                curve: animationCurve,
+                constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? Colors.white.withValues(alpha: 0.9)
+                      : selectedBg.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: Text(
+                    tab.badgeCount.toString(),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: isSelected ? selectedBg : unselectedText,
+                      height: 1.0,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// ✅ BACKWARD COMPATIBILITY
+// ============================================================================
+
 @Deprecated('Use CyberTabView instead. All features are now in main widget.')
 typedef CyberTabViewAdvanced = CyberTabView;
