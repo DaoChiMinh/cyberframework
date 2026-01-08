@@ -74,6 +74,11 @@ class CyberText extends StatefulWidget {
   /// Có hiển thị label phía trên không
   final bool isShowLabel;
 
+  /// Có cho phép hint rỗng không
+  /// - false: Nếu hint null/empty thì tự động dùng label làm hint
+  /// - true: Giữ nguyên giá trị hint (có thể rỗng)
+  final bool isHintEmpty;
+
   /// Màu nền của field
   final Color? backgroundColor;
 
@@ -117,6 +122,7 @@ class CyberText extends StatefulWidget {
     this.decoration,
     this.isPassword = false,
     this.isShowLabel = true,
+    this.isHintEmpty = false,
     this.backgroundColor,
     this.borderColor = Colors.transparent,
     this.focusColor,
@@ -351,6 +357,23 @@ class _CyberTextState extends State<CyberText> {
   bool _isBindingExpressionMode() => widget.text is CyberBindingExpression;
   bool _isStaticTextMode() => widget.text is String;
 
+  /// Lấy hint text dựa vào logic isHintEmpty
+  String? _getEffectiveHint() {
+    // Nếu isHintEmpty = true → giữ nguyên giá trị hint (có thể null/empty)
+    if (widget.isHintEmpty) {
+      return widget.hint;
+    }
+
+    // Nếu isHintEmpty = false
+    // - Nếu hint có giá trị → dùng hint
+    // - Nếu hint null/empty → dùng label
+    if (widget.hint != null && widget.hint!.isNotEmpty) {
+      return widget.hint;
+    }
+
+    return widget.label;
+  }
+
   /// Parse icon code từ hex string sang IconData
   // IconData? _parseIconCode(String? iconCode) {
   //   if (iconCode == null || iconCode.isEmpty) return null;
@@ -517,6 +540,7 @@ class _CyberTextState extends State<CyberText> {
     final borderWidth = widget.borderSize?.toDouble() ?? 0.0;
     final radius = widget.borderRadius?.toDouble() ?? 4.0;
     final effectiveBorderColor = widget.borderColor ?? Colors.grey;
+    final effectiveHint = _getEffectiveHint();
 
     // Tạo border style dựa vào borderSize
     final borderStyle = borderWidth > 0
@@ -530,7 +554,7 @@ class _CyberTextState extends State<CyberText> {
         : null;
 
     return InputDecoration(
-      hintText: widget.hint,
+      hintText: effectiveHint,
       hintStyle: TextStyle(
         color: Colors.grey.shade500, // tương đương secondaryLabel
         fontSize: 15,
