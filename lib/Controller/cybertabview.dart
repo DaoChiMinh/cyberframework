@@ -344,14 +344,21 @@ class _CyberTabViewState extends State<CyberTabView>
       _cachedViews.remove(index);
     }
 
-    // Lazy load view
+    // ✅ FIX: Lazy load view - Check child first, then V_getView
     final tab = widget.tabs[index];
-    final view = V_getView(
-      tab.viewName ?? "",
-      cpName: tab.cpName,
-      strParameter: tab.strParameter,
-      objectData: tab.objectData,
-    );
+
+    // Nếu có child widget, dùng child
+    // Nếu không có child, dùng V_getView với viewName
+    final view =
+        tab.child ??
+        (tab.viewName != null
+            ? V_getView(
+                tab.viewName!,
+                cpName: tab.cpName,
+                strParameter: tab.strParameter,
+                objectData: tab.objectData,
+              )
+            : null);
 
     if (view == null) {
       final errorWidget = _buildErrorWidget(tab);
