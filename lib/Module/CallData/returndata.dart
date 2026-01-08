@@ -51,6 +51,12 @@ class ReturnData {
         final normalizedList = _normalizeListKeys(data as List);
         dataset.loadTable('table1', normalizedList);
       }
+      if (noRow != null) {
+        for (int i = 0; i < noRow!.length; i++) {
+          if (dataset[noRow![i]] == null) continue;
+          dataset[noRow![i]]!.clear();
+        }
+      }
 
       return dataset;
     } catch (e) {
