@@ -127,7 +127,7 @@ class CyberListView extends StatefulWidget {
   /// Khi có onLoadData, tìm kiếm sẽ gọi hàm onLoadData
   /// Khi không có onLoadData, tìm kiếm sẽ filter local data theo các cột này
   final List<String>? columnsFilter;
-
+  final Object? refreshKey;
   const CyberListView({
     super.key,
     this.dataSource,
@@ -161,6 +161,7 @@ class CyberListView extends StatefulWidget {
     this.autoItemHeight = false,
     this.height,
     this.columnsFilter,
+    this.refreshKey,
   }) : assert(columnCount >= 1, 'columnCount phải >= 1');
 
   @override
@@ -269,7 +270,42 @@ class _CyberListViewState extends State<CyberListView> {
         setState(() {});
       }
     }
+    // ✅ Kiểm tra refreshKey thay đổi (ví dụ khi đổi tab)
+    if (widget.refreshKey != oldWidget.refreshKey) {
+      // Reset tất cả state
+      _filteredIndices = null;
+      _currentSearchText = '';
+      _currentPage = 0;
+      _hasMoreData = true;
+      _searchController.clear();
+      _invalidateCache();
 
+      // Reload data nếu có onLoadData
+      if (widget.onLoadData != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _loadInitialData();
+        });
+      } else {
+        // Nếu không có onLoadData, chỉ refresh UI
+        if (mounted) {
+          setState(() {});
+        }
+      }
+      return; // ✅ Return sớm để không check các điều kiện khác
+    }
+
+    // Check dataSource thay đổi
+    if (widget.dataSource != oldWidget.dataSource) {
+      _filteredIndices = null;
+      _currentSearchText = '';
+      _searchController.clear();
+      _invalidateCache();
+      if (mounted) {
+        setState(() {});
+      }
+    }
+
+    // Check height thay đổi
     if (widget.height != oldWidget.height) {
       if (oldWidget.height == "*" && widget.height != "*") {
         _scrollController.addListener(_onScroll);
