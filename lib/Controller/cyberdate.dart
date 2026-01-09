@@ -133,7 +133,7 @@ class CyberDate extends StatefulWidget {
     this.validator,
     this.errorText,
     this.nullValue,
-    this.showClearButton = true,
+    this.showClearButton = false,
   }) : assert(
          controller == null || text == null,
          'CyberDate: không được dùng cả text và controller cùng lúc',
