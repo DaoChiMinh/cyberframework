@@ -192,7 +192,7 @@ class CyberLanguageService extends ChangeNotifier {
           : 'E';
 
       // ✅ Call server API to update language
-      final result = await context.callApi(
+      await context.callApi(
         functionName: "Cp_SysUpdateLangGuage",
         parameter: "$languageParam##",
         showLoading: false,
