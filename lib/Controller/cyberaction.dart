@@ -1,13 +1,15 @@
 import 'package:cyberframework/cyberframework.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:ui';
 
 /// Enum định nghĩa kiểu hiển thị của menu
 enum CyberActionType {
-  /// Menu luôn hiển thị
-  alwaysShow,
-
-  /// Menu tự động ẩn/hiện khi hover hoặc click
+  /// Menu có main button, tự động ẩn/hiện khi hover hoặc click
   autoShow,
+
+  /// Menu không có main button, items luôn hiển thị
+  alwaysShow,
 }
 
 /// Enum định nghĩa hướng mở rộng của menu
@@ -17,6 +19,18 @@ enum CyberActionDirection {
 
   /// Mở rộng theo chiều ngang (left to right)
   horizontal,
+}
+
+/// Enum định nghĩa vị trí label
+enum LabelPosition {
+  /// Label ở bên phải icon (mặc định)
+  right,
+
+  /// Label ở bên trái icon
+  left,
+
+  /// Label ở bên dưới icon
+  bottom,
 }
 
 /// Class định nghĩa một button action trong menu
@@ -36,8 +50,11 @@ class CyberButtonAction {
   /// Style cho icon
   final TextStyle? styleIcon;
 
-  /// Màu nền của button
+  /// Màu nền của button (default: Color.fromARGB(255, 247, 247, 247))
   final Color? backgroundColor;
+
+  /// Opacity của background button (0.0 - 1.0)
+  final double? backgroundOpacity;
 
   /// Màu icon (override styleIcon.color)
   final Color? iconColor;
@@ -48,6 +65,12 @@ class CyberButtonAction {
   /// Có hiển thị button này không (mặc định true)
   final bool visible;
 
+  /// Hiển thị label (desktop: ignore hover, mobile: hiển thị luôn)
+  final bool showLabel;
+
+  /// Vị trí của label (right, left, bottom)
+  final LabelPosition labelPosition;
+
   const CyberButtonAction({
     required this.label,
     required this.icon,
@@ -55,9 +78,12 @@ class CyberButtonAction {
     this.styleLabel,
     this.styleIcon,
     this.backgroundColor,
+    this.backgroundOpacity,
     this.iconColor,
     this.iconSize,
     this.visible = true,
+    this.showLabel = false,
+    this.labelPosition = LabelPosition.right,
   });
 }
 
@@ -80,6 +106,12 @@ class CyberAction extends StatefulWidget {
 
   /// Vị trí right (null = không set)
   final double? right;
+
+  /// Căn giữa theo chiều dọc (bỏ qua top/bottom)
+  final bool isCenterVer;
+
+  /// Căn giữa theo chiều ngang (bỏ qua left/right)
+  final bool isCenterHor;
 
   /// Hướng mở rộng menu
   final CyberActionDirection direction;
@@ -108,6 +140,27 @@ class CyberAction extends StatefulWidget {
   /// Màu của backdrop
   final Color? backdropColor;
 
+  /// Có hiển thị background của container không
+  final bool isShowBackgroundColor;
+
+  /// Màu nền của container chứa items (mặc định frosted glass)
+  final Color? backgroundColor;
+
+  /// Opacity của background container (0.0 - 1.0) (mặc định 0.85)
+  final double backgroundOpacity;
+
+  /// Border radius của container (mặc định 12)
+  final double borderRadius;
+
+  /// Border width của container
+  final double? containerBorderWidth;
+
+  /// Border color của container
+  final Color? containerBorderColor;
+
+  /// Padding của container (mặc định 8)
+  final EdgeInsets containerPadding;
+
   const CyberAction({
     super.key,
     required this.children,
@@ -116,8 +169,10 @@ class CyberAction extends StatefulWidget {
     this.left,
     this.bottom,
     this.right,
+    this.isCenterVer = false,
+    this.isCenterHor = false,
     this.direction = CyberActionDirection.vertical,
-    this.spacing = 6,
+    this.spacing = 6.0,
     this.mainButtonColor,
     this.mainButtonIcon,
     this.mainButtonSize = 56.0,
@@ -125,6 +180,13 @@ class CyberAction extends StatefulWidget {
     this.animationDuration = 300,
     this.showBackdrop = false,
     this.backdropColor,
+    this.isShowBackgroundColor = true,
+    this.backgroundColor,
+    this.backgroundOpacity = 0.85,
+    this.borderRadius = 12.0,
+    this.containerBorderWidth,
+    this.containerBorderColor,
+    this.containerPadding = const EdgeInsets.all(8),
   });
 
   @override
@@ -136,9 +198,7 @@ class _CyberActionState extends State<CyberAction>
   late AnimationController _animationController;
   late Animation<double> _animation;
   bool _isExpanded = false;
-  bool _isHovering = false;
-  bool _isPinned = false; // Track xem menu có đang được pin (click) hay không
-  int? _hoveredItemIndex; // Track item nào đang được hover
+  bool _isPinned = false;
 
   @override
   void initState() {
@@ -153,7 +213,7 @@ class _CyberActionState extends State<CyberAction>
       curve: Curves.easeInOut,
     );
 
-    // Nếu là AlwaysShow thì mở luôn
+    // Nếu là AlwaysShow thì mở menu luôn
     if (widget.type == CyberActionType.alwaysShow) {
       _isExpanded = true;
       _animationController.value = 1.0;
@@ -170,23 +230,20 @@ class _CyberActionState extends State<CyberAction>
     if (widget.type == CyberActionType.alwaysShow) return;
 
     setState(() {
-      _isPinned = !_isPinned; // Toggle pin state
+      _isPinned = !_isPinned;
       _isExpanded = _isPinned;
 
       if (_isExpanded) {
         _animationController.forward();
       } else {
         _animationController.reverse();
-        _hoveredItemIndex = null; // Reset hover state khi đóng menu
       }
     });
   }
 
   void _handleHoverEnter() {
-    // Chỉ mở khi hover nếu chưa được pinned
-    if (widget.type == CyberActionType.autoShow && !_isPinned && !_isExpanded) {
+    if (widget.type == CyberActionType.autoShow && !_isPinned) {
       setState(() {
-        _isHovering = true;
         _isExpanded = true;
         _animationController.forward();
       });
@@ -194,13 +251,20 @@ class _CyberActionState extends State<CyberAction>
   }
 
   void _handleHoverExit() {
-    // Chỉ đóng khi hover out nếu chưa được pinned
-    if (widget.type == CyberActionType.autoShow && _isHovering && !_isPinned) {
+    if (widget.type == CyberActionType.autoShow && !_isPinned) {
       setState(() {
-        _isHovering = false;
         _isExpanded = false;
         _animationController.reverse();
-        _hoveredItemIndex = null; // Reset hover state
+      });
+    }
+  }
+
+  void _closeMenu() {
+    if (widget.type == CyberActionType.autoShow) {
+      setState(() {
+        _isPinned = false;
+        _isExpanded = false;
+        _animationController.reverse();
       });
     }
   }
@@ -216,18 +280,52 @@ class _CyberActionState extends State<CyberAction>
       return const SizedBox.shrink();
     }
 
+    final isVertical = widget.direction == CyberActionDirection.vertical;
+    final showMainButton = widget.type == CyberActionType.autoShow;
+
+    // Tính toán alignment dựa trên isCenterVer và isCenterHor
+    Alignment alignment = Alignment.center;
+    double? finalTop = widget.top;
+    double? finalLeft = widget.left;
+    double? finalBottom = widget.bottom;
+    double? finalRight = widget.right;
+
+    if (widget.isCenterVer) {
+      // Căn giữa theo chiều dọc
+      finalTop = null;
+      finalBottom = null;
+      if (widget.isCenterHor) {
+        // Cả 2 chiều đều center
+        alignment = Alignment.center;
+        finalLeft = null;
+        finalRight = null;
+      } else if (widget.left != null) {
+        alignment = Alignment.centerLeft;
+      } else if (widget.right != null) {
+        alignment = Alignment.centerRight;
+      } else {
+        alignment = Alignment.center;
+      }
+    } else if (widget.isCenterHor) {
+      // Chỉ căn giữa theo chiều ngang
+      finalLeft = null;
+      finalRight = null;
+      if (widget.top != null) {
+        alignment = Alignment.topCenter;
+      } else if (widget.bottom != null) {
+        alignment = Alignment.bottomCenter;
+      } else {
+        alignment = Alignment.center;
+      }
+    }
+
     return Stack(
       children: [
         // Backdrop nếu cần
         if (_isExpanded && widget.showBackdrop)
           Positioned.fill(
             child: GestureDetector(
-              onTap: () {
-                // Click backdrop để đóng menu
-                if (_isPinned) {
-                  _toggleMenu();
-                }
-              },
+              onTap: _closeMenu,
               child: Container(
                 color:
                     widget.backdropColor ?? Colors.black.withValues(alpha: 0.3),
@@ -235,200 +333,205 @@ class _CyberActionState extends State<CyberAction>
             ),
           ),
 
-        // Main menu
-        Positioned(
-          top: widget.top,
-          left: widget.left,
-          bottom: widget.bottom,
-          right: widget.right,
-          child: MouseRegion(
-            onEnter: (_) => _handleHoverEnter(),
-            onExit: (_) => _handleHoverExit(),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment:
-                  widget.direction == CyberActionDirection.vertical
-                  ? CrossAxisAlignment.center
-                  : CrossAxisAlignment.start,
-              children: [
-                // Menu items
-                if (widget.direction == CyberActionDirection.vertical)
-                  ..._buildVerticalItems(visibleChildren)
-                else
-                  _buildHorizontalItems(visibleChildren),
-
-                // Spacing giữa items và main button
-                if (_isExpanded && visibleChildren.isNotEmpty)
-                  SizedBox(height: widget.spacing),
-
-                // Main FAB button
-                _buildMainButton(),
-              ],
+        // Main menu - Use Align if centered, otherwise Positioned
+        if (widget.isCenterVer || widget.isCenterHor)
+          Align(
+            alignment: alignment,
+            child: Padding(
+              padding: EdgeInsets.only(
+                top: finalTop ?? 0,
+                left: finalLeft ?? 0,
+                bottom: finalBottom ?? 0,
+                right: finalRight ?? 0,
+              ),
+              child: _buildMenuContent(
+                isVertical,
+                showMainButton,
+                visibleChildren,
+              ),
+            ),
+          )
+        else
+          Positioned(
+            top: finalTop,
+            left: finalLeft,
+            bottom: finalBottom,
+            right: finalRight,
+            child: _buildMenuContent(
+              isVertical,
+              showMainButton,
+              visibleChildren,
             ),
           ),
-        ),
       ],
     );
   }
 
-  /// Build các items theo chiều dọc
-  List<Widget> _buildVerticalItems(List<CyberButtonAction> items) {
-    return items.asMap().entries.map((entry) {
-      final index = entry.key;
-      final item = entry.value;
+  /// Build menu content (extracted for reuse)
+  Widget _buildMenuContent(
+    bool isVertical,
+    bool showMainButton,
+    List<CyberButtonAction> visibleChildren,
+  ) {
+    return MouseRegion(
+      onEnter: (_) => _handleHoverEnter(),
+      onExit: (_) => _handleHoverExit(),
+      child: isVertical
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                // Menu items vertical wrapped in container
+                _buildItemsContainer(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      for (int i = 0; i < visibleChildren.length; i++)
+                        Padding(
+                          padding: EdgeInsets.only(
+                            bottom: i < visibleChildren.length - 1
+                                ? widget.spacing
+                                : 0,
+                          ),
+                          child: _ActionMenuItem(
+                            item: visibleChildren[i],
+                            onTap: () {
+                              visibleChildren[i].onclick?.call();
+                              _closeMenu();
+                            },
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
 
-      return AnimatedBuilder(
-        animation: _animation,
-        builder: (context, child) {
-          final slideOffset =
-              _animation.value * (items.length - index) * (widget.spacing + 48);
+                // Spacing giữa items và main button
+                if (_isExpanded && visibleChildren.isNotEmpty && showMainButton)
+                  SizedBox(height: widget.spacing),
 
-          return Transform.translate(
-            offset: Offset(0, -slideOffset),
-            child: Opacity(opacity: _animation.value, child: child),
-          );
-        },
-        child: Padding(
-          padding: EdgeInsets.only(bottom: widget.spacing),
-          child: _buildMenuItem(item, index),
-        ),
-      );
-    }).toList();
+                // Main FAB button (chỉ hiện khi AutoShow)
+                if (showMainButton) _buildMainButton(),
+              ],
+            )
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                // Menu items horizontal wrapped in container
+                _buildItemsContainer(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (int i = 0; i < visibleChildren.length; i++)
+                        Padding(
+                          padding: EdgeInsets.only(
+                            right: i < visibleChildren.length - 1
+                                ? widget.spacing
+                                : 0,
+                          ),
+                          child: _ActionMenuItem(
+                            item: visibleChildren[i],
+                            onTap: () {
+                              visibleChildren[i].onclick?.call();
+                              _closeMenu();
+                            },
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+
+                // Spacing giữa items và main button
+                if (_isExpanded && visibleChildren.isNotEmpty && showMainButton)
+                  SizedBox(width: widget.spacing),
+
+                // Main FAB button (chỉ hiện khi AutoShow)
+                if (showMainButton) _buildMainButton(),
+              ],
+            ),
+    );
   }
 
-  /// Build các items theo chiều ngang
-  Widget _buildHorizontalItems(List<CyberButtonAction> items) {
+  /// Wrap items trong container với background và border (frosted glass effect)
+  Widget _buildItemsContainer({required Widget child}) {
     return AnimatedBuilder(
       animation: _animation,
-      builder: (context, child) {
-        return Opacity(
-          opacity: _animation.value,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: items.asMap().entries.map((entry) {
-              final index = entry.key;
-              final item = entry.value;
-              return Padding(
-                padding: EdgeInsets.only(right: widget.spacing),
-                child: _buildMenuItem(item, index),
-              );
-            }).toList(),
+      builder: (context, _) {
+        return Transform.scale(
+          scale: _animation.value,
+          alignment: widget.direction == CyberActionDirection.vertical
+              ? Alignment.bottomRight
+              : Alignment.centerRight,
+          child: Opacity(
+            opacity: _animation.value,
+            child: widget.isShowBackgroundColor
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(widget.borderRadius),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                      child: Container(
+                        padding: widget.containerPadding,
+                        decoration: BoxDecoration(
+                          color:
+                              (widget.backgroundColor ??
+                                      Colors.white.withValues(alpha: 0.1))
+                                  .withValues(alpha: widget.backgroundOpacity),
+                          borderRadius: BorderRadius.circular(
+                            widget.borderRadius,
+                          ),
+                          border:
+                              widget.containerBorderWidth != null &&
+                                  widget.containerBorderWidth! > 0
+                              ? Border.all(
+                                  color:
+                                      widget.containerBorderColor ??
+                                      Colors.white.withValues(alpha: 0.3),
+                                  width: widget.containerBorderWidth!,
+                                )
+                              : null,
+                        ),
+                        child: _buildScrollableChild(child),
+                      ),
+                    ),
+                  )
+                : _buildScrollableChild(child),
           ),
         );
       },
     );
   }
 
-  /// Build một menu item với label hiển thị khi hover
-  Widget _buildMenuItem(CyberButtonAction item, int index) {
-    final iconSize = item.iconSize ?? 24.0;
-    final buttonSize = iconSize + 24.0; // padding around icon
-    final isHovered = _hoveredItemIndex == index;
+  /// Wrap child trong SingleChildScrollView với constraints
+  Widget _buildScrollableChild(Widget child) {
+    // Get screen size
+    final screenSize = MediaQuery.of(context).size;
 
-    return MouseRegion(
-      onEnter: (_) {
-        setState(() {
-          _hoveredItemIndex = index;
-        });
-      },
-      onExit: (_) {
-        setState(() {
-          if (_hoveredItemIndex == index) {
-            _hoveredItemIndex = null;
-          }
-        });
-      },
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          // Label text (hiển thị bên trái icon khi hover)
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOut,
-            width: isHovered ? null : 0,
-            padding: isHovered
-                ? const EdgeInsets.symmetric(horizontal: 12, vertical: 6)
-                : EdgeInsets.zero,
-            decoration: BoxDecoration(
-              color: isHovered
-                  ? Colors.white.withValues(alpha: 0.95)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(4),
-              boxShadow: isHovered
-                  ? [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.1),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      ),
-                    ]
-                  : [],
-            ),
-            child: AnimatedOpacity(
-              duration: const Duration(milliseconds: 150),
-              opacity: isHovered ? 1.0 : 0.0,
-              child: Text(
-                item.label,
-                style:
-                    item.styleLabel ??
-                    const TextStyle(
-                      color: Colors.black87,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                overflow: TextOverflow.visible,
-                softWrap: false,
-              ),
-            ),
-          ),
-          if (isHovered) const SizedBox(width: 8),
-          // Icon button
-          Material(
-            elevation: 4,
-            borderRadius: BorderRadius.circular(buttonSize / 2),
-            color: (item.backgroundColor ?? Theme.of(context).primaryColor)
-                .withValues(alpha: 0.95), // Thêm opacity
-            child: InkWell(
-              onTap: () {
-                item.onclick?.call();
-                // Luôn đóng menu sau khi click item (cho cả pinned và unpinned)
-                if (widget.type == CyberActionType.autoShow) {
-                  if (_isPinned) {
-                    _toggleMenu();
-                  } else {
-                    // Nếu menu đang mở bởi hover, đóng luôn
-                    setState(() {
-                      _isExpanded = false;
-                      _animationController.reverse();
-                      _hoveredItemIndex = null;
-                    });
-                  }
-                }
-              },
-              borderRadius: BorderRadius.circular(buttonSize / 2),
-              child: Container(
-                width: buttonSize,
-                height: buttonSize,
-                alignment: Alignment.center,
-                child: CyberLabel(
-                  text: item.icon,
-                  isIcon: true,
-                  iconSize: iconSize,
-                  textcolor:
-                      item.iconColor ?? item.styleIcon?.color ?? Colors.white,
-                ),
-              ),
-            ),
-          ),
-        ],
+    // Calculate max size (70% of screen)
+    final maxHeight = screenSize.height * 0.7;
+    final maxWidth = screenSize.width * 0.7;
+
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: widget.direction == CyberActionDirection.vertical
+            ? maxHeight
+            : double.infinity,
+        maxWidth: widget.direction == CyberActionDirection.horizontal
+            ? maxWidth
+            : double.infinity,
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: widget.direction == CyberActionDirection.vertical
+            ? Axis.vertical
+            : Axis.horizontal,
+        child: child,
       ),
     );
   }
 
   /// Build main FAB button
   Widget _buildMainButton() {
-    final size = widget.mainButtonSize ?? 56.0;
+    final size = widget.mainButtonSize ?? 52.0;
     final iconSize = size * 0.5;
 
     return Material(
@@ -443,13 +546,228 @@ class _CyberActionState extends State<CyberAction>
           height: size,
           alignment: Alignment.center,
           child: AnimatedRotation(
-            turns: _isExpanded ? 0.125 : 0, // Rotate 45 degrees khi mở
+            turns: _isExpanded ? 0.125 : 0,
             duration: Duration(milliseconds: widget.animationDuration),
             child: CyberLabel(
-              text: widget.mainButtonIcon ?? "e145", // default add icon
+              text: widget.mainButtonIcon ?? "e5d4",
               isIcon: true,
               iconSize: iconSize,
               textcolor: widget.mainIconColor ?? Colors.white,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Widget riêng cho mỗi action menu item
+class _ActionMenuItem extends StatefulWidget {
+  final CyberButtonAction item;
+  final VoidCallback onTap;
+
+  const _ActionMenuItem({required this.item, required this.onTap});
+
+  @override
+  State<_ActionMenuItem> createState() => _ActionMenuItemState();
+}
+
+class _ActionMenuItemState extends State<_ActionMenuItem> {
+  bool _isHovered = false;
+
+  // Check if running on mobile (not web)
+  bool get _isMobile => !kIsWeb;
+
+  @override
+  Widget build(BuildContext context) {
+    final iconSize = widget.item.iconSize ?? 20.0;
+    final buttonSize = iconSize + 24.0;
+
+    // Default background: Color.fromARGB(255, 247, 247, 247)
+    final bgColor =
+        widget.item.backgroundColor ?? const Color.fromARGB(255, 247, 247, 247);
+    final bgOpacity = widget.item.backgroundOpacity ?? 0.95;
+
+    // Trên mobile: dùng Tooltip thay vì MouseRegion
+    if (_isMobile) {
+      return _buildMobileVersion(buttonSize, iconSize, bgColor, bgOpacity);
+    }
+
+    // Trên desktop: dùng MouseRegion như cũ
+    return _buildDesktopVersion(buttonSize, iconSize, bgColor, bgOpacity);
+  }
+
+  /// Build version cho mobile (với Tooltip)
+  Widget _buildMobileVersion(
+    double buttonSize,
+    double iconSize,
+    Color bgColor,
+    double bgOpacity,
+  ) {
+    final iconButton = _buildIconButton(
+      buttonSize,
+      iconSize,
+      bgColor,
+      bgOpacity,
+    );
+
+    // Nếu showLabel = true: hiển thị label luôn theo position
+    if (widget.item.showLabel) {
+      return _buildWithLabel(iconButton);
+    }
+
+    // Nếu không: dùng Tooltip (long press để xem)
+    return Tooltip(
+      message: widget.item.label,
+      waitDuration: const Duration(milliseconds: 500),
+      child: iconButton,
+    );
+  }
+
+  /// Build version cho desktop (với MouseRegion hover)
+  Widget _buildDesktopVersion(
+    double buttonSize,
+    double iconSize,
+    Color bgColor,
+    double bgOpacity,
+  ) {
+    final iconButton = _buildIconButton(
+      buttonSize,
+      iconSize,
+      bgColor,
+      bgOpacity,
+    );
+
+    // Nếu showLabel = true: hiển thị label luôn (không cần hover)
+    if (widget.item.showLabel) {
+      return _buildWithLabel(iconButton);
+    }
+
+    // Nếu không: chỉ hiển thị khi hover
+    return MouseRegion(
+      onEnter: (event) {
+        setState(() {
+          _isHovered = true;
+        });
+      },
+      onExit: (event) {
+        setState(() {
+          _isHovered = false;
+        });
+      },
+      cursor: SystemMouseCursors.click,
+      child: _isHovered ? _buildWithLabel(iconButton) : iconButton,
+    );
+  }
+
+  /// Build icon + label theo position
+  Widget _buildWithLabel(Widget iconButton) {
+    final label = _buildLabel();
+
+    switch (widget.item.labelPosition) {
+      case LabelPosition.right:
+        // Label bên PHẢI icon: icon → label
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [iconButton, label],
+        );
+
+      case LabelPosition.left:
+        // Label bên TRÁI icon: label → icon
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [label, iconButton],
+        );
+
+      case LabelPosition.bottom:
+        // Label bên DƯỚI icon
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [iconButton, const SizedBox(height: 4), label],
+        );
+    }
+  }
+
+  /// Build label widget
+  Widget _buildLabel() {
+    EdgeInsets margin;
+
+    // Adjust margin based on position
+    switch (widget.item.labelPosition) {
+      case LabelPosition.right:
+        // Label ở bên phải icon → margin left
+        margin = const EdgeInsets.only(left: 3);
+        break;
+      case LabelPosition.left:
+        // Label ở bên trái icon → margin right
+        margin = const EdgeInsets.only(right: 3);
+        break;
+      case LabelPosition.bottom:
+        // Label ở dưới icon → no horizontal margin
+        margin = EdgeInsets.zero;
+        break;
+    }
+
+    return Container(
+      margin: margin,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      // decoration: BoxDecoration(
+      //   color: Colors.white.withValues(alpha: 0.95),
+      //   borderRadius: BorderRadius.circular(4),
+      //   boxShadow: [
+      //     BoxShadow(
+      //       color: Colors.black.withValues(alpha: 0.1),
+      //       blurRadius: 4,
+      //       offset: const Offset(0, 2),
+      //     ),
+      //   ],
+      // ),
+      child: Text(
+        widget.item.label,
+        style:
+            widget.item.styleLabel ??
+            const TextStyle(
+              color: Colors.grey,
+              // fontSize: 14,
+              // fontWeight: FontWeight.w500,
+            ),
+        overflow: TextOverflow.visible,
+        softWrap: false,
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  /// Build icon button
+  Widget _buildIconButton(
+    double buttonSize,
+    double iconSize,
+    Color bgColor,
+    double bgOpacity,
+  ) {
+    return Container(
+      width: buttonSize,
+      height: buttonSize,
+      decoration: BoxDecoration(
+        color: bgColor.withValues(alpha: bgOpacity),
+        borderRadius: BorderRadius.circular(buttonSize / 2),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: widget.onTap,
+          borderRadius: BorderRadius.circular(buttonSize / 2),
+          child: Center(
+            child: CyberLabel(
+              text: widget.item.icon,
+              isIcon: true,
+              iconSize: iconSize,
+              textcolor:
+                  widget.item.iconColor ??
+                  widget.item.styleIcon?.color ??
+                  Colors.black87,
             ),
           ),
         ),
@@ -467,8 +785,10 @@ extension CyberActionExtension on List<CyberButtonAction> {
     double? left,
     double? bottom,
     double? right,
+    bool isCenterVer = false,
+    bool isCenterHor = false,
     CyberActionDirection direction = CyberActionDirection.vertical,
-    double spacing = 12.0,
+    double spacing = 6.0,
     Color? mainButtonColor,
     String? mainButtonIcon,
     double? mainButtonSize,
@@ -476,6 +796,13 @@ extension CyberActionExtension on List<CyberButtonAction> {
     int animationDuration = 300,
     bool showBackdrop = false,
     Color? backdropColor,
+    bool isShowBackgroundColor = true,
+    Color? backgroundColor,
+    double backgroundOpacity = 0.85,
+    double borderRadius = 12.0,
+    double? containerBorderWidth,
+    Color? containerBorderColor,
+    EdgeInsets containerPadding = const EdgeInsets.all(8),
   }) {
     return CyberAction(
       children: this,
@@ -484,6 +811,8 @@ extension CyberActionExtension on List<CyberButtonAction> {
       left: left,
       bottom: bottom,
       right: right,
+      isCenterVer: isCenterVer,
+      isCenterHor: isCenterHor,
       direction: direction,
       spacing: spacing,
       mainButtonColor: mainButtonColor,
@@ -493,6 +822,13 @@ extension CyberActionExtension on List<CyberButtonAction> {
       animationDuration: animationDuration,
       showBackdrop: showBackdrop,
       backdropColor: backdropColor,
+      isShowBackgroundColor: isShowBackgroundColor,
+      backgroundColor: backgroundColor,
+      backgroundOpacity: backgroundOpacity,
+      borderRadius: borderRadius,
+      containerBorderWidth: containerBorderWidth,
+      containerBorderColor: containerBorderColor,
+      containerPadding: containerPadding,
     );
   }
 }
