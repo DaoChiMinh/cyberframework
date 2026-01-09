@@ -79,8 +79,51 @@ class CyberDataTable extends ChangeNotifier {
     }
   }
 
+  /// ✅ FIXED: Tạo row mới với các giá trị default theo type của column
+  ///
+  /// Trước đây hàm này truyền Map<String, Type> vào constructor CyberDataRow
+  /// gây ra lỗi vì constructor nhận Map<String, dynamic>
+  ///
+  /// Bây giờ tạo đúng giá trị default theo type:
+  /// - String -> ""
+  /// - int -> 0
+  /// - double -> 0.0
+  /// - bool -> false
+  /// - DateTime -> null
+  /// - Other types -> null
+  ///
+  /// Usage:
+  /// ```dart
+  /// var newRow = table.newRow();
+  /// newRow['name'] = 'John';
+  /// newRow['age'] = 25;
+  /// table.addRow(newRow);
+  /// ```
   CyberDataRow newRow() {
-    return CyberDataRow(columns);
+    final initialData = <String, dynamic>{};
+
+    // Tạo giá trị default cho mỗi column theo type
+    for (var entry in _columns.entries) {
+      final columnName = entry.key;
+      final columnType = entry.value;
+
+      // Assign default value based on type
+      if (columnType == String) {
+        initialData[columnName] = '';
+      } else if (columnType == int) {
+        initialData[columnName] = 0;
+      } else if (columnType == double) {
+        initialData[columnName] = 0.0;
+      } else if (columnType == bool) {
+        initialData[columnName] = false;
+      } else if (columnType == DateTime) {
+        initialData[columnName] = null; // DateTime thường nullable
+      } else {
+        initialData[columnName] = null; // Default cho các type khác
+      }
+    }
+
+    return CyberDataRow(initialData);
   }
 
   void removeRow(CyberDataRow row) {

@@ -67,6 +67,7 @@ class CyberDataRow extends ChangeNotifier implements ICyberIdentifiable {
 
     return true;
   }
+
   // ============================================================================
   // ✅ IDENTITY CONTRACT IMPLEMENTATION
   // ============================================================================
@@ -123,6 +124,110 @@ class CyberDataRow extends ChangeNotifier implements ICyberIdentifiable {
 
   /// Get internal UUID (even if custom identity is set)
   String get internalId => _internalId;
+
+  // ============================================================================
+  // ✅ NEW: UPDATE ROW TO ROW
+  // ============================================================================
+
+  /// Update row hiện tại với dữ liệu từ row nguồn
+  ///
+  /// Options:
+  /// - `onlyChangedFields`: Chỉ copy các field đã thay đổi từ row nguồn
+  /// - `preserveOriginal`: Giữ nguyên _originalData (không reset tracking)
+  /// - `excludeFields`: Danh sách các field không copy
+  /// - `includeFields`: Chỉ copy các field trong danh sách này
+  ///
+  /// Usage:
+  /// ```dart
+  /// // Copy tất cả fields
+  /// rowDich.updateRowToRow(rowNguon);
+  ///
+  /// // Chỉ copy changed fields
+  /// rowDich.updateRowToRow(rowNguon, onlyChangedFields: true);
+  ///
+  /// // Copy nhưng giữ nguyên original (để tracking changes)
+  /// rowDich.updateRowToRow(rowNguon, preserveOriginal: true);
+  ///
+  /// // Exclude một số fields
+  /// rowDich.updateRowToRow(rowNguon, excludeFields: ['id', 'created_date']);
+  ///
+  /// // Chỉ include một số fields
+  /// rowDich.updateRowToRow(rowNguon, includeFields: ['name', 'email', 'phone']);
+  /// ```
+  void updateRowToRow(
+    CyberDataRow sourceRow, {
+    bool onlyChangedFields = false,
+    bool preserveOriginal = false,
+    List<String>? excludeFields,
+    List<String>? includeFields,
+  }) {
+    if (_isDisposed) {
+      debugPrint('⚠️ Cannot update: Row is disposed');
+      return;
+    }
+
+    // Convert exclude/include lists to lowercase set for faster lookup
+    final excludeSet = excludeFields?.map((f) => f.toLowerCase()).toSet();
+    final includeSet = includeFields?.map((f) => f.toLowerCase()).toSet();
+
+    // Determine which fields to copy
+    List<String> fieldsToCopy;
+    if (onlyChangedFields) {
+      fieldsToCopy = sourceRow.changedFields.toList();
+    } else {
+      fieldsToCopy = sourceRow.fieldNames;
+    }
+
+    // Begin batch to avoid multiple notifications
+    batch(() {
+      for (var fieldName in fieldsToCopy) {
+        final lowerFieldName = _getCachedFieldName(fieldName);
+
+        // Check exclude list
+        if (excludeSet != null && excludeSet.contains(lowerFieldName)) {
+          continue;
+        }
+
+        // Check include list
+        if (includeSet != null && !includeSet.contains(lowerFieldName)) {
+          continue;
+        }
+
+        // Copy value
+        final value = sourceRow[fieldName];
+        _data[lowerFieldName] = value;
+
+        // Update original data if not preserving
+        if (!preserveOriginal) {
+          _originalData[lowerFieldName] = value;
+        }
+
+        // Track changed fields
+        if (preserveOriginal) {
+          if (_originalData[lowerFieldName] != value) {
+            _changedFields.add(lowerFieldName);
+          } else {
+            _changedFields.remove(lowerFieldName);
+          }
+        } else {
+          // Reset changed tracking since we updated original
+          _changedFields.remove(lowerFieldName);
+        }
+      }
+    });
+  }
+
+  /// ✅ ALIAS: Copy toàn bộ dữ liệu từ row nguồn
+  /// Tương đương với: updateRowToRow(sourceRow)
+  void copyFrom(CyberDataRow sourceRow) {
+    updateRowToRow(sourceRow);
+  }
+
+  /// ✅ ALIAS: Merge dữ liệu từ row nguồn, chỉ overwrite changed fields
+  /// Tương đương với: updateRowToRow(sourceRow, onlyChangedFields: true)
+  void mergeFrom(CyberDataRow sourceRow) {
+    updateRowToRow(sourceRow, onlyChangedFields: true);
+  }
 
   // ============================================================================
   // OPTIMIZED: Field Name Caching
