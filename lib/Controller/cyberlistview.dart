@@ -1176,7 +1176,11 @@ class _CyberListViewState extends State<CyberListView> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              CyberLabel(isIcon: true, text: "e92b"),
+              CyberLabel(
+                isIcon: true,
+                text: "e92b",
+                style: TextStyle(color: Colors.white),
+              ),
               const SizedBox(height: 4),
               Text(
                 setText('Xóa', 'Delete'),
