@@ -108,117 +108,67 @@ String MD5(String? input) {
 }
 
 // ============================================================================
-// ✅ EXTENSION METHODS - ToString with Format (không phụ thuộc locale)
+// ✅ EXTENSION METHODS - ToString with Format
 // ============================================================================
 
-/// Extension for num (int, double) - Format numbers
-extension NumFormatExtension on num {
-  /// Format số với pattern giống C#
-  ///
-  /// Examples:
-  /// - `12345.67.toString2("N")` → "12,345.67"
-  /// - `12345.67.toString2("N2")` → "12,345.67"
-  /// - `12345.67.toString2("C")` → "₫12,345.67"
-  /// - `0.1234.toString2("P")` → "12.34%"
-  /// - `12345.67.toString2("F2")` → "12345.67"
-  /// - `12345.toString2("D6")` → "012345"
-  /// - `12345.67.toString2("#,##0.00")` → "12,345.67"
+/// Extension for Object? - Universal toString2
+extension ObjectFormatExtension on Object? {
   String toString2(String format) {
     try {
-      if (format.isEmpty) return toString();
+      final value = this;
 
-      // Extract format type và precision
-      final formatUpper = format.toUpperCase();
-      final formatType = formatUpper[0];
-      final precision = format.length > 1
-          ? int.tryParse(format.substring(1))
-          : null;
+      if (value == null) return '';
 
-      switch (formatType) {
-        case 'N': // Number: 12,345.67
-          return _formatNumber(this, precision ?? 2, grouping: true);
-
-        case 'C': // Currency: ₫12,345.67
-          final formatted = _formatNumber(this, precision ?? 0, grouping: true);
-          return '₫$formatted';
-
-        case 'P': // Percent: 12.34%
-          final value = this * 100;
-          final formatted = _formatNumber(
-            value,
-            precision ?? 2,
-            grouping: false,
-          );
-          return '$formatted%';
-
-        case 'F': // Fixed-point: 12345.67
-          return toStringAsFixed(precision ?? 2);
-
-        case 'D': // Decimal with padding: 012345
-          if (this is! int) return toString();
-          final width = precision ?? 0;
-          return (this as int).toString().padLeft(width, '0');
-
-        case 'E': // Scientific: 1.23E+04
-          return toStringAsExponential(precision ?? 6).toUpperCase();
-
-        case 'X': // Hexadecimal: FF
-          if (this is! int) return toString();
-          final hex = (this as int).toRadixString(16).toUpperCase();
-          final width = precision ?? 0;
-          return hex.padLeft(width, '0');
-
-        case '#': // Custom pattern: #,##0.00
-          return _formatCustomPattern(this, format);
-
-        default:
-          return toString();
+      if (value is DateTime) {
+        return _formatDateTime(value, format);
       }
+
+      if (value is num) {
+        return _formatNumber(value, format);
+      }
+
+      if (value is String) {
+        if (format.isEmpty) return value;
+
+        final numValue = num.tryParse(value);
+        if (numValue != null) {
+          return _formatNumber(numValue, format);
+        }
+
+        final dateValue = DateTime.tryParse(value);
+        if (dateValue != null) {
+          return _formatDateTime(dateValue, format);
+        }
+
+        return value;
+      }
+
+      return value.toString();
     } catch (e) {
-      debugPrint('❌ Number format error: $e');
-      return toString();
+      debugPrint('❌ Object format error: $e');
+      return this?.toString() ?? '';
     }
   }
 }
 
-/// Extension for DateTime - Format dates
-extension DateTimeFormatExtension on DateTime {
-  /// Format DateTime với pattern giống C#
-  ///
-  /// Examples:
-  /// - `date.toString2("dd/MM/yyyy")` → "09/01/2026"
-  /// - `date.toString2("yyyy-MM-dd")` → "2026-01-09"
-  /// - `date.toString2("dd/MM/yyyy HH:mm:ss")` → "09/01/2026 14:30:45"
-  /// - `date.toString2("d")` → "09/01/2026"
-  /// - `date.toString2("t")` → "14:30"
-  /// - `date.toString2("g")` → "09/01/2026 14:30"
+/// Extension for int
+extension IntFormatExtension on int {
   String toString2(String format) {
-    try {
-      if (format.isEmpty) return toString();
+    return _formatNumber(this, format);
+  }
+}
 
-      // Standard shortcuts
-      switch (format) {
-        case 'd':
-          return _formatDate(this, 'dd/MM/yyyy');
-        case 't':
-          return _formatDate(this, 'HH:mm');
-        case 'T':
-          return _formatDate(this, 'HH:mm:ss');
-        case 'g':
-          return _formatDate(this, 'dd/MM/yyyy HH:mm');
-        case 'G':
-          return _formatDate(this, 'dd/MM/yyyy HH:mm:ss');
-        case 's':
-          return _formatDate(this, "yyyy-MM-dd'T'HH:mm:ss");
-        case 'u':
-          return _formatDate(toUtc(), "yyyy-MM-dd HH:mm:ss'Z'");
-        default:
-          return _formatDate(this, format);
-      }
-    } catch (e) {
-      debugPrint('❌ DateTime format error: $e');
-      return toString();
-    }
+/// Extension for double
+extension DoubleFormatExtension on double {
+  String toString2(String format) {
+    return _formatNumber(this, format);
+  }
+}
+
+/// Extension for DateTime
+extension DateTimeFormatExtension on DateTime {
+  String toString2(String format) {
+    return _formatDateTime(this, format);
   }
 }
 
@@ -226,8 +176,104 @@ extension DateTimeFormatExtension on DateTime {
 // HELPER FUNCTIONS
 // ============================================================================
 
-/// Format number với grouping separator
-String _formatNumber(num value, int decimals, {bool grouping = true}) {
+String _formatNumber(num value, String format) {
+  try {
+    if (format.isEmpty) return value.toString();
+
+    final formatUpper = format.toUpperCase();
+    final formatType = formatUpper[0];
+    final precision = format.length > 1
+        ? int.tryParse(format.substring(1))
+        : null;
+
+    switch (formatType) {
+      case 'N':
+        return _formatNumberWithSeparator(value, precision ?? 2, ',', '.');
+
+      case 'C':
+        final formatted = _formatNumberWithSeparator(
+          value,
+          precision ?? 0,
+          ',',
+          '.',
+        );
+        return '₫$formatted';
+
+      case 'P':
+        final percentValue = value * 100;
+        final formatted = _formatNumberWithSeparator(
+          percentValue,
+          precision ?? 2,
+          ',',
+          '.',
+          grouping: false,
+        );
+        return '$formatted%';
+
+      case 'F':
+        return value.toStringAsFixed(precision ?? 2);
+
+      case 'D':
+        if (value is! int) return value.toString();
+        final width = precision ?? 0;
+        return value.toString().padLeft(width, '0');
+
+      case 'E':
+        return value.toStringAsExponential(precision ?? 6).toUpperCase();
+
+      case 'X':
+        if (value is! int) return value.toString();
+        final hex = value.toRadixString(16).toUpperCase();
+        final width = precision ?? 0;
+        return hex.padLeft(width, '0');
+
+      case '#':
+        return _formatCustomPattern(value, format);
+
+      default:
+        return value.toString();
+    }
+  } catch (e) {
+    debugPrint('❌ Number format error: $e');
+    return value.toString();
+  }
+}
+
+String _formatDateTime(DateTime date, String format) {
+  try {
+    if (format.isEmpty) return date.toString();
+
+    switch (format) {
+      case 'd':
+        return _formatDatePattern(date, 'dd/MM/yyyy');
+      case 't':
+        return _formatDatePattern(date, 'HH:mm');
+      case 'T':
+        return _formatDatePattern(date, 'HH:mm:ss');
+      case 'g':
+        return _formatDatePattern(date, 'dd/MM/yyyy HH:mm');
+      case 'G':
+        return _formatDatePattern(date, 'dd/MM/yyyy HH:mm:ss');
+      case 's':
+        return _formatDatePattern(date, "yyyy-MM-dd'T'HH:mm:ss");
+      case 'u':
+        return _formatDatePattern(date.toUtc(), "yyyy-MM-dd HH:mm:ss'Z'");
+      default:
+        return _formatDatePattern(date, format);
+    }
+  } catch (e) {
+    debugPrint('❌ DateTime format error: $e');
+    return date.toString();
+  }
+}
+
+String _formatNumberWithSeparator(
+  num value,
+  int decimals,
+  String groupSeparator,
+  String decimalSeparator, {
+  bool grouping = true,
+}) {
   final fixed = value.toStringAsFixed(decimals);
   final parts = fixed.split('.');
 
@@ -238,7 +284,7 @@ String _formatNumber(num value, int decimals, {bool grouping = true}) {
 
     for (int i = 0; i < length; i++) {
       if (i > 0 && (length - i) % 3 == 0) {
-        buffer.write(',');
+        buffer.write(groupSeparator);
       }
       buffer.write(intPart[i]);
     }
@@ -246,66 +292,79 @@ String _formatNumber(num value, int decimals, {bool grouping = true}) {
     parts[0] = buffer.toString();
   }
 
-  return parts.join('.');
+  return parts.join(decimalSeparator);
 }
 
-/// Format number theo custom pattern (#,##0.00)
 String _formatCustomPattern(num value, String pattern) {
-  // Parse pattern
-  final parts = pattern.split('.');
-  final intPattern = parts[0];
-  final decPattern = parts.length > 1 ? parts[1] : '';
+  try {
+    String groupSeparator = ',';
+    if (pattern.contains(' ')) {
+      groupSeparator = ' ';
+    } else if (pattern.contains(',')) {
+      groupSeparator = ',';
+    }
 
-  // Determine decimal places
-  int decimals = 0;
-  if (decPattern.isNotEmpty) {
-    decimals = decPattern.replaceAll(RegExp(r'[^0#]'), '').length;
+    final parts = pattern.split('.');
+    final intPattern = parts[0];
+    final decPattern = parts.length > 1 ? parts[1] : '';
+
+    int decimals = 0;
+    if (decPattern.isNotEmpty) {
+      decimals = decPattern.replaceAll(RegExp(r'[^0#]'), '').length;
+    }
+
+    final hasGrouping = intPattern.contains(groupSeparator);
+
+    final fixed = value.toStringAsFixed(decimals);
+    final numParts = fixed.split('.');
+
+    if (hasGrouping && numParts[0].isNotEmpty) {
+      final intPart = numParts[0];
+      final buffer = StringBuffer();
+      final length = intPart.length;
+
+      for (int i = 0; i < length; i++) {
+        if (i > 0 && (length - i) % 3 == 0) {
+          buffer.write(groupSeparator);
+        }
+        buffer.write(intPart[i]);
+      }
+
+      numParts[0] = buffer.toString();
+    }
+
+    return numParts.join('.');
+  } catch (e) {
+    debugPrint('❌ Custom pattern error: $e');
+    return value.toString();
   }
-
-  // Format with grouping if pattern contains comma
-  final hasGrouping = intPattern.contains(',');
-  return _formatNumber(value, decimals, grouping: hasGrouping);
 }
 
-/// Format DateTime theo pattern
-String _formatDate(DateTime date, String pattern) {
+String _formatDatePattern(DateTime date, String pattern) {
   String result = pattern;
 
-  // Year
   result = result.replaceAll('yyyy', date.year.toString());
   result = result.replaceAll(
     'yy',
     (date.year % 100).toString().padLeft(2, '0'),
   );
-
-  // Month
   result = result.replaceAll('MM', date.month.toString().padLeft(2, '0'));
   result = result.replaceAll('M', date.month.toString());
-
-  // Day
   result = result.replaceAll('dd', date.day.toString().padLeft(2, '0'));
   result = result.replaceAll('d', date.day.toString());
-
-  // Hour (24h)
   result = result.replaceAll('HH', date.hour.toString().padLeft(2, '0'));
   result = result.replaceAll('H', date.hour.toString());
 
-  // Hour (12h)
   final hour12 = date.hour > 12
       ? date.hour - 12
       : (date.hour == 0 ? 12 : date.hour);
   result = result.replaceAll('hh', hour12.toString().padLeft(2, '0'));
   result = result.replaceAll('h', hour12.toString());
 
-  // Minute
   result = result.replaceAll('mm', date.minute.toString().padLeft(2, '0'));
   result = result.replaceAll('m', date.minute.toString());
-
-  // Second
   result = result.replaceAll('ss', date.second.toString().padLeft(2, '0'));
   result = result.replaceAll('s', date.second.toString());
-
-  // Millisecond
   result = result.replaceAll(
     'fff',
     date.millisecond.toString().padLeft(3, '0'),
@@ -315,12 +374,8 @@ String _formatDate(DateTime date, String pattern) {
     (date.millisecond ~/ 10).toString().padLeft(2, '0'),
   );
   result = result.replaceAll('f', (date.millisecond ~/ 100).toString());
-
-  // AM/PM
   result = result.replaceAll('tt', date.hour >= 12 ? 'PM' : 'AM');
   result = result.replaceAll('t', date.hour >= 12 ? 'P' : 'A');
-
-  // Remove literal quotes
   result = result.replaceAll("'", '');
 
   return result;
