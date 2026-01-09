@@ -30,6 +30,9 @@ typedef MenuItemTapCallback =
 /// Callback khi tap toolbar action
 typedef ToolbarActionCallback = void Function(CyberDataRow actionRow);
 
+/// Callback khi xóa item - trả về true nếu xóa thành công, false nếu không xóa
+typedef DeleteCallback = Future<bool> Function(CyberDataRow row, int index);
+
 class CyberListView extends StatefulWidget {
   final CyberDataTable? dataSource;
 
@@ -74,6 +77,12 @@ class CyberListView extends StatefulWidget {
 
   /// Callback khi tap vào toolbar action
   final ToolbarActionCallback? onToolbarActionTap;
+
+  /// Bật tính năng xóa bằng swipe
+  final bool isDelete;
+
+  /// Callback khi xóa item - trả về true để xóa, false để hủy
+  final DeleteCallback? onDelete;
 
   /// Page size cho load more
   final int pageSize;
@@ -128,6 +137,7 @@ class CyberListView extends StatefulWidget {
   /// Khi không có onLoadData, tìm kiếm sẽ filter local data theo các cột này
   final List<String>? columnsFilter;
   final Object? refreshKey;
+
   const CyberListView({
     super.key,
     this.dataSource,
@@ -145,6 +155,8 @@ class CyberListView extends StatefulWidget {
     this.dtToolbarActions,
     this.isToolbarActionClickToScreen = false,
     this.onToolbarActionTap,
+    this.isDelete = false,
+    this.onDelete,
     this.pageSize = 20,
     this.showSearchBox = false,
     this.emptyWidget,
@@ -237,6 +249,13 @@ class _CyberListViewState extends State<CyberListView> {
       return const NeverScrollableScrollPhysics();
     }
     return null;
+  }
+
+  /// ✅ Check có hiển thị swipe actions không (bao gồm cả delete)
+  bool get _hasSwipeActions {
+    return (widget.dtSwipeActions != null &&
+            widget.dtSwipeActions!.rowCount > 0) ||
+        widget.isDelete;
   }
 
   @override
@@ -531,14 +550,87 @@ class _CyberListViewState extends State<CyberListView> {
     await _refresh();
   }
 
+  /// ✅ Xử lý xóa item
+  Future<void> _handleDeleteItem(CyberDataRow row, int index) async {
+    if (!mounted) return;
+
+    // Hiển thị dialog xác nhận
+    final confirmed = await _showDeleteConfirmDialog();
+    if (confirmed != true || !mounted) return;
+
+    // Gọi callback onDelete nếu có
+    bool canDelete = true;
+    if (widget.onDelete != null) {
+      try {
+        canDelete = await widget.onDelete!(row, index);
+      } catch (e) {
+        _showError('Lỗi khi xóa: $e');
+        return;
+      }
+    }
+
+    // Nếu callback trả về true, xóa khỏi dataSource
+    if (canDelete && mounted) {
+      if (widget.dataSource != null) {
+        // Tìm index trong dataSource gốc
+        final sourceIndex = widget.dataSource!.rows.indexOf(row);
+        if (sourceIndex >= 0) {
+          widget.dataSource!.removeAt(sourceIndex);
+          _invalidateCache();
+          if (mounted) {
+            setState(() {});
+          }
+        }
+      }
+    }
+  }
+
+  /// ✅ Dialog xác nhận xóa
+  Future<bool?> _showDeleteConfirmDialog() async {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(setText('Xác nhận xóa', 'Confirm Delete')),
+        content: Text(
+          setText(
+            'Bạn có chắc chắn muốn xóa mục này không?',
+            'Are you sure you want to delete this item?',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(setText('Hủy', 'Cancel')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFFFF6B35),
+            ),
+            child: Text(setText('Xóa', 'Delete')),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// ✅ FIX 2.4: Tính extent ratio an toàn
   double _calculateSwipeExtentRatio() {
-    if (widget.dtSwipeActions == null || widget.dtSwipeActions!.rowCount == 0) {
+    // Tính tổng số actions (swipe actions + delete action)
+    int totalActions = 0;
+    if (widget.dtSwipeActions != null) {
+      totalActions += widget.dtSwipeActions!.rowCount;
+    }
+    if (widget.isDelete) {
+      totalActions += 1;
+    }
+
+    if (totalActions == 0) {
       return 0.25; // Default
     }
 
     final screenWidth = MediaQuery.of(context).size.width;
-    final totalWidth = widget.dtSwipeActions!.rowCount * 80.0;
+    final totalWidth = totalActions * 80.0;
 
     // ✅ Clamp giữa 0.1 và 0.8 (max 80% màn hình)
     return (totalWidth / screenWidth).clamp(0.1, 0.8);
@@ -761,8 +853,7 @@ class _CyberListViewState extends State<CyberListView> {
         }
 
         final row = rows[index];
-        final itemWidget =
-            widget.dtSwipeActions != null && widget.dtSwipeActions!.rowCount > 0
+        final itemWidget = _hasSwipeActions
             ? _buildSlidableItem(row, index)
             : _buildItem(row, index);
 
@@ -802,8 +893,7 @@ class _CyberListViewState extends State<CyberListView> {
         }
 
         final row = rows[index];
-        final itemWidget =
-            widget.dtSwipeActions != null && widget.dtSwipeActions!.rowCount > 0
+        final itemWidget = _hasSwipeActions
             ? _buildSlidableItem(row, index)
             : _buildItem(row, index);
 
@@ -1002,43 +1092,85 @@ class _CyberListViewState extends State<CyberListView> {
     );
   }
 
+  /// ✅ Build swipe actions bao gồm cả delete action
   List<Widget> _buildSwipeActions(CyberDataRow sourceRow, int sourceIndex) {
-    if (widget.dtSwipeActions == null || widget.dtSwipeActions!.rowCount == 0) {
-      return [];
+    final actions = <Widget>[];
+
+    // Thêm custom swipe actions
+    if (widget.dtSwipeActions != null && widget.dtSwipeActions!.rowCount > 0) {
+      for (var swipeRow in widget.dtSwipeActions!.rows) {
+        final label = swipeRow['bar'] as String? ?? '';
+        final iconName = swipeRow['icon'] as String? ?? '';
+        final backColorHex = swipeRow['backcolor'] as String? ?? '';
+        final textColorHex = swipeRow['textcolor'] as String? ?? '';
+
+        final backgroundColor = _parseColor(backColorHex, Colors.blue);
+        final foregroundColor = _parseColor(textColorHex, Colors.white);
+        final icon = v_parseIcon(iconName);
+
+        actions.add(
+          CustomSlidableAction(
+            onPressed: (context) {
+              _handleSwipeActionTap(swipeRow, sourceRow, sourceIndex);
+            },
+            backgroundColor: backgroundColor,
+            foregroundColor: foregroundColor,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (icon != null) Icon(icon, size: 24),
+                if (icon != null) const SizedBox(height: 4),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        );
+      }
     }
 
-    return widget.dtSwipeActions!.rows.map((swipeRow) {
-      final label = swipeRow['bar'] as String? ?? '';
-      final iconName = swipeRow['icon'] as String? ?? '';
-      final backColorHex = swipeRow['backcolor'] as String? ?? '';
-      final textColorHex = swipeRow['textcolor'] as String? ?? '';
-
-      final backgroundColor = _parseColor(backColorHex, Colors.blue);
-      final foregroundColor = _parseColor(textColorHex, Colors.white);
-      final icon = v_parseIcon(iconName);
-
-      return CustomSlidableAction(
-        onPressed: (context) {
-          _handleSwipeActionTap(swipeRow, sourceRow, sourceIndex);
-        },
-        backgroundColor: backgroundColor,
-        foregroundColor: foregroundColor,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (icon != null) Icon(icon, size: 24),
-            if (icon != null) const SizedBox(height: 4),
-            Text(
-              label,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
+    // Thêm delete action nếu isDelete = true
+    if (widget.isDelete) {
+      actions.add(
+        CustomSlidableAction(
+          onPressed: (context) {
+            _handleDeleteItem(sourceRow, sourceIndex);
+          },
+          backgroundColor: const Color(0xFFFF6B35),
+          foregroundColor: Colors.white,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                IconData(0xe92b, fontFamily: 'MaterialIcons'),
+                size: 24,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                setText('Xóa', 'Delete'),
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
       );
-    }).toList();
+    }
+
+    return actions;
   }
 
   void _handleSwipeActionTap(
