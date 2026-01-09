@@ -138,6 +138,12 @@ class CyberListView extends StatefulWidget {
   final List<String>? columnsFilter;
   final Object? refreshKey;
 
+  /// Border radius cho từng item
+  final BorderRadius? itemBorderRadius;
+
+  /// Background color cho từng item
+  final Color? itemBackgroundColor;
+
   const CyberListView({
     super.key,
     this.dataSource,
@@ -174,6 +180,8 @@ class CyberListView extends StatefulWidget {
     this.height,
     this.columnsFilter,
     this.refreshKey,
+    this.itemBorderRadius,
+    this.itemBackgroundColor,
   }) : assert(columnCount >= 1, 'columnCount phải >= 1');
 
   @override
@@ -997,6 +1005,24 @@ class _CyberListViewState extends State<CyberListView> {
   Widget _buildItem(CyberDataRow row, int index) {
     return Builder(
       builder: (BuildContext itemContext) {
+        final itemContent = widget.itemBuilder(context, row, index);
+
+        // Wrap với Container nếu có background color hoặc border radius
+        final wrappedContent =
+            (widget.itemBackgroundColor != null ||
+                widget.itemBorderRadius != null)
+            ? Container(
+                decoration: BoxDecoration(
+                  color: widget.itemBackgroundColor,
+                  borderRadius: widget.itemBorderRadius,
+                ),
+                clipBehavior: widget.itemBorderRadius != null
+                    ? Clip.antiAlias
+                    : Clip.none,
+                child: itemContent,
+              )
+            : itemContent;
+
         return InkWell(
           onTap: (widget.onItemTap != null || widget.isClickToScreen)
               ? () {
@@ -1013,7 +1039,8 @@ class _CyberListViewState extends State<CyberListView> {
             Slidable.of(itemContext)?.close();
             _handleItemLongPress(row, index);
           },
-          child: widget.itemBuilder(context, row, index),
+          borderRadius: widget.itemBorderRadius,
+          child: wrappedContent,
         );
       },
     );
@@ -1058,36 +1085,49 @@ class _CyberListViewState extends State<CyberListView> {
 
   /// ✅ FIX: Slidable item với Builder và closeOnScroll
   Widget _buildSlidableItem(CyberDataRow row, int index) {
-    return Slidable(
-      key: Key('item_${row.hashCode}_$index'),
+    return ClipRRect(
+      borderRadius: widget.itemBorderRadius ?? BorderRadius.zero,
+      child: Slidable(
+        key: Key('item_${row.hashCode}_$index'),
 
-      // ✅ Tự động đóng khi scroll
-      closeOnScroll: true,
+        // ✅ Tự động đóng khi scroll
+        closeOnScroll: true,
 
-      endActionPane: ActionPane(
-        motion: const DrawerMotion(),
-        extentRatio: _calculateSwipeExtentRatio(), // ✅ FIX 2.4
-        children: _buildSwipeActions(row, index),
-      ),
-      child: Builder(
-        builder: (BuildContext slidableContext) {
-          return InkWell(
-            onTap: (widget.onItemTap != null || widget.isClickToScreen)
-                ? () {
-                    // ✅ Đóng với context từ trong Slidable
-                    Slidable.of(slidableContext)?.close();
-                    _handleItemTap(row, index);
-                  }
-                : () {
-                    Slidable.of(slidableContext)?.close();
-                  },
-            onLongPress: () {
-              Slidable.of(slidableContext)?.close();
-              _handleItemLongPress(row, index);
-            },
-            child: widget.itemBuilder(context, row, index),
-          );
-        },
+        endActionPane: ActionPane(
+          motion: const DrawerMotion(),
+          extentRatio: _calculateSwipeExtentRatio(), // ✅ FIX 2.4
+          children: _buildSwipeActions(row, index),
+        ),
+        child: Builder(
+          builder: (BuildContext slidableContext) {
+            final itemContent = widget.itemBuilder(context, row, index);
+
+            // Wrap với Container nếu có background color
+            final wrappedContent = widget.itemBackgroundColor != null
+                ? Container(
+                    color: widget.itemBackgroundColor,
+                    child: itemContent,
+                  )
+                : itemContent;
+
+            return InkWell(
+              onTap: (widget.onItemTap != null || widget.isClickToScreen)
+                  ? () {
+                      // ✅ Đóng với context từ trong Slidable
+                      Slidable.of(slidableContext)?.close();
+                      _handleItemTap(row, index);
+                    }
+                  : () {
+                      Slidable.of(slidableContext)?.close();
+                    },
+              onLongPress: () {
+                Slidable.of(slidableContext)?.close();
+                _handleItemLongPress(row, index);
+              },
+              child: wrappedContent,
+            );
+          },
+        ),
       ),
     );
   }
@@ -1098,7 +1138,8 @@ class _CyberListViewState extends State<CyberListView> {
 
     // Thêm custom swipe actions
     if (widget.dtSwipeActions != null && widget.dtSwipeActions!.rowCount > 0) {
-      for (var swipeRow in widget.dtSwipeActions!.rows) {
+      for (var i = 0; i < widget.dtSwipeActions!.rows.length; i++) {
+        final swipeRow = widget.dtSwipeActions!.rows[i];
         final label = swipeRow['bar'] as String? ?? '';
         final iconName = swipeRow['icon'] as String? ?? '';
         final backColorHex = swipeRow['backcolor'] as String? ?? '';
@@ -1108,6 +1149,11 @@ class _CyberListViewState extends State<CyberListView> {
         final foregroundColor = _parseColor(textColorHex, Colors.white);
         final icon = v_parseIcon(iconName);
 
+        // Xác định border radius cho action này
+        final isLastAction =
+            (i == widget.dtSwipeActions!.rows.length - 1) && !widget.isDelete;
+        final actionBorderRadius = _getActionBorderRadius(isLastAction);
+
         actions.add(
           CustomSlidableAction(
             onPressed: (context) {
@@ -1115,6 +1161,7 @@ class _CyberListViewState extends State<CyberListView> {
             },
             backgroundColor: backgroundColor,
             foregroundColor: foregroundColor,
+            borderRadius: actionBorderRadius,
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -1139,6 +1186,9 @@ class _CyberListViewState extends State<CyberListView> {
 
     // Thêm delete action nếu isDelete = true
     if (widget.isDelete) {
+      // Delete action luôn là action cuối cùng
+      final deleteActionBorderRadius = _getActionBorderRadius(true);
+
       actions.add(
         CustomSlidableAction(
           onPressed: (context) {
@@ -1146,6 +1196,7 @@ class _CyberListViewState extends State<CyberListView> {
           },
           backgroundColor: const Color(0xFFFF6B35),
           foregroundColor: Colors.white,
+          borderRadius: deleteActionBorderRadius,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -1171,6 +1222,23 @@ class _CyberListViewState extends State<CyberListView> {
     }
 
     return actions;
+  }
+
+  /// ✅ Get border radius cho swipe action
+  BorderRadius _getActionBorderRadius(bool isLastAction) {
+    if (widget.itemBorderRadius == null) {
+      return BorderRadius.zero;
+    }
+
+    // Chỉ action cuối cùng có border radius bên phải
+    if (isLastAction) {
+      return BorderRadius.only(
+        topRight: widget.itemBorderRadius!.topRight,
+        bottomRight: widget.itemBorderRadius!.bottomRight,
+      );
+    }
+
+    return BorderRadius.zero;
   }
 
   void _handleSwipeActionTap(
