@@ -75,7 +75,7 @@ class CyberLookup extends StatefulWidget {
     this.icon,
     this.enabled = true,
     this.readOnly = false,
-    this.allowClear = true,
+    this.allowClear = false,
     this.isShowLabel = true,
     this.isVisible = true,
     this.isCheckEmpty = false,
