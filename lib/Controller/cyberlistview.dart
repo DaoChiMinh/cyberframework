@@ -563,7 +563,10 @@ class _CyberListViewState extends State<CyberListView> {
     if (!mounted) return;
 
     // Hiển thị dialog xác nhận
-    final confirmed = await _showDeleteConfirmDialog();
+    final confirmed = await setText(
+      "Bạn chắc chắn muốn xóa dữ liệu?",
+      "Are you sure you want to delete the data?",
+    ).V_MsgBox(context, type: CyberMsgBoxType.warning);
     if (confirmed != true || !mounted) return;
 
     // Gọi callback onDelete nếu có
@@ -594,33 +597,6 @@ class _CyberListViewState extends State<CyberListView> {
   }
 
   /// ✅ Dialog xác nhận xóa
-  Future<bool?> _showDeleteConfirmDialog() async {
-    return showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(setText('Xác nhận xóa', 'Confirm Delete')),
-        content: Text(
-          setText(
-            'Bạn có chắc chắn muốn xóa mục này không?',
-            'Are you sure you want to delete this item?',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(setText('Hủy', 'Cancel')),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(
-              foregroundColor: const Color(0xFFFF6B35),
-            ),
-            child: Text(setText('Xóa', 'Delete')),
-          ),
-        ],
-      ),
-    );
-  }
 
   /// ✅ FIX 2.4: Tính extent ratio an toàn
   double _calculateSwipeExtentRatio() {
