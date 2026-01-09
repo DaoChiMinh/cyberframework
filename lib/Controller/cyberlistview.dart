@@ -144,6 +144,82 @@ class CyberListView extends StatefulWidget {
   /// Background color cho từng item
   final Color? itemBackgroundColor;
 
+  // ============================================================================
+  // CYBER ACTION PROPERTIES
+  // ============================================================================
+
+  /// Danh sách các CyberButtonAction để hiển thị trong CyberAction
+  final List<CyberButtonAction>? cyberActions;
+
+  /// Kiểu hiển thị CyberAction
+  final CyberActionType cyberActionType;
+
+  /// Vị trí top của CyberAction
+  final double? cyberActionTop;
+
+  /// Vị trí left của CyberAction
+  final double? cyberActionLeft;
+
+  /// Vị trí bottom của CyberAction
+  final double? cyberActionBottom;
+
+  /// Vị trí right của CyberAction
+  final double? cyberActionRight;
+
+  /// Căn giữa theo chiều dọc
+  final bool cyberActionCenterVer;
+
+  /// Căn giữa theo chiều ngang
+  final bool cyberActionCenterHor;
+
+  /// Hướng mở rộng của CyberAction
+  final CyberActionDirection cyberActionDirection;
+
+  /// Khoảng cách giữa các action items
+  final double cyberActionSpacing;
+
+  /// Màu nền của main button
+  final Color? cyberActionMainButtonColor;
+
+  /// Icon của main button
+  final String? cyberActionMainButtonIcon;
+
+  /// Size của main button
+  final double? cyberActionMainButtonSize;
+
+  /// Màu icon của main button
+  final Color? cyberActionMainIconColor;
+
+  /// Animation duration (milliseconds)
+  final int cyberActionAnimationDuration;
+
+  /// Hiển thị backdrop khi menu mở
+  final bool cyberActionShowBackdrop;
+
+  /// Màu backdrop
+  final Color? cyberActionBackdropColor;
+
+  /// Hiển thị background container
+  final bool cyberActionShowBackground;
+
+  /// Màu nền container
+  final Color? cyberActionBackgroundColor;
+
+  /// Opacity của background container
+  final double cyberActionBackgroundOpacity;
+
+  /// Border radius của container
+  final double cyberActionBorderRadius;
+
+  /// Border width của container
+  final double? cyberActionBorderWidth;
+
+  /// Border color của container
+  final Color? cyberActionBorderColor;
+
+  /// Padding của container
+  final EdgeInsets cyberActionPadding;
+
   const CyberListView({
     super.key,
     this.dataSource,
@@ -182,6 +258,31 @@ class CyberListView extends StatefulWidget {
     this.refreshKey,
     this.itemBorderRadius,
     this.itemBackgroundColor,
+    // CyberAction properties
+    this.cyberActions,
+    this.cyberActionType = CyberActionType.autoShow,
+    this.cyberActionTop,
+    this.cyberActionLeft,
+    this.cyberActionBottom = 16.0,
+    this.cyberActionRight = 16.0,
+    this.cyberActionCenterVer = false,
+    this.cyberActionCenterHor = false,
+    this.cyberActionDirection = CyberActionDirection.vertical,
+    this.cyberActionSpacing = 6.0,
+    this.cyberActionMainButtonColor,
+    this.cyberActionMainButtonIcon,
+    this.cyberActionMainButtonSize = 56.0,
+    this.cyberActionMainIconColor,
+    this.cyberActionAnimationDuration = 300,
+    this.cyberActionShowBackdrop = false,
+    this.cyberActionBackdropColor,
+    this.cyberActionShowBackground = true,
+    this.cyberActionBackgroundColor,
+    this.cyberActionBackgroundOpacity = 0.85,
+    this.cyberActionBorderRadius = 12.0,
+    this.cyberActionBorderWidth,
+    this.cyberActionBorderColor,
+    this.cyberActionPadding = const EdgeInsets.all(8),
   }) : assert(columnCount >= 1, 'columnCount phải >= 1');
 
   @override
@@ -596,8 +697,6 @@ class _CyberListViewState extends State<CyberListView> {
     }
   }
 
-  /// ✅ Dialog xác nhận xóa
-
   /// ✅ FIX 2.4: Tính extent ratio an toàn
   double _calculateSwipeExtentRatio() {
     // Tính tổng số actions (swipe actions + delete action)
@@ -630,6 +729,11 @@ class _CyberListViewState extends State<CyberListView> {
       ],
     );
 
+    // ✅ Wrap trong Stack nếu có CyberAction
+    if (widget.cyberActions != null && widget.cyberActions!.isNotEmpty) {
+      content = Stack(children: [content, _buildCyberAction()]);
+    }
+
     if (widget.height is double) {
       return SizedBox(height: widget.height as double, child: content);
     } else if (widget.height == "*") {
@@ -637,6 +741,40 @@ class _CyberListViewState extends State<CyberListView> {
     } else {
       return content;
     }
+  }
+
+  /// ✅ Build CyberAction nếu có
+  Widget _buildCyberAction() {
+    if (widget.cyberActions == null || widget.cyberActions!.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return CyberAction(
+      children: widget.cyberActions!,
+      type: widget.cyberActionType,
+      top: widget.cyberActionTop,
+      left: widget.cyberActionLeft,
+      bottom: widget.cyberActionBottom,
+      right: widget.cyberActionRight,
+      isCenterVer: widget.cyberActionCenterVer,
+      isCenterHor: widget.cyberActionCenterHor,
+      direction: widget.cyberActionDirection,
+      spacing: widget.cyberActionSpacing,
+      mainButtonColor: widget.cyberActionMainButtonColor,
+      mainButtonIcon: widget.cyberActionMainButtonIcon,
+      mainButtonSize: widget.cyberActionMainButtonSize,
+      mainIconColor: widget.cyberActionMainIconColor,
+      animationDuration: widget.cyberActionAnimationDuration,
+      showBackdrop: widget.cyberActionShowBackdrop,
+      backdropColor: widget.cyberActionBackdropColor,
+      isShowBackgroundColor: widget.cyberActionShowBackground,
+      backgroundColor: widget.cyberActionBackgroundColor,
+      backgroundOpacity: widget.cyberActionBackgroundOpacity,
+      borderRadius: widget.cyberActionBorderRadius,
+      containerBorderWidth: widget.cyberActionBorderWidth,
+      containerBorderColor: widget.cyberActionBorderColor,
+      containerPadding: widget.cyberActionPadding,
+    );
   }
 
   Widget _buildListViewContainer() {
