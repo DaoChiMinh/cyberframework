@@ -7,6 +7,7 @@ import 'package:cyberframework/cyberframework.dart';
 /// CyberLookup(
 ///   text: drEdit.bind('ma_kh'),           // Binding text value
 ///   display: drEdit.bind('ten_kh'),        // Binding display value
+///   strFilter: drEdit.bind('dieu_kien'),   // Binding filter (auto reload khi thay đổi)
 ///   tbName: 'dmkh',
 ///   displayField: 'ten_kh',
 ///   displayValue: 'ma_kh',
@@ -105,8 +106,17 @@ class _CyberLookupState extends State<CyberLookup> {
   CyberDataRow? _visibilityBoundRow;
   String? _visibilityBoundField;
 
+  // === LOOKUP PARAMS BINDING ===
+  CyberDataRow? _strFilterBoundRow;
+  String? _strFilterBoundField;
+  CyberDataRow? _tbNameBoundRow;
+  String? _tbNameBoundField;
+
   // === FLAGS ===
   bool _isInternalUpdate = false;
+
+  // === FILTER TRACKING - Để phát hiện thay đổi ===
+  String? _lastStrFilter;
 
   @override
   void initState() {
@@ -119,9 +129,14 @@ class _CyberLookupState extends State<CyberLookup> {
     _parseTextBinding();
     _parseDisplayBinding();
     _parseVisibilityBinding();
+    _parseStrFilterBinding();
+    _parseTbNameBinding();
 
     // Sync initial values
     _syncFromWidget();
+
+    // Lưu filter ban đầu
+    _lastStrFilter = _extractParam(widget.strFilter);
 
     // Listen to controller changes
     _controller.addListener(_onControllerChanged);
@@ -141,9 +156,28 @@ class _CyberLookupState extends State<CyberLookup> {
     if (widget.isVisible != oldWidget.isVisible) {
       _parseVisibilityBinding();
     }
+    if (widget.strFilter != oldWidget.strFilter) {
+      _parseStrFilterBinding();
+    }
+    if (widget.tbName != oldWidget.tbName) {
+      _parseTbNameBinding();
+    }
 
     // Sync values
     _syncFromWidget();
+
+    // Kiểm tra strFilter có thay đổi không
+    final currentFilter = _extractParam(widget.strFilter);
+    if (_lastStrFilter != currentFilter) {
+      _lastStrFilter = currentFilter;
+      // Nếu filter thay đổi, có thể clear values hoặc mark dirty
+      // Tuỳ theo business logic của bạn
+      // Ví dụ: clear values khi filter thay đổi
+      if (currentFilter.isNotEmpty) {
+        // Có thể clear hoặc không, tuỳ yêu cầu
+        // _clearValues();
+      }
+    }
   }
 
   @override
@@ -154,6 +188,8 @@ class _CyberLookupState extends State<CyberLookup> {
     // Cleanup bindings
     _textBoundRow?.removeListener(_onTextBindingChanged);
     _displayBoundRow?.removeListener(_onDisplayBindingChanged);
+    _strFilterBoundRow?.removeListener(_onStrFilterBindingChanged);
+    _tbNameBoundRow?.removeListener(_onTbNameBindingChanged);
 
     super.dispose();
   }
@@ -204,6 +240,40 @@ class _CyberLookupState extends State<CyberLookup> {
     } else {
       _visibilityBoundRow = null;
       _visibilityBoundField = null;
+    }
+  }
+
+  void _parseStrFilterBinding() {
+    // Cleanup old binding
+    if (_strFilterBoundRow != null) {
+      _strFilterBoundRow!.removeListener(_onStrFilterBindingChanged);
+      _strFilterBoundRow = null;
+      _strFilterBoundField = null;
+    }
+
+    // Parse new binding
+    if (widget.strFilter is CyberBindingExpression) {
+      final expr = widget.strFilter as CyberBindingExpression;
+      _strFilterBoundRow = expr.row;
+      _strFilterBoundField = expr.fieldName;
+      _strFilterBoundRow!.addListener(_onStrFilterBindingChanged);
+    }
+  }
+
+  void _parseTbNameBinding() {
+    // Cleanup old binding
+    if (_tbNameBoundRow != null) {
+      _tbNameBoundRow!.removeListener(_onTbNameBindingChanged);
+      _tbNameBoundRow = null;
+      _tbNameBoundField = null;
+    }
+
+    // Parse new binding
+    if (widget.tbName is CyberBindingExpression) {
+      final expr = widget.tbName as CyberBindingExpression;
+      _tbNameBoundRow = expr.row;
+      _tbNameBoundField = expr.fieldName;
+      _tbNameBoundRow!.addListener(_onTbNameBindingChanged);
     }
   }
 
@@ -262,6 +332,31 @@ class _CyberLookupState extends State<CyberLookup> {
     }
 
     _isInternalUpdate = false;
+  }
+
+  /// Sync khi strFilter binding thay đổi
+  void _onStrFilterBindingChanged() {
+    if (!mounted) return;
+
+    final currentFilter = _extractParam(widget.strFilter);
+    if (_lastStrFilter != currentFilter) {
+      _lastStrFilter = currentFilter;
+
+      // Tuỳ chọn: clear values khi filter thay đổi
+      // if (currentFilter.isNotEmpty) {
+      //   _clearValues();
+      // }
+
+      // Rebuild để UI có filter mới khi mở popup
+      setState(() {});
+    }
+  }
+
+  /// Sync khi tbName binding thay đổi
+  void _onTbNameBindingChanged() {
+    if (!mounted) return;
+    // Rebuild để UI có tbName mới khi mở popup
+    setState(() {});
   }
 
   /// Sync từ controller vào bindings (khi user chọn lookup)
@@ -387,7 +482,7 @@ class _CyberLookupState extends State<CyberLookup> {
   Future<void> _showLookup() async {
     if (!_isInteractive() || !mounted) return;
 
-    // Get lookup parameters
+    // Get lookup parameters - LUÔN EXTRACT GIÁ TRỊ MỚI NHẤT
     final tbName = _extractParam(widget.tbName);
     final strFilter = _extractParam(widget.strFilter);
     final displayField = _extractParam(widget.displayField);
@@ -399,11 +494,18 @@ class _CyberLookupState extends State<CyberLookup> {
     // Get current value
     final currentTextValue = _controller.textValue;
 
+    // Tạo unique key để force reload nếu strFilter khác null/trắng
+    // Điều này đảm bảo popup sẽ load data mới mỗi lần mở
+    final lookupKey = strFilter.isNotEmpty
+        ? '${tbName}_${strFilter}_${DateTime.now().millisecondsSinceEpoch}'
+        : tbName;
+
     final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => _LookupBottomSheet(
+        key: ValueKey(lookupKey), // Force rebuild nếu filter thay đổi
         tbName: tbName,
         strFilter: strFilter,
         displayField: displayField,
@@ -563,10 +665,19 @@ class _CyberLookupState extends State<CyberLookup> {
       );
     }
 
-    // Chỉ dùng ListenableBuilder khi có visibility binding
-    if (_visibilityBoundRow != null) {
+    // Dùng ListenableBuilder cho các bindings động
+    final hasBindings =
+        _visibilityBoundRow != null ||
+        _strFilterBoundRow != null ||
+        _tbNameBoundRow != null;
+
+    if (hasBindings) {
       return ListenableBuilder(
-        listenable: _visibilityBoundRow!,
+        listenable: Listenable.merge([
+          if (_visibilityBoundRow != null) _visibilityBoundRow!,
+          if (_strFilterBoundRow != null) _strFilterBoundRow!,
+          if (_tbNameBoundRow != null) _tbNameBoundRow!,
+        ]),
         builder: (context, child) => buildLookupWidget(),
       );
     }
@@ -601,6 +712,7 @@ class _LookupBottomSheet extends StatefulWidget {
   final int pageSize;
 
   const _LookupBottomSheet({
+    super.key,
     required this.tbName,
     required this.strFilter,
     required this.displayField,
@@ -634,6 +746,9 @@ class _LookupBottomSheetState extends State<_LookupBottomSheet> {
     super.initState();
     _scrollController = ScrollController();
     _scrollController.addListener(_onScroll);
+
+    // QUAN TRỌNG: Mỗi khi mở popup, LUÔN load data mới
+    // Đặc biệt khi có strFilter
     _loadInitialData();
   }
 
@@ -696,7 +811,7 @@ class _LookupBottomSheetState extends State<_LookupBottomSheet> {
       final response = await context.callApi(
         functionName: "CP_W10SysListoDir",
         parameter:
-            "$pageIndex#${widget.pageSize}#$filter#${widget.strFilter}#${widget.tbName}#01#dungnt",
+            "$pageIndex#${widget.pageSize}#$filter#${widget.strFilter}#${widget.tbName}##",
         showLoading: false,
       );
 
