@@ -12,7 +12,9 @@ CyberFramework là một comprehensive Flutter framework được thiết kế c
 
 ```yaml
 dependencies:
-  cyberframework: ^1.0.0
+  git:
+      url: https://github.com/DaoChiMinh/cyberframework.git
+      ref: main 
 ```
 
 ### Import
