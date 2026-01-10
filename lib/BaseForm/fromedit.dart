@@ -3,7 +3,7 @@ import 'package:cyberframework/cyberframework.dart';
 abstract class CyberBaseEdit extends CyberForm {
   List<CyberTab> get tabs;
   int get initialTabIndex => 0;
-
+  String mode = "M";
   String get saveButtonLabel => setText("Lưu dữ liệu", "Save data");
   bool get showSaveButton => true;
 
@@ -55,7 +55,10 @@ abstract class CyberBaseEdit extends CyberForm {
     return ToXml(dts, names);
   }
 
-  Future<bool> buildSaveXml(String Cp_Name, String StrParameter) async {
+  Future<bool> buildSaveXml({
+    String Cp_Name = "",
+    String StrParameter = "",
+  }) async {
     ReturnData returnData = await context.callApi(
       functionName: Cp_Name,
       parameter: StrParameter,
