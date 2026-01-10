@@ -1381,7 +1381,7 @@ class _CyberListViewState extends State<CyberListView> {
       borderRadius: widget.itemBorderRadius ?? BorderRadius.zero,
       child: Slidable(
         // 🎯 CRITICAL FIX: Dùng identityKey thay vì hashCode
-        key: Key('item_${row.identityKey}_$index'),
+        key: ValueKey(row.identityKey),
         closeOnScroll: true,
         endActionPane: ActionPane(
           motion: const DrawerMotion(),
