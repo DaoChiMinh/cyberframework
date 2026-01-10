@@ -204,16 +204,8 @@ class _CyberActionState extends State<CyberAction>
   bool _isExpanded = false;
   bool _isPinned = false;
 
-  // ✅ OPTIMIZED: Cache visible children & pre-built widgets
+  // ✅ OPTIMIZED: Cache visible children only
   List<CyberButtonAction>? _cachedVisibleChildren;
-  List<Widget>? _cachedMenuItems;
-
-  // ✅ OPTIMIZED: Cache backdrop widget
-  Widget? _cachedBackdrop;
-
-  // ✅ OPTIMIZED: Cache screen constraints
-  Size? _cachedScreenSize;
-  BoxConstraints? _cachedConstraints;
 
   // ✅ OPTIMIZED: Static const values
   static const Duration _defaultTooltipWait = Duration(milliseconds: 500);
@@ -233,7 +225,6 @@ class _CyberActionState extends State<CyberAction>
 
     // ✅ Build cache
     _rebuildCache();
-    _buildCachedBackdrop();
 
     // Nếu là AlwaysShow thì mở menu luôn
     if (widget.type == CyberActionType.alwaysShow) {
@@ -243,28 +234,12 @@ class _CyberActionState extends State<CyberAction>
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _updateConstraints();
-  }
-
-  @override
   void didUpdateWidget(CyberAction oldWidget) {
     super.didUpdateWidget(oldWidget);
 
     // ✅ Rebuild cache only when children change
     if (widget.children != oldWidget.children) {
       _rebuildCache();
-    }
-
-    // ✅ Rebuild backdrop only when config changes
-    if (widget.backgroundColor != oldWidget.backgroundColor ||
-        widget.backgroundOpacity != oldWidget.backgroundOpacity ||
-        widget.borderRadius != oldWidget.borderRadius ||
-        widget.isShowBackgroundColor != oldWidget.isShowBackgroundColor ||
-        widget.containerBorderWidth != oldWidget.containerBorderWidth ||
-        widget.containerBorderColor != oldWidget.containerBorderColor) {
-      _buildCachedBackdrop();
     }
 
     // Update animation duration
@@ -281,78 +256,11 @@ class _CyberActionState extends State<CyberAction>
     super.dispose();
   }
 
-  /// ✅ OPTIMIZED: Update screen constraints cache
-  void _updateConstraints() {
-    final screenSize = MediaQuery.of(context).size;
-
-    if (_cachedScreenSize != screenSize) {
-      _cachedScreenSize = screenSize;
-
-      final maxHeight = screenSize.height * 0.7;
-      final maxWidth = screenSize.width * 0.7;
-
-      _cachedConstraints = BoxConstraints(
-        maxHeight: widget.direction == CyberActionDirection.vertical
-            ? maxHeight
-            : double.infinity,
-        maxWidth: widget.direction == CyberActionDirection.horizontal
-            ? maxWidth
-            : double.infinity,
-      );
-    }
-  }
-
-  /// ✅ OPTIMIZED: Rebuild cache - filter & pre-build widgets
+  /// ✅ OPTIMIZED: Rebuild cache - filter visible children
   void _rebuildCache() {
     _cachedVisibleChildren = widget.children
         .where((item) => item.visible)
         .toList();
-
-    // ✅ Pre-build menu items với keys
-    _cachedMenuItems = List.generate(_cachedVisibleChildren!.length, (i) {
-      final item = _cachedVisibleChildren![i];
-      return _ActionMenuItem(
-        key: ValueKey('menu_item_${item.label}_$i'), // ✅ Unique key
-        item: item,
-        onTap: () {
-          item.onclick?.call();
-          _closeMenu();
-        },
-      );
-    });
-  }
-
-  /// ✅ OPTIMIZED: Build backdrop ONCE and cache
-  void _buildCachedBackdrop() {
-    if (!widget.isShowBackgroundColor) {
-      _cachedBackdrop = null;
-      return;
-    }
-
-    _cachedBackdrop = ClipRRect(
-      borderRadius: BorderRadius.circular(widget.borderRadius),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          decoration: BoxDecoration(
-            color:
-                (widget.backgroundColor ?? Colors.white.withValues(alpha: 0.1))
-                    .withValues(alpha: widget.backgroundOpacity),
-            borderRadius: BorderRadius.circular(widget.borderRadius),
-            border:
-                widget.containerBorderWidth != null &&
-                    widget.containerBorderWidth! > 0
-                ? Border.all(
-                    color:
-                        widget.containerBorderColor ??
-                        Colors.white.withValues(alpha: 0.3),
-                    width: widget.containerBorderWidth!,
-                  )
-                : null,
-          ),
-        ),
-      ),
-    );
   }
 
   void _toggleMenu() {
@@ -484,7 +392,7 @@ class _CyberActionState extends State<CyberAction>
     );
   }
 
-  /// ✅ OPTIMIZED: Build menu content using cached widgets
+  /// ✅ OPTIMIZED: Build menu content using cached children
   Widget _buildMenuContent(bool isVertical, bool showMainButton) {
     return MouseRegion(
       onEnter: (_) => _handleHoverEnter(),
@@ -505,7 +413,7 @@ class _CyberActionState extends State<CyberAction>
 
                 // Spacing giữa items và main button
                 if (_isExpanded &&
-                    _cachedMenuItems!.isNotEmpty &&
+                    _cachedVisibleChildren!.isNotEmpty &&
                     showMainButton)
                   SizedBox(height: widget.spacing),
 
@@ -527,7 +435,7 @@ class _CyberActionState extends State<CyberAction>
 
                 // Spacing giữa items và main button
                 if (_isExpanded &&
-                    _cachedMenuItems!.isNotEmpty &&
+                    _cachedVisibleChildren!.isNotEmpty &&
                     showMainButton)
                   SizedBox(width: widget.spacing),
 
@@ -538,15 +446,26 @@ class _CyberActionState extends State<CyberAction>
     );
   }
 
-  /// ✅ OPTIMIZED: Build spaced items from cached widgets
+  /// ✅ OPTIMIZED: Build spaced items from cached children
   List<Widget> _buildSpacedItems({required bool isVertical}) {
     final items = <Widget>[];
 
-    for (int i = 0; i < _cachedMenuItems!.length; i++) {
-      items.add(_cachedMenuItems![i]);
+    for (int i = 0; i < _cachedVisibleChildren!.length; i++) {
+      final item = _cachedVisibleChildren![i];
+
+      items.add(
+        _ActionMenuItem(
+          key: ValueKey('menu_item_${item.label}_$i'), // ✅ Unique key
+          item: item,
+          onTap: () {
+            item.onclick?.call();
+            _closeMenu();
+          },
+        ),
+      );
 
       // Add spacing between items
-      if (i < _cachedMenuItems!.length - 1) {
+      if (i < _cachedVisibleChildren!.length - 1) {
         items.add(
           SizedBox(
             height: isVertical ? widget.spacing : 0,
@@ -559,16 +478,11 @@ class _CyberActionState extends State<CyberAction>
     return items;
   }
 
-  /// ✅ OPTIMIZED: Wrap items với cached backdrop (no rebuild)
+  /// ✅ FIX: Build items container như code cũ (không cache backdrop)
   Widget _buildItemsContainer({required Widget child}) {
     return AnimatedBuilder(
       animation: _animation,
       builder: (context, _) {
-        final content = Padding(
-          padding: widget.containerPadding,
-          child: _buildScrollableChild(child),
-        );
-
         return Transform.scale(
           scale: _animation.value,
           alignment: widget.direction == CyberActionDirection.vertical
@@ -576,24 +490,61 @@ class _CyberActionState extends State<CyberAction>
               : Alignment.centerRight,
           child: Opacity(
             opacity: _animation.value,
-            child: _cachedBackdrop != null
-                ? Stack(
-                    children: [
-                      _cachedBackdrop!, // ✅ Cached backdrop (no rebuild)
-                      content,
-                    ],
+            child: widget.isShowBackgroundColor
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(widget.borderRadius),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                      child: Container(
+                        padding: widget.containerPadding,
+                        decoration: BoxDecoration(
+                          color:
+                              (widget.backgroundColor ??
+                                      Colors.white.withValues(alpha: 0.1))
+                                  .withValues(alpha: widget.backgroundOpacity),
+                          borderRadius: BorderRadius.circular(
+                            widget.borderRadius,
+                          ),
+                          border:
+                              widget.containerBorderWidth != null &&
+                                  widget.containerBorderWidth! > 0
+                              ? Border.all(
+                                  color:
+                                      widget.containerBorderColor ??
+                                      Colors.white.withValues(alpha: 0.3),
+                                  width: widget.containerBorderWidth!,
+                                )
+                              : null,
+                        ),
+                        child: _buildScrollableChild(child),
+                      ),
+                    ),
                   )
-                : content,
+                : Padding(
+                    padding: widget.containerPadding,
+                    child: _buildScrollableChild(child),
+                  ),
           ),
         );
       },
     );
   }
 
-  /// ✅ OPTIMIZED: Wrap child với cached constraints
+  /// ✅ Wrap child với constraints
   Widget _buildScrollableChild(Widget child) {
+    final screenSize = MediaQuery.of(context).size;
+    final maxHeight = screenSize.height * 0.7;
+    final maxWidth = screenSize.width * 0.7;
+
     return ConstrainedBox(
-      constraints: _cachedConstraints!, // ✅ Use cached constraints
+      constraints: BoxConstraints(
+        maxHeight: widget.direction == CyberActionDirection.vertical
+            ? maxHeight
+            : double.infinity,
+        maxWidth: widget.direction == CyberActionDirection.horizontal
+            ? maxWidth
+            : double.infinity,
+      ),
       child: SingleChildScrollView(
         scrollDirection: widget.direction == CyberActionDirection.vertical
             ? Axis.vertical
