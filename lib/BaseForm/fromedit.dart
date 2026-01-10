@@ -50,7 +50,10 @@ abstract class CyberBaseEdit extends CyberForm {
   }
 
   @override
-  Future<void> SaveData() async {}
+  Future<void> SaveData() async {
+    close();
+  }
+
   String getXML(List<CyberDataTable> dts, List<String> names) {
     return ToXml(dts, names);
   }
