@@ -87,7 +87,11 @@ class CyberButtonAction {
   });
 }
 
-/// Floating Action Button Menu với auto show/hide
+// ============================================================================
+// ✅ OPTIMIZED: Floating Action Button Menu
+// ============================================================================
+
+/// Floating Action Button Menu với auto show/hide, optimized performance
 class CyberAction extends StatefulWidget {
   /// Danh sách các button actions
   final List<CyberButtonAction> children;
@@ -200,6 +204,20 @@ class _CyberActionState extends State<CyberAction>
   bool _isExpanded = false;
   bool _isPinned = false;
 
+  // ✅ OPTIMIZED: Cache visible children & pre-built widgets
+  List<CyberButtonAction>? _cachedVisibleChildren;
+  List<Widget>? _cachedMenuItems;
+
+  // ✅ OPTIMIZED: Cache backdrop widget
+  Widget? _cachedBackdrop;
+
+  // ✅ OPTIMIZED: Cache screen constraints
+  Size? _cachedScreenSize;
+  BoxConstraints? _cachedConstraints;
+
+  // ✅ OPTIMIZED: Static const values
+  static const Duration _defaultTooltipWait = Duration(milliseconds: 500);
+
   @override
   void initState() {
     super.initState();
@@ -213,6 +231,10 @@ class _CyberActionState extends State<CyberAction>
       curve: Curves.easeInOut,
     );
 
+    // ✅ Build cache
+    _rebuildCache();
+    _buildCachedBackdrop();
+
     // Nếu là AlwaysShow thì mở menu luôn
     if (widget.type == CyberActionType.alwaysShow) {
       _isExpanded = true;
@@ -221,9 +243,116 @@ class _CyberActionState extends State<CyberAction>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _updateConstraints();
+  }
+
+  @override
+  void didUpdateWidget(CyberAction oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // ✅ Rebuild cache only when children change
+    if (widget.children != oldWidget.children) {
+      _rebuildCache();
+    }
+
+    // ✅ Rebuild backdrop only when config changes
+    if (widget.backgroundColor != oldWidget.backgroundColor ||
+        widget.backgroundOpacity != oldWidget.backgroundOpacity ||
+        widget.borderRadius != oldWidget.borderRadius ||
+        widget.isShowBackgroundColor != oldWidget.isShowBackgroundColor ||
+        widget.containerBorderWidth != oldWidget.containerBorderWidth ||
+        widget.containerBorderColor != oldWidget.containerBorderColor) {
+      _buildCachedBackdrop();
+    }
+
+    // Update animation duration
+    if (widget.animationDuration != oldWidget.animationDuration) {
+      _animationController.duration = Duration(
+        milliseconds: widget.animationDuration,
+      );
+    }
+  }
+
+  @override
   void dispose() {
     _animationController.dispose();
     super.dispose();
+  }
+
+  /// ✅ OPTIMIZED: Update screen constraints cache
+  void _updateConstraints() {
+    final screenSize = MediaQuery.of(context).size;
+
+    if (_cachedScreenSize != screenSize) {
+      _cachedScreenSize = screenSize;
+
+      final maxHeight = screenSize.height * 0.7;
+      final maxWidth = screenSize.width * 0.7;
+
+      _cachedConstraints = BoxConstraints(
+        maxHeight: widget.direction == CyberActionDirection.vertical
+            ? maxHeight
+            : double.infinity,
+        maxWidth: widget.direction == CyberActionDirection.horizontal
+            ? maxWidth
+            : double.infinity,
+      );
+    }
+  }
+
+  /// ✅ OPTIMIZED: Rebuild cache - filter & pre-build widgets
+  void _rebuildCache() {
+    _cachedVisibleChildren = widget.children
+        .where((item) => item.visible)
+        .toList();
+
+    // ✅ Pre-build menu items với keys
+    _cachedMenuItems = List.generate(_cachedVisibleChildren!.length, (i) {
+      final item = _cachedVisibleChildren![i];
+      return _ActionMenuItem(
+        key: ValueKey('menu_item_${item.label}_$i'), // ✅ Unique key
+        item: item,
+        onTap: () {
+          item.onclick?.call();
+          _closeMenu();
+        },
+      );
+    });
+  }
+
+  /// ✅ OPTIMIZED: Build backdrop ONCE and cache
+  void _buildCachedBackdrop() {
+    if (!widget.isShowBackgroundColor) {
+      _cachedBackdrop = null;
+      return;
+    }
+
+    _cachedBackdrop = ClipRRect(
+      borderRadius: BorderRadius.circular(widget.borderRadius),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          decoration: BoxDecoration(
+            color:
+                (widget.backgroundColor ?? Colors.white.withValues(alpha: 0.1))
+                    .withValues(alpha: widget.backgroundOpacity),
+            borderRadius: BorderRadius.circular(widget.borderRadius),
+            border:
+                widget.containerBorderWidth != null &&
+                    widget.containerBorderWidth! > 0
+                ? Border.all(
+                    color:
+                        widget.containerBorderColor ??
+                        Colors.white.withValues(alpha: 0.3),
+                    width: widget.containerBorderWidth!,
+                  )
+                : null,
+          ),
+        ),
+      ),
+    );
   }
 
   void _toggleMenu() {
@@ -271,12 +400,8 @@ class _CyberActionState extends State<CyberAction>
 
   @override
   Widget build(BuildContext context) {
-    // Lọc ra các items visible
-    final visibleChildren = widget.children
-        .where((item) => item.visible)
-        .toList();
-
-    if (visibleChildren.isEmpty) {
+    // ✅ Use cached visible children
+    if (_cachedVisibleChildren?.isEmpty ?? true) {
       return const SizedBox.shrink();
     }
 
@@ -291,11 +416,9 @@ class _CyberActionState extends State<CyberAction>
     double? finalRight = widget.right;
 
     if (widget.isCenterVer) {
-      // Căn giữa theo chiều dọc
       finalTop = null;
       finalBottom = null;
       if (widget.isCenterHor) {
-        // Cả 2 chiều đều center
         alignment = Alignment.center;
         finalLeft = null;
         finalRight = null;
@@ -307,7 +430,6 @@ class _CyberActionState extends State<CyberAction>
         alignment = Alignment.center;
       }
     } else if (widget.isCenterHor) {
-      // Chỉ căn giữa theo chiều ngang
       finalLeft = null;
       finalRight = null;
       if (widget.top != null) {
@@ -322,16 +444,7 @@ class _CyberActionState extends State<CyberAction>
     return Stack(
       children: [
         // Backdrop nếu cần
-        if (_isExpanded && widget.showBackdrop)
-          Positioned.fill(
-            child: GestureDetector(
-              onTap: _closeMenu,
-              child: Container(
-                color:
-                    widget.backdropColor ?? Colors.black.withValues(alpha: 0.3),
-              ),
-            ),
-          ),
+        if (_isExpanded && widget.showBackdrop) _buildBackdrop(),
 
         // Main menu - Use Align if centered, otherwise Positioned
         if (widget.isCenterVer || widget.isCenterHor)
@@ -344,11 +457,7 @@ class _CyberActionState extends State<CyberAction>
                 bottom: finalBottom ?? 0,
                 right: finalRight ?? 0,
               ),
-              child: _buildMenuContent(
-                isVertical,
-                showMainButton,
-                visibleChildren,
-              ),
+              child: _buildMenuContent(isVertical, showMainButton),
             ),
           )
         else
@@ -357,22 +466,26 @@ class _CyberActionState extends State<CyberAction>
             left: finalLeft,
             bottom: finalBottom,
             right: finalRight,
-            child: _buildMenuContent(
-              isVertical,
-              showMainButton,
-              visibleChildren,
-            ),
+            child: _buildMenuContent(isVertical, showMainButton),
           ),
       ],
     );
   }
 
-  /// Build menu content (extracted for reuse)
-  Widget _buildMenuContent(
-    bool isVertical,
-    bool showMainButton,
-    List<CyberButtonAction> visibleChildren,
-  ) {
+  /// ✅ Build backdrop widget
+  Widget _buildBackdrop() {
+    return Positioned.fill(
+      child: GestureDetector(
+        onTap: _closeMenu,
+        child: Container(
+          color: widget.backdropColor ?? Colors.black.withValues(alpha: 0.3),
+        ),
+      ),
+    );
+  }
+
+  /// ✅ OPTIMIZED: Build menu content using cached widgets
+  Widget _buildMenuContent(bool isVertical, bool showMainButton) {
     return MouseRegion(
       onEnter: (_) => _handleHoverEnter(),
       onExit: (_) => _handleHoverExit(),
@@ -386,31 +499,17 @@ class _CyberActionState extends State<CyberAction>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      for (int i = 0; i < visibleChildren.length; i++)
-                        Padding(
-                          padding: EdgeInsets.only(
-                            bottom: i < visibleChildren.length - 1
-                                ? widget.spacing
-                                : 0,
-                          ),
-                          child: _ActionMenuItem(
-                            item: visibleChildren[i],
-                            onTap: () {
-                              visibleChildren[i].onclick?.call();
-                              _closeMenu();
-                            },
-                          ),
-                        ),
-                    ],
+                    children: _buildSpacedItems(isVertical: true),
                   ),
                 ),
 
                 // Spacing giữa items và main button
-                if (_isExpanded && visibleChildren.isNotEmpty && showMainButton)
+                if (_isExpanded &&
+                    _cachedMenuItems!.isNotEmpty &&
+                    showMainButton)
                   SizedBox(height: widget.spacing),
 
-                // Main FAB button (chỉ hiện khi AutoShow)
+                // Main FAB button
                 if (showMainButton) _buildMainButton(),
               ],
             )
@@ -422,42 +521,54 @@ class _CyberActionState extends State<CyberAction>
                 _buildItemsContainer(
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
-                    children: [
-                      for (int i = 0; i < visibleChildren.length; i++)
-                        Padding(
-                          padding: EdgeInsets.only(
-                            right: i < visibleChildren.length - 1
-                                ? widget.spacing
-                                : 0,
-                          ),
-                          child: _ActionMenuItem(
-                            item: visibleChildren[i],
-                            onTap: () {
-                              visibleChildren[i].onclick?.call();
-                              _closeMenu();
-                            },
-                          ),
-                        ),
-                    ],
+                    children: _buildSpacedItems(isVertical: false),
                   ),
                 ),
 
                 // Spacing giữa items và main button
-                if (_isExpanded && visibleChildren.isNotEmpty && showMainButton)
+                if (_isExpanded &&
+                    _cachedMenuItems!.isNotEmpty &&
+                    showMainButton)
                   SizedBox(width: widget.spacing),
 
-                // Main FAB button (chỉ hiện khi AutoShow)
+                // Main FAB button
                 if (showMainButton) _buildMainButton(),
               ],
             ),
     );
   }
 
-  /// Wrap items trong container với background và border (frosted glass effect)
+  /// ✅ OPTIMIZED: Build spaced items from cached widgets
+  List<Widget> _buildSpacedItems({required bool isVertical}) {
+    final items = <Widget>[];
+
+    for (int i = 0; i < _cachedMenuItems!.length; i++) {
+      items.add(_cachedMenuItems![i]);
+
+      // Add spacing between items
+      if (i < _cachedMenuItems!.length - 1) {
+        items.add(
+          SizedBox(
+            height: isVertical ? widget.spacing : 0,
+            width: isVertical ? 0 : widget.spacing,
+          ),
+        );
+      }
+    }
+
+    return items;
+  }
+
+  /// ✅ OPTIMIZED: Wrap items với cached backdrop (no rebuild)
   Widget _buildItemsContainer({required Widget child}) {
     return AnimatedBuilder(
       animation: _animation,
       builder: (context, _) {
+        final content = Padding(
+          padding: widget.containerPadding,
+          child: _buildScrollableChild(child),
+        );
+
         return Transform.scale(
           scale: _animation.value,
           alignment: widget.direction == CyberActionDirection.vertical
@@ -465,61 +576,24 @@ class _CyberActionState extends State<CyberAction>
               : Alignment.centerRight,
           child: Opacity(
             opacity: _animation.value,
-            child: widget.isShowBackgroundColor
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(widget.borderRadius),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                      child: Container(
-                        padding: widget.containerPadding,
-                        decoration: BoxDecoration(
-                          color:
-                              (widget.backgroundColor ??
-                                      Colors.white.withValues(alpha: 0.1))
-                                  .withValues(alpha: widget.backgroundOpacity),
-                          borderRadius: BorderRadius.circular(
-                            widget.borderRadius,
-                          ),
-                          border:
-                              widget.containerBorderWidth != null &&
-                                  widget.containerBorderWidth! > 0
-                              ? Border.all(
-                                  color:
-                                      widget.containerBorderColor ??
-                                      Colors.white.withValues(alpha: 0.3),
-                                  width: widget.containerBorderWidth!,
-                                )
-                              : null,
-                        ),
-                        child: _buildScrollableChild(child),
-                      ),
-                    ),
+            child: _cachedBackdrop != null
+                ? Stack(
+                    children: [
+                      _cachedBackdrop!, // ✅ Cached backdrop (no rebuild)
+                      content,
+                    ],
                   )
-                : _buildScrollableChild(child),
+                : content,
           ),
         );
       },
     );
   }
 
-  /// Wrap child trong SingleChildScrollView với constraints
+  /// ✅ OPTIMIZED: Wrap child với cached constraints
   Widget _buildScrollableChild(Widget child) {
-    // Get screen size
-    final screenSize = MediaQuery.of(context).size;
-
-    // Calculate max size (70% of screen)
-    final maxHeight = screenSize.height * 0.7;
-    final maxWidth = screenSize.width * 0.7;
-
     return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxHeight: widget.direction == CyberActionDirection.vertical
-            ? maxHeight
-            : double.infinity,
-        maxWidth: widget.direction == CyberActionDirection.horizontal
-            ? maxWidth
-            : double.infinity,
-      ),
+      constraints: _cachedConstraints!, // ✅ Use cached constraints
       child: SingleChildScrollView(
         scrollDirection: widget.direction == CyberActionDirection.vertical
             ? Axis.vertical
@@ -529,7 +603,7 @@ class _CyberActionState extends State<CyberAction>
     );
   }
 
-  /// Build main FAB button
+  /// ✅ Build main FAB button
   Widget _buildMainButton() {
     final size = widget.mainButtonSize ?? 52.0;
     final iconSize = size * 0.5;
@@ -561,43 +635,40 @@ class _CyberActionState extends State<CyberAction>
   }
 }
 
-/// Widget riêng cho mỗi action menu item
-class _ActionMenuItem extends StatefulWidget {
+// ============================================================================
+// ✅ OPTIMIZED: Stateless Widget for Menu Item (No State Overhead)
+// ============================================================================
+
+/// Widget riêng cho mỗi action menu item - OPTIMIZED
+class _ActionMenuItem extends StatelessWidget {
   final CyberButtonAction item;
   final VoidCallback onTap;
 
-  const _ActionMenuItem({required this.item, required this.onTap});
-
-  @override
-  State<_ActionMenuItem> createState() => _ActionMenuItemState();
-}
-
-class _ActionMenuItemState extends State<_ActionMenuItem> {
-  bool _isHovered = false;
+  const _ActionMenuItem({super.key, required this.item, required this.onTap});
 
   // Check if running on mobile (not web)
-  bool get _isMobile => !kIsWeb;
+  static bool get _isMobile => !kIsWeb;
 
   @override
   Widget build(BuildContext context) {
-    final iconSize = widget.item.iconSize ?? 20.0;
+    final iconSize = item.iconSize ?? 20.0;
     final buttonSize = iconSize + 24.0;
 
-    // Default background: Color.fromARGB(255, 247, 247, 247)
+    // Default background
     final bgColor =
-        widget.item.backgroundColor ?? const Color.fromARGB(255, 247, 247, 247);
-    final bgOpacity = widget.item.backgroundOpacity ?? 0.95;
+        item.backgroundColor ?? const Color.fromARGB(255, 247, 247, 247);
+    final bgOpacity = item.backgroundOpacity ?? 0.95;
 
-    // Trên mobile: dùng Tooltip thay vì MouseRegion
+    // Trên mobile: dùng Tooltip
     if (_isMobile) {
       return _buildMobileVersion(buttonSize, iconSize, bgColor, bgOpacity);
     }
 
-    // Trên desktop: dùng MouseRegion như cũ
+    // Trên desktop: dùng hover
     return _buildDesktopVersion(buttonSize, iconSize, bgColor, bgOpacity);
   }
 
-  /// Build version cho mobile (với Tooltip)
+  /// ✅ Build version cho mobile (với Tooltip)
   Widget _buildMobileVersion(
     double buttonSize,
     double iconSize,
@@ -611,20 +682,20 @@ class _ActionMenuItemState extends State<_ActionMenuItem> {
       bgOpacity,
     );
 
-    // Nếu showLabel = true: hiển thị label luôn theo position
-    if (widget.item.showLabel) {
+    // Nếu showLabel = true: hiển thị label luôn
+    if (item.showLabel) {
       return _buildWithLabel(iconButton);
     }
 
-    // Nếu không: dùng Tooltip (long press để xem)
+    // Nếu không: dùng Tooltip (long press)
     return Tooltip(
-      message: widget.item.label,
-      waitDuration: const Duration(milliseconds: 500),
+      message: item.label,
+      waitDuration: _CyberActionState._defaultTooltipWait,
       child: iconButton,
     );
   }
 
-  /// Build version cho desktop (với MouseRegion hover)
+  /// ✅ OPTIMIZED: Desktop version với ValueListenableBuilder
   Widget _buildDesktopVersion(
     double buttonSize,
     double iconSize,
@@ -638,35 +709,36 @@ class _ActionMenuItemState extends State<_ActionMenuItem> {
       bgOpacity,
     );
 
-    // Nếu showLabel = true: hiển thị label luôn (không cần hover)
-    if (widget.item.showLabel) {
+    // Nếu showLabel = true: hiển thị label luôn
+    if (item.showLabel) {
       return _buildWithLabel(iconButton);
     }
 
-    // Nếu không: chỉ hiển thị khi hover
-    return MouseRegion(
-      onEnter: (event) {
-        setState(() {
-          _isHovered = true;
-        });
+    // ✅ Use ValueNotifier instead of setState (no State object needed)
+    final hoverNotifier = ValueNotifier<bool>(false);
+
+    return ValueListenableBuilder<bool>(
+      valueListenable: hoverNotifier,
+      builder: (context, isHovered, cachedIconButton) {
+        return MouseRegion(
+          onEnter: (_) => hoverNotifier.value = true,
+          onExit: (_) => hoverNotifier.value = false,
+          cursor: SystemMouseCursors.click,
+          child: isHovered
+              ? _buildWithLabel(cachedIconButton!)
+              : cachedIconButton!,
+        );
       },
-      onExit: (event) {
-        setState(() {
-          _isHovered = false;
-        });
-      },
-      cursor: SystemMouseCursors.click,
-      child: _isHovered ? _buildWithLabel(iconButton) : iconButton,
+      child: iconButton, // ✅ Cached as child
     );
   }
 
-  /// Build icon + label theo position
+  /// ✅ Build icon + label theo position
   Widget _buildWithLabel(Widget iconButton) {
     final label = _buildLabel();
 
-    switch (widget.item.labelPosition) {
+    switch (item.labelPosition) {
       case LabelPosition.right:
-        // Label bên PHẢI icon: icon → label
         return Row(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.end,
@@ -674,7 +746,6 @@ class _ActionMenuItemState extends State<_ActionMenuItem> {
         );
 
       case LabelPosition.left:
-        // Label bên TRÁI icon: label → icon
         return Row(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.end,
@@ -682,30 +753,29 @@ class _ActionMenuItemState extends State<_ActionMenuItem> {
         );
 
       case LabelPosition.bottom:
-        // Label bên DƯỚI icon
         return Column(
           mainAxisSize: MainAxisSize.min,
-          children: [iconButton, const SizedBox(height: 4), label],
+          children: [
+            iconButton,
+            const SizedBox(height: 4), // ✅ Const
+            label,
+          ],
         );
     }
   }
 
-  /// Build label widget
+  /// ✅ Build label widget
   Widget _buildLabel() {
     EdgeInsets margin;
 
-    // Adjust margin based on position
-    switch (widget.item.labelPosition) {
+    switch (item.labelPosition) {
       case LabelPosition.right:
-        // Label ở bên phải icon → margin left
         margin = const EdgeInsets.only(left: 3);
         break;
       case LabelPosition.left:
-        // Label ở bên trái icon → margin right
         margin = const EdgeInsets.only(right: 3);
         break;
       case LabelPosition.bottom:
-        // Label ở dưới icon → no horizontal margin
         margin = EdgeInsets.zero;
         break;
     }
@@ -713,26 +783,9 @@ class _ActionMenuItemState extends State<_ActionMenuItem> {
     return Container(
       margin: margin,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      // decoration: BoxDecoration(
-      //   color: Colors.white.withValues(alpha: 0.95),
-      //   borderRadius: BorderRadius.circular(4),
-      //   boxShadow: [
-      //     BoxShadow(
-      //       color: Colors.black.withValues(alpha: 0.1),
-      //       blurRadius: 4,
-      //       offset: const Offset(0, 2),
-      //     ),
-      //   ],
-      // ),
       child: Text(
-        widget.item.label,
-        style:
-            widget.item.styleLabel ??
-            const TextStyle(
-              color: Colors.grey,
-              // fontSize: 14,
-              // fontWeight: FontWeight.w500,
-            ),
+        item.label,
+        style: item.styleLabel ?? const TextStyle(color: Colors.grey),
         overflow: TextOverflow.visible,
         softWrap: false,
         textAlign: TextAlign.center,
@@ -740,7 +793,7 @@ class _ActionMenuItemState extends State<_ActionMenuItem> {
     );
   }
 
-  /// Build icon button
+  /// ✅ Build icon button
   Widget _buildIconButton(
     double buttonSize,
     double iconSize,
@@ -757,17 +810,15 @@ class _ActionMenuItemState extends State<_ActionMenuItem> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: widget.onTap,
+          onTap: onTap,
           borderRadius: BorderRadius.circular(buttonSize / 2),
           child: Center(
             child: CyberLabel(
-              text: widget.item.icon,
+              text: item.icon,
               isIcon: true,
               iconSize: iconSize,
               textcolor:
-                  widget.item.iconColor ??
-                  widget.item.styleIcon?.color ??
-                  Colors.black87,
+                  item.iconColor ?? item.styleIcon?.color ?? Colors.black87,
             ),
           ),
         ),
@@ -775,6 +826,10 @@ class _ActionMenuItemState extends State<_ActionMenuItem> {
     );
   }
 }
+
+// ============================================================================
+// ✅ EXTENSION: Helper để tạo CyberAction
+// ============================================================================
 
 /// Extension để tạo CyberAction từ List<CyberButtonAction>
 extension CyberActionExtension on List<CyberButtonAction> {
