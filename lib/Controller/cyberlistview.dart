@@ -144,6 +144,9 @@ class CyberListView extends StatefulWidget {
   /// Background color cho từng item
   final Color? itemBackgroundColor;
 
+  /// 🎯 Số lượng items tối đa giữ trong memory (để tránh memory overflow)
+  final int maxItemsInMemory;
+
   // ============================================================================
   // CYBER ACTION PROPERTIES
   // ============================================================================
@@ -258,6 +261,7 @@ class CyberListView extends StatefulWidget {
     this.refreshKey,
     this.itemBorderRadius,
     this.itemBackgroundColor,
+    this.maxItemsInMemory = 1000,
     // CyberAction properties
     this.cyberActions,
     this.cyberActionType = CyberActionType.autoShow,
@@ -301,10 +305,14 @@ class _CyberListViewState extends State<CyberListView> {
   int _currentPage = 0;
   String _currentSearchText = '';
 
+  /// 🎯 OPTIMIZATION: Version counters thay vì hashCode
+  int _dataSourceVersion = 0;
+  int _filterVersion = 0;
+
   /// ✅ Filtered indices thay vì filtered data table
   List<int>? _filteredIndices;
 
-  /// ✅ Cache working rows
+  /// 🎯 OPTIMIZATION: Cache working rows với size limit
   List<CyberDataRow>? _cachedWorkingRows;
   int _cachedDataSourceVersion = -1;
   int _cachedFilterVersion = -1;
@@ -312,19 +320,16 @@ class _CyberListViewState extends State<CyberListView> {
   /// ✅ Timer cho search debounce
   Timer? _searchDebounceTimer;
 
-  /// ✅ Working rows - Apply filter on-the-fly với cache
+  /// 🎯 OPTIMIZATION: Working rows với cache size limit
   List<CyberDataRow> get _workingRows {
-    // ✅ Check cache
-    final currentDataVersion = widget.dataSource?.hashCode ?? 0;
-    final currentFilterVersion = _filteredIndices?.hashCode ?? 0;
-
+    // Check cache với version counters
     if (_cachedWorkingRows != null &&
-        _cachedDataSourceVersion == currentDataVersion &&
-        _cachedFilterVersion == currentFilterVersion) {
+        _cachedDataSourceVersion == _dataSourceVersion &&
+        _cachedFilterVersion == _filterVersion) {
       return _cachedWorkingRows!;
     }
 
-    // ✅ Rebuild cache
+    // Rebuild cache
     List<CyberDataRow> result;
 
     if (widget.onLoadData != null) {
@@ -337,12 +342,26 @@ class _CyberListViewState extends State<CyberListView> {
       result = widget.dataSource?.rows ?? [];
     }
 
-    // ✅ Update cache
-    _cachedWorkingRows = result;
-    _cachedDataSourceVersion = currentDataVersion;
-    _cachedFilterVersion = currentFilterVersion;
+    // 🎯 OPTIMIZATION: Chỉ cache nếu list không quá lớn (< 1000 items)
+    if (result.length < 1000) {
+      _cachedWorkingRows = result;
+      _cachedDataSourceVersion = _dataSourceVersion;
+      _cachedFilterVersion = _filterVersion;
+    } else {
+      // Không cache list quá lớn để tránh tốn RAM
+      _cachedWorkingRows = null;
+    }
 
     return result;
+  }
+
+  /// 🎯 OPTIMIZATION: Increment version counters
+  void _incrementDataVersion() {
+    _dataSourceVersion++;
+  }
+
+  void _incrementFilterVersion() {
+    _filterVersion++;
   }
 
   /// ✅ Invalidate cache
@@ -392,15 +411,6 @@ class _CyberListViewState extends State<CyberListView> {
     super.didUpdateWidget(oldWidget);
     if (!mounted) return;
 
-    if (widget.dataSource != oldWidget.dataSource) {
-      _filteredIndices = null;
-      _currentSearchText = '';
-      _searchController.clear();
-      _invalidateCache(); // ✅ Clear cache
-      if (mounted) {
-        setState(() {});
-      }
-    }
     // ✅ Kiểm tra refreshKey thay đổi (ví dụ khi đổi tab)
     if (widget.refreshKey != oldWidget.refreshKey) {
       // Reset tất cả state
@@ -409,6 +419,8 @@ class _CyberListViewState extends State<CyberListView> {
       _currentPage = 0;
       _hasMoreData = true;
       _searchController.clear();
+      _incrementDataVersion();
+      _incrementFilterVersion();
       _invalidateCache();
 
       // Reload data nếu có onLoadData
@@ -422,7 +434,7 @@ class _CyberListViewState extends State<CyberListView> {
           setState(() {});
         }
       }
-      return; // ✅ Return sớm để không check các điều kiện khác
+      return;
     }
 
     // Check dataSource thay đổi
@@ -430,6 +442,7 @@ class _CyberListViewState extends State<CyberListView> {
       _filteredIndices = null;
       _currentSearchText = '';
       _searchController.clear();
+      _incrementDataVersion();
       _invalidateCache();
       if (mounted) {
         setState(() {});
@@ -455,17 +468,18 @@ class _CyberListViewState extends State<CyberListView> {
     _searchController.dispose();
     _searchDebounceTimer?.cancel();
     _filteredIndices = null;
-    _invalidateCache(); // ✅ Clear cache
+    _invalidateCache();
     super.dispose();
   }
 
+  /// 🎯 OPTIMIZATION: Giảm số lần setState
   Future<void> _loadInitialData() async {
     if (!mounted) return;
     if (widget.onLoadData == null) return;
 
-    // ✅ FIX 2.2: Reset _currentPage TRƯỚC khi setState
     _currentPage = 0;
 
+    // 🎯 Chỉ 1 setState ở đầu
     if (mounted) {
       setState(() {
         _isLoading = true;
@@ -476,18 +490,22 @@ class _CyberListViewState extends State<CyberListView> {
     try {
       final requestSearch = _currentSearchText;
       final newDataTable = await widget.onLoadData!(
-        _currentPage, // ✅ Luôn = 0
+        _currentPage,
         widget.pageSize,
         _currentSearchText,
       );
+
       if (!mounted || requestSearch != _currentSearchText) return;
+
       if (widget.dataSource != null) {
         widget.dataSource!.clear();
         widget.dataSource!.loadDatafromTb(newDataTable);
       }
 
-      _invalidateCache(); // ✅ Clear cache sau khi load data
+      _incrementDataVersion();
+      _invalidateCache();
 
+      // 🎯 Chỉ 1 setState ở cuối
       if (mounted) {
         setState(() {
           _hasMoreData = newDataTable.rowCount >= widget.pageSize;
@@ -495,6 +513,7 @@ class _CyberListViewState extends State<CyberListView> {
         });
       }
     } catch (e) {
+      // 🎯 1 setState cho error
       if (mounted) {
         setState(() => _isLoading = false);
       }
@@ -502,6 +521,7 @@ class _CyberListViewState extends State<CyberListView> {
     }
   }
 
+  /// 🎯 OPTIMIZATION: Load more với giới hạn items trong memory
   Future<void> _loadMore() async {
     if (!mounted) return;
     if (_isLoadingMore || !_hasMoreData || widget.onLoadData == null) return;
@@ -522,17 +542,30 @@ class _CyberListViewState extends State<CyberListView> {
       _currentPage = nextPage;
 
       if (widget.dataSource != null) {
-        // for (var row in moreDataTable.rows) {
-        //   widget.dataSource!.addRow(row);
-        // }
         widget.dataSource!.batch(() {
+          // 🎯 CRITICAL: Giới hạn số items trong memory
+          final totalAfterAdd =
+              widget.dataSource!.rowCount + moreDataTable.rowCount;
+
+          if (totalAfterAdd > widget.maxItemsInMemory) {
+            // Remove old items từ đầu để giữ items mới nhất
+            final removeCount = totalAfterAdd - widget.maxItemsInMemory;
+            for (int i = 0; i < removeCount; i++) {
+              widget.dataSource!.removeAt(0);
+            }
+            // Adjust page counter vì đã remove items
+            if (_currentPage > 0) _currentPage--;
+          }
+
+          // Add new items
           for (var row in moreDataTable.rows) {
             widget.dataSource!.addRow(row);
           }
         });
       }
 
-      _invalidateCache(); // ✅ Clear cache sau khi load more
+      _incrementDataVersion();
+      _invalidateCache();
 
       if (mounted) {
         setState(() {
@@ -542,9 +575,7 @@ class _CyberListViewState extends State<CyberListView> {
       }
     } catch (e) {
       if (mounted) {
-        setState(() {
-          _isLoadingMore = false;
-        });
+        setState(() => _isLoadingMore = false);
       }
       _showError('Lỗi khi load thêm dữ liệu: $e');
     }
@@ -561,7 +592,8 @@ class _CyberListViewState extends State<CyberListView> {
         if (mounted) {
           setState(() {
             _filteredIndices = null;
-            _invalidateCache(); // ✅ Clear cache
+            _incrementFilterVersion();
+            _invalidateCache();
           });
         }
         return;
@@ -571,14 +603,12 @@ class _CyberListViewState extends State<CyberListView> {
     await _loadInitialData();
   }
 
-  /// ✅ FIX 2.1: Chỉ debounce 1 lần ở đây
+  /// ✅ Search với debounce
   void _onSearchChanged(String searchText) {
     if (!mounted) return;
 
-    // ✅ Cancel timer cũ
     _searchDebounceTimer?.cancel();
 
-    // ✅ Debounce mới
     _searchDebounceTimer = Timer(
       Duration(milliseconds: widget.searchDebounceTime),
       () {
@@ -596,16 +626,24 @@ class _CyberListViewState extends State<CyberListView> {
     );
   }
 
-  /// ✅ FIX 2.1: KHÔNG có debounce nữa
+  /// 🎯 OPTIMIZATION: Filter với warning cho large datasets
   void _filterLocalData(String searchText) {
     if (!mounted) return;
+
+    // 🎯 Warning nếu dataset quá lớn
+    if (widget.dataSource != null && widget.dataSource!.rowCount > 10000) {
+      _showError(
+        'Dataset quá lớn (${widget.dataSource!.rowCount} items). Search có thể chậm.',
+      );
+    }
 
     final indices = _performFilterIndices(searchText);
 
     if (mounted) {
       setState(() {
         _filteredIndices = indices;
-        _invalidateCache(); // ✅ Clear cache khi filter
+        _incrementFilterVersion();
+        _invalidateCache();
       });
     }
   }
@@ -672,14 +710,13 @@ class _CyberListViewState extends State<CyberListView> {
   Future<void> _handleDeleteItem(CyberDataRow row, int index) async {
     if (!mounted) return;
 
-    // Hiển thị dialog xác nhận
     final confirmed = await setText(
       "Bạn chắc chắn muốn xóa dữ liệu?",
       "Are you sure you want to delete the data?",
     ).V_MsgBox(context, type: CyberMsgBoxType.warning);
+
     if (confirmed != true || !mounted) return;
 
-    // Gọi callback onDelete nếu có
     bool canDelete = true;
     if (widget.onDelete != null) {
       try {
@@ -690,13 +727,12 @@ class _CyberListViewState extends State<CyberListView> {
       }
     }
 
-    // Nếu callback trả về true, xóa khỏi dataSource
     if (canDelete && mounted) {
       if (widget.dataSource != null) {
-        // Tìm index trong dataSource gốc
         final sourceIndex = widget.dataSource!.rows.indexOf(row);
         if (sourceIndex >= 0) {
           widget.dataSource!.removeAt(sourceIndex);
+          _incrementDataVersion();
           _invalidateCache();
           if (mounted) {
             setState(() {});
@@ -706,9 +742,8 @@ class _CyberListViewState extends State<CyberListView> {
     }
   }
 
-  /// ✅ FIX 2.4: Tính extent ratio an toàn
+  /// ✅ Tính extent ratio an toàn
   double _calculateSwipeExtentRatio() {
-    // Tính tổng số actions (swipe actions + delete action)
     int totalActions = 0;
     if (widget.dtSwipeActions != null) {
       totalActions += widget.dtSwipeActions!.rowCount;
@@ -718,13 +753,12 @@ class _CyberListViewState extends State<CyberListView> {
     }
 
     if (totalActions == 0) {
-      return 0.25; // Default
+      return 0.25;
     }
 
     final screenWidth = MediaQuery.of(context).size.width;
     final totalWidth = totalActions * 80.0;
 
-    // ✅ Clamp giữa 0.1 và 0.8 (max 80% màn hình)
     return (totalWidth / screenWidth).clamp(0.1, 0.8);
   }
 
@@ -738,7 +772,6 @@ class _CyberListViewState extends State<CyberListView> {
       ],
     );
 
-    // ✅ Wrap trong Stack nếu có CyberAction
     if (widget.cyberActions != null && widget.cyberActions!.isNotEmpty) {
       content = Stack(children: [content, _buildCyberAction()]);
     }
@@ -752,7 +785,7 @@ class _CyberListViewState extends State<CyberListView> {
     }
   }
 
-  /// ✅ Build CyberAction nếu có
+  /// ✅ Build CyberAction
   Widget _buildCyberAction() {
     if (widget.cyberActions == null || widget.cyberActions!.isEmpty) {
       return const SizedBox.shrink();
@@ -863,9 +896,8 @@ class _CyberListViewState extends State<CyberListView> {
                 ),
                 onChanged: (value) {
                   if (mounted) {
-                    setState(() {}); // Để update suffixIcon
+                    setState(() {});
                   }
-                  // ✅ FIX 2.1: Chỉ gọi _onSearchChanged, không debounce ở đây
                   _onSearchChanged(value);
                 },
               ),
@@ -962,7 +994,7 @@ class _CyberListViewState extends State<CyberListView> {
         );
   }
 
-  /// ✅ FIX: Build ListView WITH SlidableAutoCloseBehavior
+  /// 🎯 OPTIMIZATION: ListView với optimization flags
   Widget _buildList() {
     final rows = _workingRows;
 
@@ -972,6 +1004,10 @@ class _CyberListViewState extends State<CyberListView> {
       itemCount: rows.length + (_isLoadingMore ? 1 : 0),
       shrinkWrap: _useShrinkWrap,
       physics: _scrollPhysics,
+      // 🎯 OPTIMIZATION FLAGS
+      addAutomaticKeepAlives: false, // Không giữ state items đã scroll qua
+      addRepaintBoundaries: true, // Optimize repaint
+      cacheExtent: 300, // Cache 300px ngoài viewport
       separatorBuilder: (context, index) =>
           widget.separator ??
           Divider(height: 1, thickness: 1, color: Colors.grey[200]),
@@ -992,7 +1028,6 @@ class _CyberListViewState extends State<CyberListView> {
       },
     );
 
-    // ✅ Wrap với SlidableAutoCloseBehavior để tự động đóng khi scroll hoặc tap
     final wrappedListView = SlidableAutoCloseBehavior(child: listView);
 
     if (_useShrinkWrap) {
@@ -1002,7 +1037,7 @@ class _CyberListViewState extends State<CyberListView> {
     return RefreshIndicator(onRefresh: _refresh, child: wrappedListView);
   }
 
-  /// ✅ FIX: Build Horizontal ListView WITH SlidableAutoCloseBehavior
+  /// 🎯 OPTIMIZATION: Horizontal ListView với optimization flags
   Widget _buildHorizontalList() {
     final rows = _workingRows;
 
@@ -1013,6 +1048,10 @@ class _CyberListViewState extends State<CyberListView> {
       itemCount: rows.length + (_isLoadingMore ? 1 : 0),
       shrinkWrap: _useShrinkWrap,
       physics: _scrollPhysics,
+      // 🎯 OPTIMIZATION FLAGS
+      addAutomaticKeepAlives: false,
+      addRepaintBoundaries: true,
+      cacheExtent: 300,
       separatorBuilder: (context, index) =>
           widget.separator ?? const SizedBox(width: 8),
       itemBuilder: (context, index) {
@@ -1032,11 +1071,10 @@ class _CyberListViewState extends State<CyberListView> {
       },
     );
 
-    // ✅ Wrap với SlidableAutoCloseBehavior
     return SlidableAutoCloseBehavior(child: listView);
   }
 
-  /// ✅ FIX: Build GridView (không cần SlidableAutoCloseBehavior vì GridView không hỗ trợ Slidable)
+  /// 🎯 OPTIMIZATION: GridView với optimization flags
   Widget _buildGridList() {
     final rows = _workingRows;
 
@@ -1051,6 +1089,10 @@ class _CyberListViewState extends State<CyberListView> {
       padding: widget.padding ?? const EdgeInsets.all(8),
       shrinkWrap: _useShrinkWrap,
       physics: _scrollPhysics,
+      // 🎯 OPTIMIZATION FLAGS
+      addAutomaticKeepAlives: false,
+      addRepaintBoundaries: true,
+      cacheExtent: 300,
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: widget.columnCount,
         crossAxisSpacing: widget.crossAxisSpacing,
@@ -1084,6 +1126,10 @@ class _CyberListViewState extends State<CyberListView> {
       itemCount: rowCount + (_isLoadingMore ? 1 : 0),
       shrinkWrap: _useShrinkWrap,
       physics: _scrollPhysics,
+      // 🎯 OPTIMIZATION FLAGS
+      addAutomaticKeepAlives: false,
+      addRepaintBoundaries: true,
+      cacheExtent: 300,
       separatorBuilder: (context, index) =>
           SizedBox(height: widget.mainAxisSpacing),
       itemBuilder: (context, rowIndex) {
@@ -1124,48 +1170,21 @@ class _CyberListViewState extends State<CyberListView> {
     );
   }
 
-  /// ✅ FIX 2.3: Dùng Builder để lấy đúng context
+  /// 🎯 OPTIMIZATION: Sử dụng _CyberListItem widget riêng
   Widget _buildItem(CyberDataRow row, int index) {
-    return Builder(
-      builder: (BuildContext itemContext) {
-        final itemContent = widget.itemBuilder(context, row, index);
-
-        // Wrap với Container nếu có background color hoặc border radius
-        final wrappedContent =
-            (widget.itemBackgroundColor != null ||
-                widget.itemBorderRadius != null)
-            ? Container(
-                decoration: BoxDecoration(
-                  color: widget.itemBackgroundColor,
-                  borderRadius: widget.itemBorderRadius,
-                ),
-                clipBehavior: widget.itemBorderRadius != null
-                    ? Clip.antiAlias
-                    : Clip.none,
-                child: itemContent,
-              )
-            : itemContent;
-
-        return InkWell(
-          onTap: (widget.onItemTap != null || widget.isClickToScreen)
-              ? () {
-                  // ✅ Đóng tất cả Slidable đang mở với đúng context
-                  Slidable.of(itemContext)?.close();
-                  _handleItemTap(row, index);
-                }
-              : () {
-                  // ✅ Đóng Slidable ngay cả khi không có handler
-                  Slidable.of(itemContext)?.close();
-                },
-          onLongPress: () {
-            // ✅ Đóng Slidable trước khi show menu
-            Slidable.of(itemContext)?.close();
-            _handleItemLongPress(row, index);
-          },
-          borderRadius: widget.itemBorderRadius,
-          child: wrappedContent,
-        );
-      },
+    return _CyberListItem(
+      row: row,
+      index: index,
+      itemBuilder: widget.itemBuilder,
+      borderRadius: widget.itemBorderRadius,
+      backgroundColor: widget.itemBackgroundColor,
+      isClickToScreen: widget.isClickToScreen,
+      onItemTap: widget.onItemTap,
+      onItemLongPress: widget.onItemLongPress,
+      onTap: (widget.onItemTap != null || widget.isClickToScreen)
+          ? () => _handleItemTap(row, index)
+          : null,
+      onLongPress: () => _handleItemLongPress(row, index),
     );
   }
 
@@ -1206,60 +1225,39 @@ class _CyberListViewState extends State<CyberListView> {
     );
   }
 
-  /// ✅ FIX: Slidable item với Builder và closeOnScroll
+  /// ✅ Slidable item
   Widget _buildSlidableItem(CyberDataRow row, int index) {
     return ClipRRect(
       borderRadius: widget.itemBorderRadius ?? BorderRadius.zero,
       child: Slidable(
         key: Key('item_${row.hashCode}_$index'),
-
-        // ✅ Tự động đóng khi scroll
         closeOnScroll: true,
-
         endActionPane: ActionPane(
           motion: const DrawerMotion(),
-          extentRatio: _calculateSwipeExtentRatio(), // ✅ FIX 2.4
+          extentRatio: _calculateSwipeExtentRatio(),
           children: _buildSwipeActions(row, index),
         ),
-        child: Builder(
-          builder: (BuildContext slidableContext) {
-            final itemContent = widget.itemBuilder(context, row, index);
-
-            // Wrap với Container nếu có background color
-            final wrappedContent = widget.itemBackgroundColor != null
-                ? Container(
-                    color: widget.itemBackgroundColor,
-                    child: itemContent,
-                  )
-                : itemContent;
-
-            return InkWell(
-              onTap: (widget.onItemTap != null || widget.isClickToScreen)
-                  ? () {
-                      // ✅ Đóng với context từ trong Slidable
-                      Slidable.of(slidableContext)?.close();
-                      _handleItemTap(row, index);
-                    }
-                  : () {
-                      Slidable.of(slidableContext)?.close();
-                    },
-              onLongPress: () {
-                Slidable.of(slidableContext)?.close();
-                _handleItemLongPress(row, index);
-              },
-              child: wrappedContent,
-            );
-          },
+        child: _CyberSlidableItem(
+          row: row,
+          index: index,
+          itemBuilder: widget.itemBuilder,
+          backgroundColor: widget.itemBackgroundColor,
+          isClickToScreen: widget.isClickToScreen,
+          onItemTap: widget.onItemTap,
+          onItemLongPress: widget.onItemLongPress,
+          onTap: (widget.onItemTap != null || widget.isClickToScreen)
+              ? () => _handleItemTap(row, index)
+              : null,
+          onLongPress: () => _handleItemLongPress(row, index),
         ),
       ),
     );
   }
 
-  /// ✅ Build swipe actions bao gồm cả delete action
+  /// ✅ Build swipe actions
   List<Widget> _buildSwipeActions(CyberDataRow sourceRow, int sourceIndex) {
     final actions = <Widget>[];
 
-    // Thêm custom swipe actions
     if (widget.dtSwipeActions != null && widget.dtSwipeActions!.rowCount > 0) {
       for (var i = 0; i < widget.dtSwipeActions!.rows.length; i++) {
         final swipeRow = widget.dtSwipeActions!.rows[i];
@@ -1272,7 +1270,6 @@ class _CyberListViewState extends State<CyberListView> {
         final foregroundColor = _parseColor(textColorHex, Colors.white);
         final icon = v_parseIcon(iconName);
 
-        // Xác định border radius cho action này
         final isLastAction =
             (i == widget.dtSwipeActions!.rows.length - 1) && !widget.isDelete;
         final actionBorderRadius = _getActionBorderRadius(isLastAction);
@@ -1307,9 +1304,7 @@ class _CyberListViewState extends State<CyberListView> {
       }
     }
 
-    // Thêm delete action nếu isDelete = true
     if (widget.isDelete) {
-      // Delete action luôn là action cuối cùng
       final deleteActionBorderRadius = _getActionBorderRadius(true);
 
       actions.add(
@@ -1323,7 +1318,7 @@ class _CyberListViewState extends State<CyberListView> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              CyberLabel(
+              const CyberLabel(
                 isIcon: true,
                 text: "e92b",
                 style: TextStyle(color: Colors.white),
@@ -1348,13 +1343,11 @@ class _CyberListViewState extends State<CyberListView> {
     return actions;
   }
 
-  /// ✅ Get border radius cho swipe action
   BorderRadius _getActionBorderRadius(bool isLastAction) {
     if (widget.itemBorderRadius == null) {
       return BorderRadius.zero;
     }
 
-    // Chỉ action cuối cùng có border radius bên phải
     if (isLastAction) {
       return BorderRadius.only(
         topRight: widget.itemBorderRadius!.topRight,
@@ -1392,7 +1385,117 @@ class _CyberListViewState extends State<CyberListView> {
 }
 
 // ============================================================================
-// MENU BOTTOM SHEET - NO CHANGES NEEDED
+// 🎯 OPTIMIZATION: SEPARATE STATELESS WIDGET FOR LIST ITEMS
+// ============================================================================
+
+/// 🎯 Widget riêng cho mỗi list item (không có Slidable)
+class _CyberListItem extends StatelessWidget {
+  final CyberDataRow row;
+  final int index;
+  final ItemBuilder itemBuilder;
+  final BorderRadius? borderRadius;
+  final Color? backgroundColor;
+  final bool isClickToScreen;
+  final ItemTapCallback? onItemTap;
+  final ItemLongPressCallback? onItemLongPress;
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+
+  const _CyberListItem({
+    required this.row,
+    required this.index,
+    required this.itemBuilder,
+    this.borderRadius,
+    this.backgroundColor,
+    this.isClickToScreen = false,
+    this.onItemTap,
+    this.onItemLongPress,
+    this.onTap,
+    this.onLongPress,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Builder(
+      builder: (BuildContext itemContext) {
+        final itemContent = itemBuilder(context, row, index);
+
+        final wrappedContent = (backgroundColor != null || borderRadius != null)
+            ? Container(
+                decoration: BoxDecoration(
+                  color: backgroundColor,
+                  borderRadius: borderRadius,
+                ),
+                clipBehavior: borderRadius != null ? Clip.antiAlias : Clip.none,
+                child: itemContent,
+              )
+            : itemContent;
+
+        return InkWell(
+          onTap:
+              onTap ??
+              () {
+                Slidable.of(itemContext)?.close();
+              },
+          onLongPress: onLongPress,
+          borderRadius: borderRadius,
+          child: wrappedContent,
+        );
+      },
+    );
+  }
+}
+
+/// 🎯 Widget riêng cho Slidable item
+class _CyberSlidableItem extends StatelessWidget {
+  final CyberDataRow row;
+  final int index;
+  final ItemBuilder itemBuilder;
+  final Color? backgroundColor;
+  final bool isClickToScreen;
+  final ItemTapCallback? onItemTap;
+  final ItemLongPressCallback? onItemLongPress;
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+
+  const _CyberSlidableItem({
+    required this.row,
+    required this.index,
+    required this.itemBuilder,
+    this.backgroundColor,
+    this.isClickToScreen = false,
+    this.onItemTap,
+    this.onItemLongPress,
+    this.onTap,
+    this.onLongPress,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Builder(
+      builder: (BuildContext slidableContext) {
+        final itemContent = itemBuilder(context, row, index);
+
+        final wrappedContent = backgroundColor != null
+            ? Container(color: backgroundColor, child: itemContent)
+            : itemContent;
+
+        return InkWell(
+          onTap:
+              onTap ??
+              () {
+                Slidable.of(slidableContext)?.close();
+              },
+          onLongPress: onLongPress,
+          child: wrappedContent,
+        );
+      },
+    );
+  }
+}
+
+// ============================================================================
+// MENU BOTTOM SHEET
 // ============================================================================
 
 class _MenuBottomSheet extends StatelessWidget {
@@ -1604,18 +1707,4 @@ class _MenuItemTile extends StatelessWidget {
       return defaultColor;
     }
   }
-
-  // IconData? _parseIcon(String iconName) {
-  //   if (iconName.isEmpty) return null;
-
-  //   final iconMap = {
-  //     'edit': Icons.edit,
-  //     'delete': Icons.delete,
-  //     'info': Icons.info,
-  //     'settings': Icons.settings,
-  //     'person': Icons.person,
-  //   };
-
-  //   return iconMap[iconName.toLowerCase()];
-  // }
 }
