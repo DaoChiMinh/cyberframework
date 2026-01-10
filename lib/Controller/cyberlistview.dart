@@ -627,30 +627,44 @@ class _CyberListViewState extends State<CyberListView> {
 
     final totalAfterAdd = widget.dataSource!.rowCount + newItemCount;
 
-    if (totalAfterAdd > widget.maxItemsInMemory) {
-      final removeCount = totalAfterAdd - widget.maxItemsInMemory;
+    if (totalAfterAdd <= widget.maxItemsInMemory) return;
 
-      // 🎯 Calculate scroll offset compensation
-      double offsetCompensation = 0;
-      if (_scrollController.hasClients && widget.estimatedItemHeight != null) {
-        offsetCompensation = removeCount * widget.estimatedItemHeight!;
-      }
+    final removeCount = totalAfterAdd - widget.maxItemsInMemory;
 
-      // Remove old items
-      for (int i = 0; i < removeCount; i++) {
-        widget.dataSource!.removeAt(0);
-      }
+    // 🎯 Calculate scroll offset compensation
+    double offsetCompensation = 0;
+    if (_scrollController.hasClients && widget.estimatedItemHeight != null) {
+      offsetCompensation = removeCount * widget.estimatedItemHeight!;
+    }
 
-      // 🎯 FIX: Compensate scroll offset để không bị nhảy
-      if (offsetCompensation > 0 && _scrollController.hasClients) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_scrollController.hasClients) {
-            final newOffset = (_scrollController.offset - offsetCompensation)
-                .clamp(0.0, _scrollController.position.maxScrollExtent);
-            _scrollController.jumpTo(newOffset);
+    // ✅ EFFICIENT BULK REMOVE - O(n) instead of O(n²)
+    try {
+      // Priority 1: Use removeFirstN (fastest, O(n))
+      widget.dataSource!.removeFirstN(removeCount);
+    } catch (e) {
+      // Priority 2: Use removeRange (also O(n))
+      try {
+        widget.dataSource!.removeRange(0, removeCount);
+      } catch (e2) {
+        // Priority 3: Fallback to manual remove (O(n²) but rare)
+        debugPrint('⚠️ Warning: Using slow remove. Error: $e2');
+        widget.dataSource!.batch(() {
+          for (int i = 0; i < removeCount; i++) {
+            widget.dataSource!.removeAt(0);
           }
         });
       }
+    }
+
+    // 🎯 Compensate scroll offset để không bị nhảy
+    if (offsetCompensation > 0 && _scrollController.hasClients) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollController.hasClients) {
+          final newOffset = (_scrollController.offset - offsetCompensation)
+              .clamp(0.0, _scrollController.position.maxScrollExtent);
+          _scrollController.jumpTo(newOffset);
+        }
+      });
     }
   }
 
