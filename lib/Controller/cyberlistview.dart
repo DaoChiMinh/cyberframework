@@ -448,6 +448,7 @@ class _CyberListViewState extends State<CyberListView> {
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
     if (widget.scrollController == null) {
       _scrollController.dispose();
     }
