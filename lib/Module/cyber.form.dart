@@ -13,7 +13,10 @@ enum SpeedMonitorPosition {
   appBar,
   banner,
 }
-// lib/Module/cyber.form.dart
+
+// ============================================================================
+// CyberFormView - Optimized Widget
+// ============================================================================
 
 class CyberFormView extends StatefulWidget {
   final CyberForm Function() formBuilder;
@@ -25,8 +28,8 @@ class CyberFormView extends StatefulWidget {
   final bool showSpeedMonitor;
   final SpeedMonitorPosition speedMonitorPosition;
   final bool isMainScreen;
-  final bool enablePageAnimation; // ✅ NEW
-  final Duration pageAnimationDuration; // ✅ NEW
+  final bool enablePageAnimation;
+  final Duration pageAnimationDuration;
 
   const CyberFormView({
     super.key,
@@ -39,8 +42,8 @@ class CyberFormView extends StatefulWidget {
     this.showSpeedMonitor = false,
     this.speedMonitorPosition = SpeedMonitorPosition.appBar,
     this.isMainScreen = false,
-    this.enablePageAnimation = true, // ✅ NEW
-    this.pageAnimationDuration = const Duration(milliseconds: 400), // ✅ NEW
+    this.enablePageAnimation = true,
+    this.pageAnimationDuration = const Duration(milliseconds: 400),
   });
 
   @override
@@ -49,8 +52,6 @@ class CyberFormView extends StatefulWidget {
 
 class _CyberFormViewState extends State<CyberFormView>
     with SingleTickerProviderStateMixin {
-  // ✅ Single ticker (tối ưu nhất)
-
   late final CyberForm _form;
   bool _isLoading = true;
   String? _errorMessage;
@@ -65,12 +66,9 @@ class _CyberFormViewState extends State<CyberFormView>
 
     // ✅ Create form instance
     _form = widget.formBuilder();
-    _form._context = context;
     _form._widget = widget;
-    _form._setState = () {
-      if (mounted) setState(() {});
-    };
-    _form._tickerProvider = this; // ✅ Pass ticker provider
+    _form._setState = _safeSetState;
+    _form._tickerProvider = this;
 
     // ✅ Initialize page animation if enabled
     if (widget.enablePageAnimation) {
@@ -86,36 +84,46 @@ class _CyberFormViewState extends State<CyberFormView>
         ),
       );
 
-      // ✅ Pass to form (optional)
       _form._pageAnimationController = _pageAnimationController;
     }
 
     _initializeForm();
   }
 
+  // ✅ Safe setState wrapper
+  void _safeSetState() {
+    if (mounted) setState(() {});
+  }
+
   Future<void> _initializeForm() async {
+    final stopwatch = Stopwatch()..start();
+
     try {
       _form.onInit();
       await _form.onBeforeLoad();
 
-      // ✅ Start page animation
+      // ✅ Start page animation (no setState needed)
       _pageAnimationController?.forward();
 
       await _form.onLoadData();
       await _form.onAfterLoad();
 
+      stopwatch.stop();
+
+      // ✅ Single setState at end
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
       }
     } catch (e) {
+      stopwatch.stop();
+
       if (mounted) {
         setState(() {
           _isLoading = false;
           _errorMessage = e.toString();
         });
       }
+
       _form.onLoadError(e);
     }
   }
@@ -125,7 +133,7 @@ class _CyberFormViewState extends State<CyberFormView>
     // ✅ Dispose page animation controller first
     _pageAnimationController?.dispose();
 
-    // ✅ Then dispose form resources
+    // ✅ Then dispose form resources (will clear context)
     _form.onDispose();
 
     super.dispose();
@@ -133,7 +141,8 @@ class _CyberFormViewState extends State<CyberFormView>
 
   @override
   Widget build(BuildContext context) {
-    _form._context = context;
+    // ✅ Update context temporarily (will be cleared on dispose)
+    _form._updateContext(context);
 
     Widget body = CyberLanguageBuilder(
       builder: (context, language) => GestureDetector(
@@ -150,7 +159,7 @@ class _CyberFormViewState extends State<CyberFormView>
       ),
     );
 
-    // ✅ Wrap với page animation nếu enabled
+    // ✅ Wrap with page animation if enabled
     if (widget.enablePageAnimation && _pageFadeAnimation != null) {
       body = FadeTransition(opacity: _pageFadeAnimation!, child: body);
     }
@@ -158,17 +167,12 @@ class _CyberFormViewState extends State<CyberFormView>
     return body;
   }
 
-  // ✅ NEW METHOD
   Widget? _buildBottomNavigationBar() {
-    // Ẩn nếu form yêu cầu
     if (_form.hideBottomNavigationBar == true) {
       return null;
     }
-
-    // Cho phép form custom bottom navigation bar
     return _form.buildBottomNavigationBar(context);
   }
-  // ... rest of code giữ nguyên
 
   PreferredSizeWidget _buildAppBar() {
     final showInAppBar =
@@ -176,16 +180,16 @@ class _CyberFormViewState extends State<CyberFormView>
         widget.speedMonitorPosition == SpeedMonitorPosition.appBar;
 
     return AppBar(
-      backgroundColor: Color(0xFF00D287),
-      iconTheme: IconThemeData(color: Colors.white),
+      backgroundColor: const Color(0xFF00D287),
+      iconTheme: const IconThemeData(color: Colors.white),
       title: Text(
         _form.title ?? widget.title,
-        style: TextStyle(color: Colors.white),
+        style: const TextStyle(color: Colors.white),
         textAlign: TextAlign.center,
       ),
       actions: showInAppBar
-          ? [
-              const Padding(
+          ? const [
+              Padding(
                 padding: EdgeInsets.only(right: 8.0),
                 child: CyberSpeedIndicator(
                   showLabel: false,
@@ -200,9 +204,9 @@ class _CyberFormViewState extends State<CyberFormView>
 
   Widget _buildBodyWithSpeedMonitor() {
     final body = _buildBody();
-    // final showMonitor = widget.showSpeedMonitor || _form.showSpeedMonitor == true;
     final showMonitor = _form.showSpeedMonitor ?? widget.showSpeedMonitor;
     var position = widget.speedMonitorPosition;
+
     if (widget.isMainScreen &&
         (_form.hideAppBar ?? widget.hideAppBar) &&
         position == SpeedMonitorPosition.appBar) {
@@ -222,17 +226,17 @@ class _CyberFormViewState extends State<CyberFormView>
       );
     }
 
-    return Stack(children: [body, _buildFloatingSpeedMonitor()]);
+    return Stack(children: [body, _buildFloatingSpeedMonitor(position)]);
   }
 
-  Widget _buildFloatingSpeedMonitor() {
+  Widget _buildFloatingSpeedMonitor(SpeedMonitorPosition position) {
     final isMainScreen = widget.isMainScreen;
 
     return Positioned(
-      top: isMainScreen ? 30 : _getTop(),
-      left: _getLeft(),
-      right: isMainScreen ? 30 : _getRight(),
-      bottom: _getBottom(),
+      top: isMainScreen ? 30 : _getTop(position),
+      left: _getLeft(position),
+      right: isMainScreen ? 30 : _getRight(position),
+      bottom: _getBottom(position),
       child: const IgnorePointer(
         ignoring: false,
         child: CyberSpeedIndicator(
@@ -244,8 +248,8 @@ class _CyberFormViewState extends State<CyberFormView>
     );
   }
 
-  double? _getTop() {
-    switch (widget.speedMonitorPosition) {
+  double? _getTop(SpeedMonitorPosition position) {
+    switch (position) {
       case SpeedMonitorPosition.topLeft:
       case SpeedMonitorPosition.topRight:
       case SpeedMonitorPosition.topCenter:
@@ -255,8 +259,8 @@ class _CyberFormViewState extends State<CyberFormView>
     }
   }
 
-  double? _getBottom() {
-    switch (widget.speedMonitorPosition) {
+  double? _getBottom(SpeedMonitorPosition position) {
+    switch (position) {
       case SpeedMonitorPosition.bottomLeft:
       case SpeedMonitorPosition.bottomRight:
       case SpeedMonitorPosition.bottomCenter:
@@ -266,8 +270,8 @@ class _CyberFormViewState extends State<CyberFormView>
     }
   }
 
-  double? _getLeft() {
-    switch (widget.speedMonitorPosition) {
+  double? _getLeft(SpeedMonitorPosition position) {
+    switch (position) {
       case SpeedMonitorPosition.topLeft:
       case SpeedMonitorPosition.bottomLeft:
         return 16;
@@ -279,8 +283,8 @@ class _CyberFormViewState extends State<CyberFormView>
     }
   }
 
-  double? _getRight() {
-    switch (widget.speedMonitorPosition) {
+  double? _getRight(SpeedMonitorPosition position) {
+    switch (position) {
       case SpeedMonitorPosition.topRight:
       case SpeedMonitorPosition.bottomRight:
         return 16;
@@ -335,10 +339,14 @@ class _CyberFormViewState extends State<CyberFormView>
     return _form.buildBody(context);
   }
 }
-// lib/Module/cyber.form.dart
+
+// ============================================================================
+// CyberForm - Optimized Base Class
+// ============================================================================
 
 abstract class CyberForm {
-  late BuildContext _context;
+  // ✅ FIXED: Weak context reference (cleared on dispose)
+  BuildContext? _weakContext;
   late CyberFormView _widget;
   late VoidCallback _setState;
 
@@ -352,13 +360,43 @@ abstract class CyberForm {
   final Map<Listenable, Set<VoidCallback>> _listeners = {};
   bool _isDisposed = false;
 
-  BuildContext get context => _context;
-  CyberFormView get widget => _widget;
+  // ✅ Memory leak detection (debug only)
+  static final _activeInstances = <WeakReference<CyberForm>>[];
+
+  CyberForm() {}
+
+  // ============================================================================
+  // CONTEXT MANAGEMENT (SAFE)
+  // ============================================================================
+
+  /// ✅ Safe context getter (throws if not available)
+  BuildContext get context {
+    assert(
+      _weakContext != null,
+      'Context not available. Form may be disposed.',
+    );
+    assert(_weakContext!.mounted, 'Context is not mounted.');
+    return _weakContext!;
+  }
+
+  /// ✅ Check if context is available
+  bool get hasContext => _weakContext != null && _weakContext!.mounted;
+
+  /// ✅ Internal: Update context reference (called by CyberFormView)
+  void _updateContext(BuildContext context) {
+    _weakContext = context;
+  }
+
+  /// ✅ Internal: Clear context reference
+  void _clearContext() {
+    _weakContext = null;
+  }
 
   // ============================================================================
   // GETTERS
   // ============================================================================
 
+  CyberFormView get widget => _widget;
   String get cp_name => _widget.cp_name;
   String get strparameter => _widget.strparameter;
   dynamic get objectdata => _widget.objectdata;
@@ -377,11 +415,12 @@ abstract class CyberForm {
   String? strTextColorBlue = "#145A4A";
   String? strTextColorOrange = "#FF6B35";
 
-  Color? textColorDefault = Color(0xFF00D287);
-  Color? TextColorBlue = Color(0xFF145A4A);
-  Color? TextColorOrange = Color(0xFFFF6B35);
-  Color? TextColorGray = Color.fromARGB(255, 224, 224, 224);
-  // Getters với fallback cho override
+  Color? textColorDefault = const Color(0xFF00D287);
+  Color? TextColorBlue = const Color(0xFF145A4A);
+  Color? TextColorOrange = const Color(0xFFFF6B35);
+  Color? TextColorGray = const Color.fromARGB(255, 224, 224, 224);
+
+  // Getters with setters
   String? get title => _title;
   set title(String? value) => _title = value;
 
@@ -396,8 +435,9 @@ abstract class CyberForm {
 
   bool? get hideBottomNavigationBar => _hideBottomNavigationBar;
   set hideBottomNavigationBar(bool? value) => _hideBottomNavigationBar = value;
+
   // ============================================================================
-  // ✅ ANIMATION PROPERTIES
+  // ANIMATION PROPERTIES
   // ============================================================================
 
   /// Page animation controller (available if enablePageAnimation = true)
@@ -418,10 +458,11 @@ abstract class CyberForm {
 
   void onDispose() {
     _disposeAllResources();
+    _clearContext(); // ✅ Clear context reference
   }
 
   // ============================================================================
-  // ✅ OPTIMIZED: IMPLICIT ANIMATIONS (Recommended - No Controllers Needed)
+  // OPTIMIZED: IMPLICIT ANIMATIONS (Recommended - No Controllers Needed)
   // ============================================================================
 
   /// Fade in/out widget - BEST PERFORMANCE
@@ -559,7 +600,7 @@ abstract class CyberForm {
   }
 
   // ============================================================================
-  // ✅ ADVANCED: EXPLICIT ANIMATIONS (Use when you need full control)
+  // ADVANCED: EXPLICIT ANIMATIONS (Use when you need full control)
   // ============================================================================
 
   /// Get or create named controller - LAZY INITIALIZATION
@@ -583,6 +624,8 @@ abstract class CyberForm {
         'Make sure CyberFormView is properly initialized.',
       );
     }
+
+    // ✅ Log controller creation in debug mode
 
     // ✅ Create new controller
     final controller = AnimationController(
@@ -657,7 +700,7 @@ abstract class CyberForm {
   }
 
   // ============================================================================
-  // ✅ STAGGERED ANIMATIONS (For complex sequences)
+  // STAGGERED ANIMATIONS (For complex sequences)
   // ============================================================================
 
   /// Play animations in sequence
@@ -688,7 +731,7 @@ abstract class CyberForm {
   }
 
   // ============================================================================
-  // ✅ PERFORMANCE MONITORING
+  // PERFORMANCE MONITORING
   // ============================================================================
 
   /// Get active controller count
@@ -705,11 +748,43 @@ abstract class CyberForm {
     // ✅ Memory estimation
     final estimatedMemory =
         (_namedControllers.length * 200) + (_disposables.length * 50);
-    debugPrint('   Estimated Memory: ~${estimatedMemory}bytes');
+    debugPrint('   Estimated Memory: ~${estimatedMemory} bytes');
+
+    // ✅ Warning thresholds
+    if (_namedControllers.length > 10) {
+      debugPrint(
+        '   ⚠️ Warning: High controller count (${_namedControllers.length})',
+      );
+    }
+    if (estimatedMemory > 10000) {
+      debugPrint(
+        '   ⚠️ Warning: High memory usage (~${estimatedMemory} bytes)',
+      );
+    }
+  }
+
+  /// ✅ Memory leak detection (debug only)
+  static void _checkMemoryLeaks() {
+    _activeInstances.removeWhere((ref) => ref.target == null);
+
+    if (_activeInstances.length > 10) {
+      debugPrint(
+        '⚠️ Memory leak warning: ${_activeInstances.length} active CyberForm instances',
+      );
+      debugPrint(
+        '   Active forms: ${_activeInstances.map((ref) => ref.target.runtimeType).join(", ")}',
+      );
+    }
+  }
+
+  /// ✅ Get active instance count
+  static int getActiveInstanceCount() {
+    _activeInstances.removeWhere((ref) => ref.target == null);
+    return _activeInstances.length;
   }
 
   // ============================================================================
-  // ✅ RESOURCE MANAGEMENT
+  // RESOURCE MANAGEMENT
   // ============================================================================
 
   void registerDisposable(dynamic resource) {
@@ -732,13 +807,15 @@ abstract class CyberForm {
     if (_isDisposed) return;
     _isDisposed = true;
 
+    _disposeResourcesInternal();
+  }
+
+  void _disposeResourcesInternal() {
     // 1. Dispose named controllers first
     for (var entry in _namedControllers.entries) {
       try {
         entry.value.dispose();
-      } catch (e) {
-        debugPrint('Error disposing controller ${entry.key}: $e');
-      }
+      } catch (e) {}
     }
     _namedControllers.clear();
 
@@ -749,9 +826,7 @@ abstract class CyberForm {
       for (var listener in listeners) {
         try {
           listenable.removeListener(listener);
-        } catch (e) {
-          debugPrint('Error removing listener: $e');
-        }
+        } catch (e) {}
       }
     }
     _listeners.clear();
@@ -760,9 +835,7 @@ abstract class CyberForm {
     for (var resource in _disposables) {
       try {
         _disposeResource(resource);
-      } catch (e) {
-        debugPrint('Error disposing ${resource.runtimeType}: $e');
-      }
+      } catch (e) {}
     }
     _disposables.clear();
   }
@@ -813,6 +886,7 @@ abstract class CyberForm {
       return;
     }
 
+    // Try generic dispose/close/cancel
     try {
       final dynamic obj = resource;
       if (obj.dispose != null) {
@@ -846,6 +920,7 @@ abstract class CyberForm {
   Widget? buildLoadingWidget() => null;
   Widget? buildErrorWidget(String error) => null;
   Widget? buildBottomNavigationBar(BuildContext context) => null;
+
   // ============================================================================
   // HELPER METHODS
   // ============================================================================
@@ -858,6 +933,8 @@ abstract class CyberForm {
     String strparameter = "",
     dynamic objectdata,
   }) {
+    if (!hasContext) return;
+
     var frm = V_getScreen(
       strfrm,
       title,
@@ -865,21 +942,23 @@ abstract class CyberForm {
       strparameter,
       hideAppBar: hideAppBar,
     );
+
     if (frm == null) return;
-    Navigator.push(_context, MaterialPageRoute(builder: (context) => frm));
+
+    Navigator.push(context, MaterialPageRoute(builder: (context) => frm));
   }
 
   void rebuild() {
-    if (!_isDisposed && _context.mounted) {
+    if (!_isDisposed && hasContext) {
       _setState();
     }
   }
 
   void showLoading([String? message]) {
-    if (_isDisposed || !_context.mounted) return;
+    if (_isDisposed || !hasContext) return;
 
     showDialog(
-      context: _context,
+      context: context,
       barrierDismissible: false,
       builder: (context) => PopScope(
         canPop: false,
@@ -907,14 +986,14 @@ abstract class CyberForm {
   }
 
   void hideLoading() {
-    if (!_isDisposed && _context.mounted) {
-      Navigator.of(_context).pop();
+    if (!_isDisposed && hasContext) {
+      Navigator.of(context).pop();
     }
   }
 
   void close({dynamic result}) {
-    if (!_isDisposed && _context.mounted) {
-      Navigator.pop(_context, result);
+    if (!_isDisposed && hasContext) {
+      Navigator.pop(context, result);
     }
   }
 
