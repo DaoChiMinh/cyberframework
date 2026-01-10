@@ -249,7 +249,10 @@ class CyberPopup {
           margin: margin ?? _defaultMargin,
           padding: padding,
           decoration: _containerDecoration, // ✅ Cached decoration
-          child: child, // ✅ No Material wrapper
+          child: Material(
+            color: Colors.transparent,
+            child: child,
+          ), // ✅ No Material wrapper
         ),
       ),
     );
@@ -261,7 +264,10 @@ class CyberPopup {
       height: height,
       padding: padding ?? _defaultBottomPadding,
       decoration: _bottomSheetDecoration, // ✅ Cached decoration
-      child: child, // ✅ No Material wrapper
+      child: Material(
+        color: Colors.transparent,
+        child: child,
+      ), // ✅ No Material wrapper
     );
   }
 
