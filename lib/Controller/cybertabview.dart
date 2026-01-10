@@ -116,7 +116,7 @@ class CyberTabView extends StatefulWidget {
     this.tabBorderRadius,
     this.tabSpacing,
     this.tabBarMargin, // ✅ NEW
-    this.isScrollable = false, // ✅ Default false cho segmented style
+    this.isScrollable = true, // ✅ Default false cho segmented style
     this.animationDuration,
     this.animationCurve,
   });
