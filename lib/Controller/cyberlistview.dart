@@ -325,8 +325,8 @@ class _CyberListViewState extends State<CyberListView> {
   int _cachedDataSourceVersion = -1;
   int _cachedFilterVersion = -1;
 
-  /// 🎯 CRITICAL FIX: Search haystack cache với version-based key
-  /// Format: "rowHashCode_dataVersion" để tự động invalidate khi data thay đổi
+  /// 🎯 CRITICAL FIX: Search haystack cache với identityKey-based key
+  /// Format: "identityKey_dataVersion" để ổn định và tự động invalidate
   final Map<String, String> _searchHaystackCache = {};
 
   /// ✅ Timer cho search debounce
@@ -388,18 +388,18 @@ class _CyberListViewState extends State<CyberListView> {
     _searchHaystackCache.clear();
   }
 
-  /// 🎯 CRITICAL FIX: Get cache key với version
+  /// 🎯 CRITICAL FIX: Get cache key với identityKey + version
   String _getSearchCacheKey(CyberDataRow row) {
-    return '${row.hashCode}_$_dataSourceVersion';
+    return '${row.identityKey}_$_dataSourceVersion';
   }
 
-  /// 🎯 CRITICAL FIX: Get search haystack với version-based cache
+  /// 🎯 CRITICAL FIX: Get search haystack với identityKey-based cache
   String _getSearchHaystack(CyberDataRow row) {
     if (widget.columnsFilter == null || widget.columnsFilter!.isEmpty) {
       return '';
     }
 
-    // 🎯 Cache key BẮT BUỘC include version để tự động invalidate
+    // 🎯 Cache key BẮT BUỘC dùng identityKey + version
     final cacheKey = _getSearchCacheKey(row);
 
     // Return cached if exists
@@ -544,7 +544,7 @@ class _CyberListViewState extends State<CyberListView> {
     super.dispose();
   }
 
-  /// 🎯 CRITICAL FIX: Handler khi dataSource thay đổi (row content updates)
+  /// 🎯 CRITICAL FIX: Handler khi dataSource thay đổi - BẮT BUỘC setState()
   void _onDataSourceChanged() {
     if (!mounted) return;
 
@@ -553,25 +553,16 @@ class _CyberListViewState extends State<CyberListView> {
     _clearSearchCache();
     _invalidateCache();
 
-    // 🎯 IMPORTANT: Rebuild filter nếu đang filter local
-    if (_filteredIndices != null && widget.onLoadData == null) {
-      // Silent rebuild filter (không debounce, không setState)
-      _performFilterSilent(_currentSearchText);
+    // 🎯 CRITICAL FIX: BẮT BUỘC setState để rebuild UI
+    if (mounted) {
+      setState(() {
+        // Rebuild filter nếu đang filter local
+        if (_filteredIndices != null && widget.onLoadData == null) {
+          _filteredIndices = _performFilterIndices(_currentSearchText);
+          _incrementFilterVersion();
+        }
+      });
     }
-
-    // DataSource đã notify, widget sẽ rebuild tự động
-  }
-
-  /// 🎯 CRITICAL FIX: Silent filter rebuild
-  void _performFilterSilent(String searchText) {
-    if (!mounted) return;
-
-    final indices = _performFilterIndices(searchText);
-    _filteredIndices = indices;
-    _incrementFilterVersion();
-    _invalidateCache();
-
-    // Không setState vì dataSource đã notify
   }
 
   /// 🎯 OPTIMIZATION: Giảm số lần setState
@@ -675,7 +666,7 @@ class _CyberListViewState extends State<CyberListView> {
     }
   }
 
-  /// 🎯 CRITICAL FIX: Trim với O(n) bulk remove + scroll compensation
+  /// 🎯 CRITICAL FIX: Trim với O(n) bulk remove + KHÔNG fallback O(n²)
   Future<void> _trimOldItemsIfNeeded(int newItemCount) async {
     // 🎯 FIX: maxItemsInMemory = 0 nghĩa là không giới hạn
     if (widget.maxItemsInMemory <= 0) return;
@@ -693,27 +684,37 @@ class _CyberListViewState extends State<CyberListView> {
       offsetCompensation = removeCount * widget.estimatedItemHeight!;
     }
 
-    // ✅ EFFICIENT BULK REMOVE - O(n) instead of O(n²)
+    // ✅ EFFICIENT BULK REMOVE - O(n) only, NO O(n²) fallback
+    bool removeSuccess = false;
+
     try {
       // Priority 1: Use removeFirstN (fastest, O(n))
       widget.dataSource!.removeFirstN(removeCount);
+      removeSuccess = true;
     } catch (e) {
       // Priority 2: Use removeRange (also O(n))
       try {
         widget.dataSource!.removeRange(0, removeCount);
+        removeSuccess = true;
       } catch (e2) {
-        // Priority 3: Fallback to manual remove (O(n²) but rare)
-        debugPrint('⚠️ Warning: Using slow remove. Error: $e2');
-        widget.dataSource!.batch(() {
-          for (int i = 0; i < removeCount; i++) {
-            widget.dataSource!.removeAt(0);
-          }
-        });
+        // 🎯 CRITICAL FIX: KHÔNG fallback về O(n²)
+        debugPrint('⚠️ CRITICAL: No bulk remove API available.');
+        debugPrint('removeFirstN error: $e');
+        debugPrint('removeRange error: $e2');
+        debugPrint(
+          'Skipping trim to avoid O(n²) performance issue with $removeCount items.',
+        );
+        debugPrint(
+          'Please implement removeRange() or removeFirstN() in CyberDataTable.',
+        );
+        removeSuccess = false;
       }
     }
 
-    // 🎯 Compensate scroll offset để không bị nhảy
-    if (offsetCompensation > 0 && _scrollController.hasClients) {
+    // 🎯 Compensate scroll offset CHỈ KHI remove thành công
+    if (removeSuccess &&
+        offsetCompensation > 0 &&
+        _scrollController.hasClients) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_scrollController.hasClients) {
           final newOffset = (_scrollController.offset - offsetCompensation)
@@ -792,7 +793,7 @@ class _CyberListViewState extends State<CyberListView> {
     }
   }
 
-  /// 🎯 CRITICAL FIX: Filter dùng version-based cached haystack
+  /// 🎯 CRITICAL FIX: Filter dùng identityKey-based cached haystack
   List<int>? _performFilterIndices(String searchText) {
     if (widget.dataSource == null ||
         widget.columnsFilter == null ||
@@ -811,7 +812,7 @@ class _CyberListViewState extends State<CyberListView> {
     for (int i = 0; i < sourceRows.length; i++) {
       final row = sourceRows[i];
 
-      // 🎯 FIX: Dùng version-based cached haystack
+      // 🎯 FIX: Dùng identityKey-based cached haystack
       final haystack = _getSearchHaystack(row);
 
       if (haystack.contains(lowerSearch)) {
@@ -1374,12 +1375,13 @@ class _CyberListViewState extends State<CyberListView> {
     );
   }
 
-  /// ✅ Slidable item
+  /// 🎯 CRITICAL FIX: Slidable với identityKey
   Widget _buildSlidableItem(CyberDataRow row, int index) {
     return ClipRRect(
       borderRadius: widget.itemBorderRadius ?? BorderRadius.zero,
       child: Slidable(
-        key: Key('item_${row.hashCode}_$index'),
+        // 🎯 CRITICAL FIX: Dùng identityKey thay vì hashCode
+        key: Key('item_${row.identityKey}_$index'),
         closeOnScroll: true,
         endActionPane: ActionPane(
           motion: const DrawerMotion(),
