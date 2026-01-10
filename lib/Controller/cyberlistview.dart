@@ -522,9 +522,14 @@ class _CyberListViewState extends State<CyberListView> {
       _currentPage = nextPage;
 
       if (widget.dataSource != null) {
-        for (var row in moreDataTable.rows) {
-          widget.dataSource!.addRow(row);
-        }
+        // for (var row in moreDataTable.rows) {
+        //   widget.dataSource!.addRow(row);
+        // }
+        widget.dataSource!.batch(() {
+          for (var row in moreDataTable.rows) {
+            widget.dataSource!.addRow(row);
+          }
+        });
       }
 
       _invalidateCache(); // ✅ Clear cache sau khi load more
@@ -1541,7 +1546,7 @@ class _MenuItemTile extends StatelessWidget {
 
     final backColor = _parseColor(backColorHex, Colors.transparent);
     final textColor = _parseColor(textColorHex, Colors.black87);
-    final icon = _parseIcon(iconName);
+    final icon = v_parseIcon(iconName);
 
     return InkWell(
       onTap: onTap,
@@ -1600,17 +1605,17 @@ class _MenuItemTile extends StatelessWidget {
     }
   }
 
-  IconData? _parseIcon(String iconName) {
-    if (iconName.isEmpty) return null;
+  // IconData? _parseIcon(String iconName) {
+  //   if (iconName.isEmpty) return null;
 
-    final iconMap = {
-      'edit': Icons.edit,
-      'delete': Icons.delete,
-      'info': Icons.info,
-      'settings': Icons.settings,
-      'person': Icons.person,
-    };
+  //   final iconMap = {
+  //     'edit': Icons.edit,
+  //     'delete': Icons.delete,
+  //     'info': Icons.info,
+  //     'settings': Icons.settings,
+  //     'person': Icons.person,
+  //   };
 
-    return iconMap[iconName.toLowerCase()];
-  }
+  //   return iconMap[iconName.toLowerCase()];
+  // }
 }
