@@ -80,25 +80,6 @@ class CyberDataTable extends ChangeNotifier {
   }
 
   /// ✅ FIXED: Tạo row mới với các giá trị default theo type của column
-  ///
-  /// Trước đây hàm này truyền Map<String, Type> vào constructor CyberDataRow
-  /// gây ra lỗi vì constructor nhận Map<String, dynamic>
-  ///
-  /// Bây giờ tạo đúng giá trị default theo type:
-  /// - String -> ""
-  /// - int -> 0
-  /// - double -> 0.0
-  /// - bool -> false
-  /// - DateTime -> null
-  /// - Other types -> null
-  ///
-  /// Usage:
-  /// ```dart
-  /// var newRow = table.newRow();
-  /// newRow['name'] = 'John';
-  /// newRow['age'] = 25;
-  /// table.addRow(newRow);
-  /// ```
   CyberDataRow newRow() {
     final initialData = <String, dynamic>{};
 
@@ -117,9 +98,9 @@ class CyberDataTable extends ChangeNotifier {
       } else if (columnType == bool) {
         initialData[columnName] = false;
       } else if (columnType == DateTime) {
-        initialData[columnName] = null; // DateTime thường nullable
+        initialData[columnName] = null;
       } else {
-        initialData[columnName] = null; // Default cho các type khác
+        initialData[columnName] = null;
       }
     }
 
@@ -149,6 +130,75 @@ class CyberDataTable extends ChangeNotifier {
         notifyListeners();
       }
     }
+  }
+
+  /// 🎯 NEW: Bulk remove range - O(n) performance
+  /// Remove items from [start] to [end] (exclusive)
+  ///
+  /// Example:
+  /// ```dart
+  /// table.removeRange(0, 100); // Remove first 100 items
+  /// ```
+  void removeRange(int start, int end) {
+    if (_isDisposed) return;
+
+    if (start < 0 || end > _rows.length || start >= end) {
+      throw RangeError(
+        'Invalid range: start=$start, end=$end, length=${_rows.length}',
+      );
+    }
+
+    // Dispose rows in range
+    for (int i = start; i < end; i++) {
+      final row = _rows[i];
+      row.removeListener(_onRowChanged);
+      row.disposeAllListeners();
+      row.dispose();
+    }
+
+    // Bulk remove - O(n) instead of O(n²)
+    _rows.removeRange(start, end);
+
+    if (!_isBatchMode) {
+      notifyListeners();
+    }
+  }
+
+  /// 🎯 NEW: Remove first N items - O(n) performance
+  ///
+  /// Example:
+  /// ```dart
+  /// table.removeFirstN(100); // Remove first 100 items
+  /// ```
+  void removeFirstN(int count) {
+    if (_isDisposed) return;
+
+    if (count <= 0) return;
+
+    if (count > _rows.length) {
+      throw RangeError('count ($count) > length (${_rows.length})');
+    }
+
+    removeRange(0, count);
+  }
+
+  /// 🎯 NEW: Remove last N items - O(1) to O(n) depending on implementation
+  ///
+  /// Example:
+  /// ```dart
+  /// table.removeLastN(50); // Remove last 50 items
+  /// ```
+  void removeLastN(int count) {
+    if (_isDisposed) return;
+
+    if (count <= 0) return;
+
+    if (count > _rows.length) {
+      throw RangeError('count ($count) > length (${_rows.length})');
+    }
+
+    final newLength = _rows.length - count;
+    removeRange(newLength, _rows.length);
   }
 
   /// ✅ OPTIMIZED: Clear with proper disposal
