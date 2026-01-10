@@ -268,7 +268,7 @@ class CyberListView extends StatefulWidget {
     this.cyberActionCenterVer = false,
     this.cyberActionCenterHor = false,
     this.cyberActionDirection = CyberActionDirection.vertical,
-    this.cyberActionSpacing = 6.0,
+    this.cyberActionSpacing = 18,
     this.cyberActionMainButtonColor,
     this.cyberActionMainButtonIcon,
     this.cyberActionMainButtonSize = 56.0,
@@ -279,10 +279,13 @@ class CyberListView extends StatefulWidget {
     this.cyberActionShowBackground = true,
     this.cyberActionBackgroundColor,
     this.cyberActionBackgroundOpacity = 0.85,
-    this.cyberActionBorderRadius = 12.0,
+    this.cyberActionBorderRadius = 18.0,
     this.cyberActionBorderWidth,
     this.cyberActionBorderColor,
-    this.cyberActionPadding = const EdgeInsets.all(8),
+    this.cyberActionPadding = const EdgeInsets.symmetric(
+      horizontal: 26,
+      vertical: 6,
+    ),
   }) : assert(columnCount >= 1, 'columnCount phải >= 1');
 
   @override

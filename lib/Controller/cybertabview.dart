@@ -109,16 +109,16 @@ class CyberTabView extends StatefulWidget {
     this.backColorTab,
     this.textColorTab,
     this.selectBackColorTab,
-    this.selectTextColorTab,
+    this.selectTextColorTab = Colors.black,
     this.tabBarHeight,
     this.keepAlive = false,
     this.onTabChanged,
     this.tabBorderRadius,
-    this.tabSpacing,
+    this.tabSpacing = 8,
     this.tabBarMargin, // ✅ NEW
     this.isScrollable = true, // ✅ Default false cho segmented style
     this.animationDuration,
-    this.animationCurve,
+    this.animationCurve = Curves.easeInOut,
   });
 
   @override
@@ -145,7 +145,7 @@ class _CyberTabViewState extends State<CyberTabView>
       vsync: this,
       initialIndex: widget.initialIndex,
       animationDuration:
-          widget.animationDuration ?? const Duration(milliseconds: 300),
+          widget.animationDuration ?? const Duration(milliseconds: 268),
     );
 
     // ✅ Listen to both index changes and animation
@@ -402,11 +402,15 @@ class _CyberTabViewState extends State<CyberTabView>
   Widget _buildTabBar() {
     final container = Container(
       margin:
-          widget.tabBarMargin ?? const EdgeInsets.all(8), // ✅ Use tabBarMargin
+          widget.tabBarMargin ??
+          const EdgeInsets.symmetric(
+            horizontal: 32,
+            vertical: 16,
+          ), // ✅ Use tabBarMargin
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: widget.backColorTab ?? const Color(0xFFE8F5E9),
-        borderRadius: widget.tabBorderRadius ?? BorderRadius.circular(24),
+        borderRadius: widget.tabBorderRadius ?? BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),
@@ -515,7 +519,7 @@ class _AnimatedSegmentedTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Colors cho segmented style
-    final selectedBg = selectBackColorTab ?? const Color(0xFF4CAF50);
+    final selectedBg = selectBackColorTab ?? Color.fromARGB(255, 224, 224, 224);
     final selectedText = selectTextColorTab ?? Colors.white;
     final unselectedText = textColorTab ?? const Color(0xFF2E7D32);
 
