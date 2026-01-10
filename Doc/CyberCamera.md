@@ -1,74 +1,42 @@
-# CyberCamera - Hướng Dẫn Sử Dụng
+# CyberCamera - Camera Widget với Binding
 
-## 📋 Mục Lục
-
+## Mục Lục
 1. [Giới Thiệu](#giới-thiệu)
-2. [Cài Đặt](#cài-đặt)
-3. [Cú Pháp Cơ Bản](#cú-pháp-cơ-bản)
-4. [Data Binding](#data-binding)
-5. [Các Tính Năng](#các-tính-năng)
-6. [Ví Dụ Thực Tế](#ví-dụ-thực-tế)
-7. [API Reference](#api-reference)
+2. [Type Definitions](#type-definitions)
+3. [CyberCamera Widget](#cybercamera-widget)
+4. [CyberCameraController](#cybercameracontroller)
+5. [CyberCameraView](#cybercameraview)
+6. [Ví Dụ Sử Dụng](#ví-dụ-sử-dụng)
+7. [Features](#features)
 8. [Best Practices](#best-practices)
+9. [Troubleshooting](#troubleshooting)
 
 ---
 
-## 🎯 Giới Thiệu
+## Giới Thiệu
 
-**CyberCamera** là widget chụp ảnh với khả năng data binding tự động trong CyberFramework. Widget này tuân theo triết lý **Internal Controller + Binding**, giúp developer không cần khai báo controller bên ngoài mà vẫn có đầy đủ tính năng binding dữ liệu.
+`CyberCamera` là một camera widget đầy đủ tính năng với khả năng chụp ảnh, hiển thị preview, nén ảnh tự động và data binding. Widget này được thiết kế để dễ sử dụng với internal controller, user không cần phải quản lý controller riêng.
 
-### ✨ Đặc Điểm Nổi Bật
+### Đặc Điểm Chính
 
-- ✅ **Internal Controller**: Tự động quản lý lifecycle
-- ✅ **Two-way Data Binding**: Sync tự động với CyberDataRow
-- ✅ **Compression**: Nén ảnh tự động, tiết kiệm dung lượng
-- ✅ **Multiple Camera**: Hỗ trợ camera trước/sau
-- ✅ **Custom UI**: Tùy chỉnh placeholder, button, style
-- ✅ **Memory Safe**: Tự động cleanup, không memory leak
+- ✅ **Internal Controller**: User không cần khai báo controller
+- ✅ **Data Binding**: Hỗ trợ CyberBindingExpression và static string
+- ✅ **Auto Compression**: Tự động nén ảnh sau khi chụp
+- ✅ **Image Preview**: Hiển thị ảnh đã chụp với controls
+- ✅ **Camera Switch**: Chuyển đổi giữa front/back camera
+- ✅ **Responsive**: Tự động adapt cho mobile/tablet
+- ✅ **Error Handling**: Callback cho mọi lỗi có thể xảy ra
 
----
-
-## 📦 Cài Đặt
-
-### 1. Thêm Dependencies
-
-Trong file `pubspec.yaml`:
+### Dependencies
 
 ```yaml
 dependencies:
-  camera: ^0.10.5+5
-  flutter_image_compress: ^2.1.0
-  path: ^1.8.3
-  path_provider: ^2.1.1
+  camera: ^latest_version
+  flutter_image_compress: ^latest_version
+  path: ^latest_version
 ```
 
-### 2. Cấu Hình Platform
-
-#### Android (`android/app/src/main/AndroidManifest.xml`)
-
-```xml
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Camera permissions -->
-    <uses-permission android:name="android.permission.CAMERA"/>
-    <uses-feature android:name="android.hardware.camera" android:required="false"/>
-    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>
-    
-    <application>
-        <!-- ... -->
-    </application>
-</manifest>
-```
-
-#### iOS (`ios/Runner/Info.plist`)
-
-```xml
-<key>NSCameraUsageDescription</key>
-<string>Ứng dụng cần quyền truy cập camera để chụp ảnh</string>
-<key>NSMicrophoneUsageDescription</key>
-<string>Ứng dụng cần quyền truy cập microphone</string>
-```
-
-### 3. Import
+### Import
 
 ```dart
 import 'package:cyberframework/cyberframework.dart';
@@ -76,950 +44,1359 @@ import 'package:cyberframework/cyberframework.dart';
 
 ---
 
-## 🚀 Cú Pháp Cơ Bản
+## Type Definitions
 
-### 1. Sử Dụng Đơn Giản (Không Binding)
+### Callbacks
 
 ```dart
+/// Callback khi chụp ảnh thành công
+typedef OnCaptureImage = void Function(CyberCameraResult result);
+
+/// Callback khi có lỗi xảy ra
+typedef OnCameraError = void Function(String error);
+```
+
+### CyberCameraResult
+
+Class chứa kết quả sau khi chụp ảnh.
+
+```dart
+class CyberCameraResult {
+  /// File ảnh đã chụp
+  final File file;
+  
+  /// Tên file
+  final String fileName;
+  
+  /// Kích thước file (bytes)
+  final int fileSize;
+  
+  /// Ảnh đã được nén hay chưa
+  final bool isCompressed;
+  
+  /// Chất lượng nén (0-100) nếu có
+  final int? quality;
+}
+```
+
+#### Properties Table
+
+| Property | Type | Mô Tả |
+|----------|------|-------|
+| `file` | `File` | File object của ảnh đã chụp |
+| `fileName` | `String` | Tên file (ví dụ: "compressed_1234567890.jpg") |
+| `fileSize` | `int` | Kích thước file tính bằng bytes |
+| `isCompressed` | `bool` | `true` nếu ảnh đã được nén |
+| `quality` | `int?` | Chất lượng nén (0-100), null nếu không nén |
+
+#### Ví Dụ
+
+```dart
+onCaptured: (CyberCameraResult result) {
+  print('File path: ${result.file.path}');
+  print('File name: ${result.fileName}');
+  print('File size: ${result.fileSize} bytes');
+  print('Is compressed: ${result.isCompressed}');
+  if (result.isCompressed) {
+    print('Quality: ${result.quality}%');
+  }
+}
+```
+
+---
+
+## CyberCamera Widget
+
+Widget chính để tích hợp camera vào UI.
+
+### Constructor
+
+```dart
+const CyberCamera({
+  super.key,
+  this.imagePath,
+  this.label,
+  this.onCaptured,
+  this.enabled = true,
+  this.width,
+  this.height,
+  this.fit = BoxFit.cover,
+  this.enableCompression = true,
+  this.compressionQuality = 85,
+  this.maxWidth = 1920,
+  this.maxHeight = 1920,
+  this.defaultCamera = CameraLensDirection.back,
+  this.cameraTitle,
+  this.placeholder,
+  this.onError,
+})
+```
+
+### Properties
+
+#### Binding & Data
+
+| Property | Type | Mô Tả | Mặc Định |
+|----------|------|-------|----------|
+| `imagePath` | `dynamic` | Binding hoặc static string cho đường dẫn ảnh | null |
+| `label` | `String?` | Label hiển thị phía trên widget | null |
+| `onCaptured` | `OnCaptureImage?` | Callback khi chụp ảnh thành công | null |
+| `onError` | `OnCameraError?` | Callback khi có lỗi | null |
+
+#### Display Settings
+
+| Property | Type | Mô Tả | Mặc Định |
+|----------|------|-------|----------|
+| `enabled` | `bool` | Enable/disable widget | true |
+| `width` | `double?` | Chiều rộng | double.infinity |
+| `height` | `double?` | Chiều cao | 200 |
+| `fit` | `BoxFit` | BoxFit cho image display | BoxFit.cover |
+| `placeholder` | `Widget?` | Custom placeholder khi chưa có ảnh | null |
+
+#### Camera Settings
+
+| Property | Type | Mô Tả | Mặc Định |
+|----------|------|-------|----------|
+| `enableCompression` | `bool` | Bật/tắt nén ảnh | true |
+| `compressionQuality` | `int` | Chất lượng nén (0-100) | 85 |
+| `maxWidth` | `int?` | Chiều rộng tối đa sau nén | 1920 |
+| `maxHeight` | `int?` | Chiều cao tối đa sau nén | 1920 |
+| `defaultCamera` | `CameraLensDirection` | Camera mặc định (back/front) | CameraLensDirection.back |
+| `cameraTitle` | `String?` | Title cho camera screen | "Chụp ảnh" |
+
+### imagePath Parameter
+
+`imagePath` có thể là:
+
+1. **Null**: Không binding, chỉ dùng callback
+2. **String**: Static string path
+3. **CyberBindingExpression**: Two-way binding với data row
+
+```dart
+// 1. Null - chỉ dùng callback
 CyberCamera(
-  label: "Chụp ảnh",
-  height: 200,
+  imagePath: null,
   onCaptured: (result) {
-    print('Đã chụp: ${result.fileName}');
-    print('Đường dẫn: ${result.file.path}');
+    // Handle result manually
   },
 )
-```
 
-### 2. Với Data Binding (RECOMMENDED)
-
-```dart
-// Khởi tạo data row
-final drCustomer = CyberDataRow({
-  'ma_kh': 'KH001',
-  'anh_cmnd': '',
-});
-
-// Widget
+// 2. Static string
+String? myImagePath;
 CyberCamera(
-  imagePath: drCustomer.bind("anh_cmnd"),  // ← Auto binding
-  label: "Ảnh CMND",
-  height: 200,
-)
-```
-
-### 3. Syntax Ngắn Gọn
-
-```dart
-CyberCamera(
-  imagePath: drCustomer.$("anh_cmnd"),  // ← Cú pháp $ ngắn gọn
-  label: "Ảnh CMND",
-)
-```
-
----
-
-## 🔗 Data Binding
-
-### Cách Hoạt Động
-
-```dart
-class MyForm extends StatefulWidget {
-  @override
-  State<MyForm> createState() => _MyFormState();
-}
-
-class _MyFormState extends State<MyForm> {
-  late CyberDataRow drEdit;
-
-  @override
-  void initState() {
-    super.initState();
-    drEdit = CyberDataRow({
-      'anh_cmnd_truoc': '',
-      'anh_cmnd_sau': '',
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Binding tự động 2 chiều
-        CyberCamera(
-          imagePath: drEdit.bind("anh_cmnd_truoc"),
-          label: "CMND mặt trước",
-        ),
-        
-        CyberCamera(
-          imagePath: drEdit.bind("anh_cmnd_sau"),
-          label: "CMND mặt sau",
-        ),
-        
-        // Khi chụp ảnh → drEdit["anh_cmnd_truoc"] tự động update
-        // Khi drEdit["anh_cmnd_truoc"] thay đổi → UI tự động refresh
-        
-        ElevatedButton(
-          onPressed: () {
-            // Lấy dữ liệu đã binding
-            print('CMND trước: ${drEdit["anh_cmnd_truoc"]}');
-            print('CMND sau: ${drEdit["anh_cmnd_sau"]}');
-            print('IsDirty: ${drEdit.isDirty}');
-          },
-          child: Text('Lưu'),
-        ),
-      ],
-    );
-  }
-
-  @override
-  void dispose() {
-    drEdit.dispose();  // ← QUAN TRỌNG: Cleanup memory
-    super.dispose();
-  }
-}
-```
-
-### 3 Cách Binding
-
-```dart
-// Cách 1: Sử dụng bind()
-CyberCamera(
-  imagePath: drEdit.bind("field_name"),
-)
-
-// Cách 2: Sử dụng $ (ngắn gọn)
-CyberCamera(
-  imagePath: drEdit.$("field_name"),
-)
-
-// Cách 3: Helper function
-CyberCamera(
-  imagePath: bind(drEdit, "field_name"),
-)
-```
-
----
-
-## 🎨 Các Tính Năng
-
-### 1. Compression (Nén Ảnh)
-
-```dart
-CyberCamera(
-  imagePath: dr.bind("photo"),
-  enableCompression: true,        // Bật nén (default: true)
-  compressionQuality: 85,         // Chất lượng 0-100 (default: 85)
-  maxWidth: 1920,                 // Chiều rộng tối đa
-  maxHeight: 1920,                // Chiều cao tối đa
-)
-```
-
-**Kết quả:**
-- Ảnh gốc: 4000x3000, 5.2MB
-- Sau nén: 1920x1440, 800KB (giảm 84%)
-
-### 2. Multiple Camera (Camera Trước/Sau)
-
-```dart
-CyberCamera(
-  imagePath: dr.bind("selfie"),
-  defaultCamera: CameraLensDirection.front,  // Camera trước
-  // CameraLensDirection.back,                // Camera sau (default)
-)
-```
-
-### 3. Custom Styling
-
-```dart
-CyberCamera(
-  imagePath: dr.bind("photo"),
-  width: double.infinity,  // Chiều rộng
-  height: 250,            // Chiều cao
-  fit: BoxFit.cover,      // Cách hiển thị ảnh
-  // BoxFit.contain, BoxFit.fill, BoxFit.fitWidth, ...
-)
-```
-
-### 4. Custom Placeholder
-
-```dart
-CyberCamera(
-  imagePath: dr.bind("photo"),
-  placeholder: Container(
-    decoration: BoxDecoration(
-      gradient: LinearGradient(
-        colors: [Colors.blue.shade100, Colors.blue.shade300],
-      ),
-    ),
-    child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(Icons.camera_alt, size: 64, color: Colors.white),
-        SizedBox(height: 8),
-        Text(
-          'Nhấn để chụp ảnh',
-          style: TextStyle(color: Colors.white, fontSize: 16),
-        ),
-      ],
-    ),
-  ),
-)
-```
-
-### 5. Callbacks
-
-```dart
-CyberCamera(
-  imagePath: dr.bind("photo"),
-  
-  // Callback khi chụp ảnh thành công
-  onCaptured: (result) async {
-    print('File: ${result.fileName}');
-    print('Size: ${result.fileSize} bytes');
-    print('Path: ${result.file.path}');
-    print('Compressed: ${result.isCompressed}');
-    
-    // Convert to Base64
-    final base64 = await result.getBase64();
-    
-    // Upload to server
-    // await uploadToServer(result.file);
-  },
-  
-  // Callback khi có lỗi
-  onError: (error) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Lỗi: $error')),
-    );
-  },
-)
-```
-
-### 6. Enable/Disable
-
-```dart
-bool _isEditable = true;
-
-CyberCamera(
-  imagePath: dr.bind("photo"),
-  enabled: _isEditable,  // Vô hiệu hóa khi false
-  label: "Ảnh (chỉ xem)",
-)
-```
-
-### 7. Custom Camera Title
-
-```dart
-CyberCamera(
-  imagePath: dr.bind("photo"),
-  cameraTitle: "Chụp ảnh chất lượng cao",  // Title màn hình camera
-)
-```
-
----
-
-## 💡 Ví Dụ Thực Tế
-
-### 1. Form Đăng Ký Khách Hàng
-
-```dart
-class CustomerRegistrationForm extends StatefulWidget {
-  @override
-  State<CustomerRegistrationForm> createState() => _CustomerRegistrationFormState();
-}
-
-class _CustomerRegistrationFormState extends State<CustomerRegistrationForm> {
-  late CyberDataRow drCustomer;
-
-  @override
-  void initState() {
-    super.initState();
-    drCustomer = CyberDataRow({
-      'ma_kh': '',
-      'ten_kh': '',
-      'cmnd_truoc': '',
-      'cmnd_sau': '',
-      'chan_dung': '',
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('Đăng ký khách hàng')),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          children: [
-            // Thông tin cơ bản
-            CyberText(
-              text: drCustomer.bind("ten_kh"),
-              label: "Họ và tên",
-            ),
-            SizedBox(height: 16),
-            
-            // Ảnh CMND
-            Text(
-              'Chứng minh nhân dân',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 8),
-            
-            Row(
-              children: [
-                Expanded(
-                  child: CyberCamera(
-                    imagePath: drCustomer.bind("cmnd_truoc"),
-                    label: "Mặt trước",
-                    height: 150,
-                  ),
-                ),
-                SizedBox(width: 16),
-                Expanded(
-                  child: CyberCamera(
-                    imagePath: drCustomer.bind("cmnd_sau"),
-                    label: "Mặt sau",
-                    height: 150,
-                  ),
-                ),
-              ],
-            ),
-            
-            SizedBox(height: 16),
-            
-            // Ảnh chân dung
-            CyberCamera(
-              imagePath: drCustomer.bind("chan_dung"),
-              label: "Ảnh chân dung",
-              height: 200,
-              defaultCamera: CameraLensDirection.front,
-              compressionQuality: 90,
-            ),
-            
-            SizedBox(height: 24),
-            
-            // Buttons
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    icon: Icon(Icons.save),
-                    label: Text('Lưu'),
-                    onPressed: _saveCustomer,
-                  ),
-                ),
-                SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    icon: Icon(Icons.refresh),
-                    label: Text('Reset'),
-                    onPressed: () => drCustomer.rejectChanges(),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _saveCustomer() async {
-    if (!drCustomer.isDirty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Không có thay đổi')),
-      );
-      return;
-    }
-
-    // Validate
-    if (drCustomer["ten_kh"]?.isEmpty ?? true) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Vui lòng nhập họ tên')),
-      );
-      return;
-    }
-
-    // Lưu dữ liệu
-    final data = drCustomer.toMap();
-    print('Saving data: $data');
-    
-    // Call API
-    // await ApiService.saveCustomer(data);
-    
-    drCustomer.acceptChanges();
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Đã lưu thành công')),
-    );
-  }
-
-  @override
-  void dispose() {
-    drCustomer.dispose();
-    super.dispose();
-  }
-}
-```
-
-### 2. ListView Nhiều Sản Phẩm
-
-```dart
-class ProductListScreen extends StatefulWidget {
-  @override
-  State<ProductListScreen> createState() => _ProductListScreenState();
-}
-
-class _ProductListScreenState extends State<ProductListScreen> {
-  late CyberDataTable dtProducts;
-
-  @override
-  void initState() {
-    super.initState();
-    
-    // Load dữ liệu
-    dtProducts = CyberDataTable();
-    _loadProducts();
-  }
-
-  void _loadProducts() {
-    for (int i = 1; i <= 10; i++) {
-      dtProducts.add(CyberDataRow({
-        'ma_sp': 'SP${i.toString().padLeft(3, '0')}',
-        'ten_sp': 'Sản phẩm $i',
-        'gia': 100000.0 * i,
-        'anh_sp': '',
-      }));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Danh sách sản phẩm'),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.save),
-            onPressed: _saveAll,
-          ),
-        ],
-      ),
-      body: ListView.builder(
-        padding: EdgeInsets.all(16),
-        itemCount: dtProducts.length,
-        itemBuilder: (context, index) {
-          final row = dtProducts[index];
-          
-          return Card(
-            margin: EdgeInsets.only(bottom: 16),
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${row["ma_sp"]} - ${row["ten_sp"]}',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  
-                  // Camera binding với từng row
-                  CyberCamera(
-                    imagePath: row.bind("anh_sp"),
-                    label: "Ảnh sản phẩm",
-                    height: 150,
-                    onCaptured: (result) {
-                      print('Chụp ảnh ${row["ma_sp"]}: ${result.fileName}');
-                    },
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _addProduct,
-        child: Icon(Icons.add),
-      ),
-    );
-  }
-
-  void _addProduct() {
-    final newRow = CyberDataRow({
-      'ma_sp': 'SP${(dtProducts.length + 1).toString().padLeft(3, '0')}',
-      'ten_sp': 'Sản phẩm mới',
-      'gia': 0.0,
-      'anh_sp': '',
-    });
-    
+  imagePath: myImagePath,
+  onCaptured: (result) {
     setState(() {
-      dtProducts.add(newRow);
+      myImagePath = result.file.path;
     });
-  }
+  },
+)
 
-  Future<void> _saveAll() async {
-    final changedRows = dtProducts.rows.where((r) => r.isDirty).toList();
-    
-    if (changedRows.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Không có thay đổi')),
-      );
-      return;
-    }
+// 3. Binding expression
+final row = CyberDataRow();
+CyberCamera(
+  imagePath: row.binding('avatar_path'),
+  onCaptured: (result) {
+    // Tự động update vào row
+    print('Updated: ${row['avatar_path']}');
+  },
+)
+```
 
-    print('Saving ${changedRows.length} products...');
-    
-    for (var row in changedRows) {
-      print('${row["ma_sp"]}: ${row["anh_sp"]}');
-    }
+---
 
-    // Call API
-    // await ApiService.saveProducts(changedRows.map((r) => r.toMap()).toList());
-    
-    dtProducts.acceptChanges();
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Đã lưu ${changedRows.length} sản phẩm')),
-    );
-  }
+## CyberCameraController
 
-  @override
-  void dispose() {
-    dtProducts.dispose();
-    super.dispose();
-  }
+Controller nội bộ để điều khiển camera. **User không cần tạo controller**, widget tự động quản lý.
+
+### Methods
+
+```dart
+final controller = CyberCameraController();
+
+// Enable/disable camera
+controller.setEnabled(true);
+
+// Trigger capture
+controller.capture();
+
+// Switch camera
+controller.switchCamera();
+
+// Check state
+bool isEnabled = controller.enabled;
+CyberCameraAction pendingAction = controller.pendingAction;
+```
+
+### CyberCameraAction Enum
+
+```dart
+enum CyberCameraAction {
+  none,         // Không có action
+  capture,      // Chụp ảnh
+  switchCamera, // Chuyển camera
 }
 ```
 
-### 3. Upload Server với Base64
+**Lưu ý:** Controller được widget tự động quản lý, bạn chỉ cần truyền parameters vào widget.
+
+---
+
+## CyberCameraView
+
+Full-screen camera view (được widget tự động gọi khi user tap vào camera button).
+
+### Constructor
 
 ```dart
-class UploadPhotoExample extends StatefulWidget {
+CyberCameraView({
+  required this.context,
+  this.controller,
+  this.enableCompression = true,
+  this.compressionQuality = 85,
+  this.maxWidth = 1920,
+  this.maxHeight = 1920,
+  this.title,
+  this.defaultCamera = CameraLensDirection.back,
+  this.onError,
+})
+```
+
+### Methods
+
+```dart
+final view = CyberCameraView(
+  context: context,
+  enableCompression: true,
+  compressionQuality: 90,
+  title: 'Chụp CMND',
+  defaultCamera: CameraLensDirection.front,
+  onError: (error) => print(error),
+);
+
+// Show camera screen
+final CyberCameraResult? result = await view.show();
+
+if (result != null) {
+  print('Captured: ${result.file.path}');
+}
+```
+
+**Lưu ý:** Thường không cần gọi trực tiếp, widget tự động handle.
+
+---
+
+## Ví Dụ Sử Dụng
+
+### 1. Sử Dụng Cơ Bản
+
+Camera đơn giản với state management.
+
+```dart
+class ProfilePage extends StatefulWidget {
   @override
-  State<UploadPhotoExample> createState() => _UploadPhotoExampleState();
+  State<ProfilePage> createState() => _ProfilePageState();
 }
 
-class _UploadPhotoExampleState extends State<UploadPhotoExample> {
-  late CyberDataRow drPhoto;
-  bool _uploading = false;
-
-  @override
-  void initState() {
-    super.initState();
-    drPhoto = CyberDataRow({'photo_path': ''});
-  }
+class _ProfilePageState extends State<ProfilePage> {
+  String? avatarPath;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Upload ảnh')),
+      appBar: AppBar(title: Text('Profile')),
       body: Padding(
         padding: EdgeInsets.all(16),
         child: Column(
           children: [
             CyberCamera(
-              imagePath: drPhoto.bind("photo_path"),
-              label: "Chọn ảnh để upload",
+              imagePath: avatarPath,
+              label: 'Ảnh đại diện',
               height: 300,
-              enableCompression: true,
-              compressionQuality: 80,
-              onCaptured: (result) async {
-                // Auto upload sau khi chụp
-                await _uploadPhoto(result);
+              onCaptured: (result) {
+                setState(() {
+                  avatarPath = result.file.path;
+                });
+                
+                print('Image captured: ${result.fileName}');
+                print('Size: ${result.fileSize} bytes');
+              },
+              onError: (error) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Lỗi: $error')),
+                );
               },
             ),
-            
-            SizedBox(height: 16),
-            
-            if (_uploading)
-              CircularProgressIndicator()
-            else
-              ElevatedButton.icon(
-                icon: Icon(Icons.cloud_upload),
-                label: Text('Upload lại'),
-                onPressed: () async {
-                  if (drPhoto["photo_path"]?.isEmpty ?? true) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Chưa có ảnh')),
-                    );
-                    return;
-                  }
-                  
-                  final result = CyberCameraResult(
-                    file: File(drPhoto["photo_path"]),
-                    fileName: path.basename(drPhoto["photo_path"]),
-                    fileSize: await File(drPhoto["photo_path"]).length(),
-                  );
-                  
-                  await _uploadPhoto(result);
-                },
-              ),
           ],
         ),
       ),
     );
   }
+}
+```
 
-  Future<void> _uploadPhoto(CyberCameraResult result) async {
-    setState(() => _uploading = true);
+### 2. Với Data Binding
 
-    try {
-      // Convert to Base64
-      final base64 = await result.getBase64();
-      
-      print('Uploading...');
-      print('File: ${result.fileName}');
-      print('Size: ${result.fileSize} bytes');
-      print('Base64 length: ${base64.length}');
+Sử dụng CyberBindingExpression để tự động sync với data row.
 
-      // Simulate API call
-      await Future.delayed(Duration(seconds: 2));
-      
-      // Real API call
-      // final response = await http.post(
-      //   Uri.parse('https://api.example.com/upload'),
-      //   headers: {'Content-Type': 'application/json'},
-      //   body: jsonEncode({
-      //     'file_name': result.fileName,
-      //     'file_data': base64,
-      //   }),
-      // );
+```dart
+class EmployeeForm extends StatefulWidget {
+  @override
+  State<EmployeeForm> createState() => _EmployeeFormState();
+}
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Upload thành công!'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      setState(() => _uploading = false);
-    }
-  }
+class _EmployeeFormState extends State<EmployeeForm> {
+  final employeeRow = CyberDataRow();
 
   @override
-  void dispose() {
-    drPhoto.dispose();
-    super.dispose();
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Column(
+        children: [
+          // Photo field với binding
+          CyberCamera(
+            imagePath: employeeRow.binding('photo_path'),
+            label: 'Ảnh nhân viên',
+            height: 250,
+            onCaptured: (result) {
+              print('Photo updated in row');
+              print('Path: ${employeeRow['photo_path']}');
+            },
+          ),
+          
+          SizedBox(height: 16),
+          
+          // ID Card với binding
+          CyberCamera(
+            imagePath: employeeRow.binding('id_card_path'),
+            label: 'CMND/CCCD',
+            height: 200,
+            onCaptured: (result) {
+              print('ID card saved');
+            },
+          ),
+          
+          SizedBox(height: 24),
+          
+          CyberButton(
+            label: 'Lưu',
+            onClick: () {
+              // Save data row
+              print('Photo: ${employeeRow['photo_path']}');
+              print('ID Card: ${employeeRow['id_card_path']}');
+            },
+          ),
+        ],
+      ),
+    );
   }
 }
 ```
 
----
+### 3. Custom Configuration
 
-## 📚 API Reference
-
-### CyberCamera Properties
-
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `imagePath` | `dynamic` | `null` | Binding hoặc static string |
-| `label` | `String?` | `null` | Nhãn hiển thị |
-| `enabled` | `bool` | `true` | Enable/disable widget |
-| `width` | `double?` | `null` | Chiều rộng container |
-| `height` | `double?` | `null` | Chiều cao container |
-| `fit` | `BoxFit` | `BoxFit.cover` | Cách hiển thị ảnh |
-| `enableCompression` | `bool` | `true` | Bật nén ảnh |
-| `compressionQuality` | `int` | `85` | Chất lượng nén (0-100) |
-| `maxWidth` | `int?` | `1920` | Chiều rộng tối đa sau nén |
-| `maxHeight` | `int?` | `1920` | Chiều cao tối đa sau nén |
-| `defaultCamera` | `CameraLensDirection` | `back` | Camera mặc định |
-| `cameraTitle` | `String?` | `null` | Title màn hình camera |
-| `placeholder` | `Widget?` | `null` | Custom placeholder |
-| `onCaptured` | `OnCaptureImage?` | `null` | Callback khi chụp xong |
-| `onError` | `OnCameraError?` | `null` | Callback khi có lỗi |
-
-### CyberCameraResult Methods
+Tùy chỉnh compression, camera, và UI.
 
 ```dart
-class CyberCameraResult {
-  final File file;                // File ảnh
-  final String fileName;          // Tên file
-  final int fileSize;             // Kích thước (bytes)
-  final bool isCompressed;        // Đã nén?
-  final int? quality;             // Chất lượng nén
-
-  // Methods
-  Future<List<int>> getBytes();         // Lấy bytes
-  Future<String> getBase64();           // Lấy base64 string
-  Future<String> getBase64DataUri();    // Lấy data URI
-}
-```
-
-### CameraLensDirection
-
-```dart
-enum CameraLensDirection {
-  front,    // Camera trước (selfie)
-  back,     // Camera sau (default)
-  external, // Camera ngoài
-}
-```
-
-### BoxFit
-
-```dart
-enum BoxFit {
-  fill,       // Kéo giãn fill toàn bộ
-  contain,    // Fit vừa khung, giữ tỷ lệ
-  cover,      // Cover toàn bộ, crop nếu cần
-  fitWidth,   // Fit theo chiều rộng
-  fitHeight,  // Fit theo chiều cao
-  none,       // Kích thước gốc
-  scaleDown,  // Scale down nếu lớn hơn
-}
-```
-
----
-
-## ✅ Best Practices
-
-### 1. Luôn Dispose CyberDataRow
-
-```dart
-@override
-void dispose() {
-  drEdit.dispose();  // ← QUAN TRỌNG!
-  super.dispose();
-}
-```
-
-### 2. Sử dụng Binding Thay Vì Callback
-
-❌ **Không nên:**
-```dart
-String _imagePath = '';
-
 CyberCamera(
-  onCaptured: (result) {
-    setState(() {
-      _imagePath = result.file.path;
-    });
-  },
-)
-```
-
-✅ **Nên:**
-```dart
-final drEdit = CyberDataRow({'image': ''});
-
-CyberCamera(
-  imagePath: drEdit.bind("image"),  // ← Tự động sync
-)
-```
-
-### 3. Compression Cho Upload
-
-```dart
-// Ảnh upload server → nén chất lượng vừa
-CyberCamera(
-  imagePath: dr.bind("photo"),
+  imagePath: imagePath,
+  label: 'Chứng minh thư',
+  
+  // Display settings
+  width: 400,
+  height: 250,
+  fit: BoxFit.contain,
+  
+  // Compression settings
   enableCompression: true,
-  compressionQuality: 75,    // 75-85 là tối ưu
-  maxWidth: 1080,            // HD là đủ
-  maxHeight: 1080,
-)
-
-// Ảnh in ấn → chất lượng cao
-CyberCamera(
-  imagePath: dr.bind("print_photo"),
-  enableCompression: true,
-  compressionQuality: 95,
+  compressionQuality: 90,      // High quality
   maxWidth: 2048,
   maxHeight: 2048,
-)
-```
-
-### 4. Validate Trước Khi Lưu
-
-```dart
-void _save() {
-  // Check required fields
-  if (drEdit["photo"]?.isEmpty ?? true) {
-    showError('Vui lòng chụp ảnh');
-    return;
-  }
-
-  // Check file exists
-  final file = File(drEdit["photo"]);
-  if (!file.existsSync()) {
-    showError('File không tồn tại');
-    return;
-  }
-
-  // Save
-  saveData();
-}
-```
-
-### 5. Error Handling
-
-```dart
-CyberCamera(
-  imagePath: dr.bind("photo"),
-  onCaptured: (result) async {
-    try {
-      await uploadToServer(result);
-      showSuccess('Upload thành công');
-    } catch (e) {
-      showError('Upload thất bại: $e');
-      // Rollback nếu cần
-      dr["photo"] = '';
+  
+  // Camera settings
+  defaultCamera: CameraLensDirection.back,
+  cameraTitle: 'Chụp CMND',
+  
+  // Callbacks
+  onCaptured: (result) {
+    setState(() {
+      imagePath = result.file.path;
+    });
+    
+    if (result.isCompressed) {
+      print('Compressed to: ${result.fileSize} bytes');
+      print('Quality: ${result.quality}%');
     }
   },
+  
   onError: (error) {
-    showError('Camera error: $error');
-  },
-)
-```
-
-### 6. ListView Performance
-
-```dart
-// ✅ Tốt: Lock identity khi bind vào ListView
-ListView.builder(
-  itemCount: dtProducts.length,
-  itemBuilder: (context, index) {
-    final row = dtProducts[index];
-    row.lockIdentity();  // ← Prevent identity change
-    
-    return CyberCamera(
-      key: ValueKey(row.identityKey),  // ← Stable key
-      imagePath: row.bind("photo"),
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Lỗi Camera'),
+        content: Text(error),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Đóng'),
+          ),
+        ],
+      ),
     );
   },
 )
 ```
 
-### 7. Memory Management
+### 4. Custom Placeholder
+
+Tùy chỉnh giao diện khi chưa có ảnh.
 
 ```dart
-// ✅ Cleanup temp files
-@override
-void dispose() {
-  // Xóa ảnh tạm nếu không lưu
-  if (!_isSaved && _tempImagePath != null) {
+CyberCamera(
+  imagePath: productImagePath,
+  label: 'Ảnh sản phẩm',
+  height: 300,
+  
+  placeholder: Container(
+    decoration: BoxDecoration(
+      color: Colors.grey.shade100,
+      border: Border.all(
+        color: Colors.grey.shade300,
+        width: 2,
+        style: BorderStyle.solid,
+      ),
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          Icons.add_photo_alternate_outlined,
+          size: 64,
+          color: Colors.blue,
+        ),
+        SizedBox(height: 12),
+        Text(
+          'Chụp ảnh sản phẩm',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+            color: Colors.grey.shade700,
+          ),
+        ),
+        SizedBox(height: 4),
+        Text(
+          'Tap để mở camera',
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey.shade500,
+          ),
+        ),
+      ],
+    ),
+  ),
+  
+  onCaptured: (result) {
+    // Handle capture
+  },
+)
+```
+
+### 5. Disabled State
+
+Widget ở chế độ chỉ xem, không thể chụp/xóa ảnh.
+
+```dart
+class ImageViewer extends StatelessWidget {
+  final String imagePath;
+  
+  const ImageViewer({required this.imagePath});
+
+  @override
+  Widget build(BuildContext context) {
+    return CyberCamera(
+      imagePath: imagePath,
+      label: 'Ảnh (Chỉ xem)',
+      enabled: false, // Disable all interactions
+      height: 300,
+    );
+  }
+}
+```
+
+### 6. Multiple Cameras
+
+Nhiều camera trong một form.
+
+```dart
+class DocumentForm extends StatefulWidget {
+  @override
+  State<DocumentForm> createState() => _DocumentFormState();
+}
+
+class _DocumentFormState extends State<DocumentForm> {
+  final dataRow = CyberDataRow();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SingleChildScrollView(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          children: [
+            // Front ID
+            CyberCamera(
+              imagePath: dataRow.binding('id_front'),
+              label: 'CMND/CCCD - Mặt trước',
+              height: 200,
+              cameraTitle: 'Chụp mặt trước',
+              onCaptured: (result) {
+                print('Front ID captured');
+              },
+            ),
+            
+            SizedBox(height: 16),
+            
+            // Back ID
+            CyberCamera(
+              imagePath: dataRow.binding('id_back'),
+              label: 'CMND/CCCD - Mặt sau',
+              height: 200,
+              cameraTitle: 'Chụp mặt sau',
+              onCaptured: (result) {
+                print('Back ID captured');
+              },
+            ),
+            
+            SizedBox(height: 16),
+            
+            // Portrait
+            CyberCamera(
+              imagePath: dataRow.binding('portrait'),
+              label: 'Ảnh chân dung',
+              height: 300,
+              defaultCamera: CameraLensDirection.front,
+              cameraTitle: 'Chụp ảnh chân dung',
+              onCaptured: (result) {
+                print('Portrait captured');
+              },
+            ),
+            
+            SizedBox(height: 24),
+            
+            CyberButton(
+              label: 'Hoàn thành',
+              onClick: () {
+                // Check all images
+                if (dataRow['id_front'] == null) {
+                  showError('Chưa chụp mặt trước CMND');
+                  return;
+                }
+                if (dataRow['id_back'] == null) {
+                  showError('Chưa chụp mặt sau CMND');
+                  return;
+                }
+                if (dataRow['portrait'] == null) {
+                  showError('Chưa chụp ảnh chân dung');
+                  return;
+                }
+                
+                // Submit
+                submitDocuments();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+```
+
+### 7. Front Camera (Selfie)
+
+```dart
+CyberCamera(
+  imagePath: selfiePath,
+  label: 'Selfie',
+  height: 400,
+  defaultCamera: CameraLensDirection.front, // Front camera
+  cameraTitle: 'Chụp ảnh selfie',
+  onCaptured: (result) {
+    setState(() {
+      selfiePath = result.file.path;
+    });
+  },
+)
+```
+
+### 8. High Quality Mode
+
+Không nén ảnh, giữ nguyên chất lượng.
+
+```dart
+CyberCamera(
+  imagePath: highQualityImagePath,
+  label: 'Ảnh chất lượng cao',
+  enableCompression: false, // Disable compression
+  onCaptured: (result) {
+    print('Original size: ${result.fileSize} bytes');
+    print('Compressed: ${result.isCompressed}'); // false
+  },
+)
+```
+
+### 9. Upload After Capture
+
+Tự động upload sau khi chụp.
+
+```dart
+class UploadImagePage extends StatefulWidget {
+  @override
+  State<UploadImagePage> createState() => _UploadImagePageState();
+}
+
+class _UploadImagePageState extends State<UploadImagePage> {
+  String? imagePath;
+  bool isUploading = false;
+
+  Future<void> uploadImage(File imageFile) async {
+    setState(() {
+      isUploading = true;
+    });
+
     try {
-      File(_tempImagePath!).deleteSync();
+      // Upload to server
+      final response = await uploadToServer(imageFile);
+      
+      if (response.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Upload thành công')),
+        );
+      }
     } catch (e) {
-      debugPrint('Error deleting temp file: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Upload thất bại: $e')),
+      );
+    } finally {
+      setState(() {
+        isUploading = false;
+      });
     }
   }
-  
-  drEdit.dispose();
-  super.dispose();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          Column(
+            children: [
+              CyberCamera(
+                imagePath: imagePath,
+                label: 'Chọn ảnh để upload',
+                enabled: !isUploading,
+                onCaptured: (result) {
+                  setState(() {
+                    imagePath = result.file.path;
+                  });
+                  
+                  // Auto upload
+                  uploadImage(result.file);
+                },
+              ),
+            ],
+          ),
+          
+          if (isUploading)
+            Container(
+              color: Colors.black54,
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text(
+                      'Đang upload...',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
 ```
 
-### 8. Permission Handling
+### 10. Validation
+
+Validate ảnh trước khi cho phép tiếp tục.
 
 ```dart
-import 'package:permission_handler/permission_handler.dart';
+class ValidatedCameraPage extends StatefulWidget {
+  @override
+  State<ValidatedCameraPage> createState() => _ValidatedCameraPageState();
+}
 
-Future<void> _openCamera() async {
-  final status = await Permission.camera.request();
-  
-  if (status.isGranted) {
-    // Open camera
-  } else if (status.isDenied) {
-    showError('Vui lòng cấp quyền camera');
-  } else if (status.isPermanentlyDenied) {
-    // Mở settings
-    openAppSettings();
+class _ValidatedCameraPageState extends State<ValidatedCameraPage> {
+  String? imagePath;
+  String? validationError;
+
+  Future<bool> validateImage(File imageFile) async {
+    try {
+      // Check file size
+      final size = await imageFile.length();
+      if (size > 5 * 1024 * 1024) { // 5MB
+        setState(() {
+          validationError = 'Ảnh quá lớn (max 5MB)';
+        });
+        return false;
+      }
+
+      // Check image dimensions
+      final image = await decodeImageFromList(
+        await imageFile.readAsBytes(),
+      );
+      
+      if (image.width < 800 || image.height < 600) {
+        setState(() {
+          validationError = 'Ảnh quá nhỏ (min 800x600)';
+        });
+        return false;
+      }
+
+      setState(() {
+        validationError = null;
+      });
+      return true;
+    } catch (e) {
+      setState(() {
+        validationError = 'Lỗi validate ảnh';
+      });
+      return false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Column(
+        children: [
+          CyberCamera(
+            imagePath: imagePath,
+            label: 'Ảnh (min 800x600, max 5MB)',
+            onCaptured: (result) async {
+              final isValid = await validateImage(result.file);
+              
+              if (isValid) {
+                setState(() {
+                  imagePath = result.file.path;
+                });
+              } else {
+                // Clear invalid image
+                setState(() {
+                  imagePath = null;
+                });
+              }
+            },
+          ),
+          
+          if (validationError != null)
+            Padding(
+              padding: EdgeInsets.all(8),
+              child: Text(
+                validationError!,
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }
 ```
 
 ---
 
-## 🔧 Troubleshooting
+## Features
 
-### 1. Camera Không Khởi Động
+### 1. Internal Controller
 
-**Nguyên nhân:**
-- Chưa cấp quyền camera
-- Thiếu cấu hình platform
+Widget tự động quản lý controller, user không cần khai báo.
 
-**Giải pháp:**
 ```dart
-// Check permissions
-final cameras = await availableCameras();
-if (cameras.isEmpty) {
-  print('No camera available');
-}
+// ✅ GOOD: Không cần controller
+CyberCamera(
+  imagePath: path,
+  onCaptured: (result) {},
+)
+
+// ❌ OLD WAY: Cần quản lý controller
+// final controller = CyberCameraController();
+// CyberCamera(controller: controller, ...)
 ```
 
-### 2. Ảnh Bị Xoay
+### 2. Data Binding
 
-**Nguyên nhân:**
-- EXIF orientation không được xử lý
+Hỗ trợ 3 modes:
+- **Null**: Chỉ dùng callback
+- **Static String**: Manual state management
+- **Binding Expression**: Auto sync với data row
 
-**Giải pháp:**
 ```dart
-// Sử dụng package: flutter_native_image
-import 'package:flutter_native_image/flutter_native_image.dart';
+// Mode 1: Null + callback
+CyberCamera(
+  imagePath: null,
+  onCaptured: (result) {
+    uploadToServer(result.file);
+  },
+)
 
-final correctedFile = await FlutterNativeImage.compressImage(
-  imagePath,
-  quality: 85,
-  targetWidth: 1920,
-  targetHeight: 1920,
-);
+// Mode 2: Static string
+String? path;
+CyberCamera(
+  imagePath: path,
+  onCaptured: (result) {
+    setState(() {
+      path = result.file.path;
+    });
+  },
+)
+
+// Mode 3: Binding
+CyberCamera(
+  imagePath: row.binding('photo'),
+  // Auto update row['photo']
+)
 ```
 
-### 3. Memory Leak
+### 3. Auto Compression
 
-**Nguyên nhân:**
-- Quên dispose CyberDataRow
-- Listener không remove
+Tự động nén ảnh để tiết kiệm dung lượng và bandwidth.
 
-**Giải pháp:**
 ```dart
-@override
-void dispose() {
-  drEdit.dispose();  // ← Bắt buộc
-  super.dispose();
-}
+CyberCamera(
+  enableCompression: true,
+  compressionQuality: 85,    // 0-100
+  maxWidth: 1920,
+  maxHeight: 1920,
+  onCaptured: (result) {
+    print('Original vs Compressed:');
+    print('Compressed: ${result.isCompressed}');
+    print('Quality: ${result.quality}%');
+    print('Size: ${result.fileSize} bytes');
+  },
+)
 ```
 
-### 4. Compression Không Hoạt Động
+**Compression Quality Guide:**
+- **60-70**: Low quality, small size (cho thumbnails)
+- **80-85**: Good quality, balanced size (recommended)
+- **90-95**: High quality, larger size (cho documents)
+- **100**: Max quality, largest size (không nên dùng)
 
-**Kiểm tra:**
+### 4. Image Preview & Controls
+
+Tự động hiển thị ảnh với controls:
+- **Camera button**: Mở camera để chụp (hoặc chụp lại)
+- **Delete button**: Xóa ảnh hiện tại
+- **Image display**: Preview ảnh đã chụp
+
 ```dart
-onCaptured: (result) {
-  print('Compressed: ${result.isCompressed}');
-  print('Quality: ${result.quality}');
-  print('Size: ${result.fileSize}');
-}
+// Preview tự động
+CyberCamera(
+  imagePath: path,
+  fit: BoxFit.cover, // cover, contain, fill, etc.
+)
+```
+
+### 5. Camera Switch
+
+Dễ dàng chuyển đổi giữa front/back camera.
+
+```dart
+// Back camera (default)
+CyberCamera(
+  defaultCamera: CameraLensDirection.back,
+  ...
+)
+
+// Front camera (selfie)
+CyberCamera(
+  defaultCamera: CameraLensDirection.front,
+  ...
+)
+```
+
+Trong camera screen, user có thể tap icon để switch camera.
+
+### 6. Error Handling
+
+Comprehensive error handling với callback.
+
+```dart
+CyberCamera(
+  onError: (error) {
+    print('Camera error: $error');
+    
+    // Show to user
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(error)),
+    );
+    
+    // Log to analytics
+    logError(error);
+  },
+)
+```
+
+**Các lỗi có thể xảy ra:**
+- "Không tìm thấy camera"
+- "Lỗi khởi tạo camera"
+- "Lỗi khi chụp ảnh"
+- "Lỗi xử lý ảnh"
+- Permission denied (cần request trong AndroidManifest/Info.plist)
+
+### 7. Responsive Design
+
+Tự động adapt kích thước theo parent constraints.
+
+```dart
+// Full width, custom height
+CyberCamera(
+  width: double.infinity,
+  height: 300,
+  ...
+)
+
+// Fixed size
+CyberCamera(
+  width: 400,
+  height: 300,
+  ...
+)
+
+// Responsive trong Column
+Column(
+  children: [
+    Expanded(
+      child: CyberCamera(...),
+    ),
+  ],
+)
+```
+
+### 8. Custom Styling
+
+Tùy chỉnh placeholder và theme.
+
+```dart
+CyberCamera(
+  placeholder: CustomPlaceholder(),
+  // Widget tự động adapt theme
+)
 ```
 
 ---
 
-## 📞 Support
+## Best Practices
 
-- **Documentation**: [CyberFramework Docs](https://docs.cyberframework.com)
-- **Issues**: [GitHub Issues](https://github.com/cyberframework/issues)
-- **Email**: support@cyberframework.com
+### 1. Compression Settings
+
+```dart
+// ✅ GOOD: Profile photos
+CyberCamera(
+  enableCompression: true,
+  compressionQuality: 85,
+  maxWidth: 1920,
+  maxHeight: 1920,
+)
+
+// ✅ GOOD: Documents (high quality)
+CyberCamera(
+  enableCompression: true,
+  compressionQuality: 95,
+  maxWidth: 2048,
+  maxHeight: 2048,
+)
+
+// ✅ GOOD: Thumbnails
+CyberCamera(
+  enableCompression: true,
+  compressionQuality: 70,
+  maxWidth: 512,
+  maxHeight: 512,
+)
+
+// ⚠️ CAREFUL: No compression (very large files)
+CyberCamera(
+  enableCompression: false,
+  // Only for special cases
+)
+```
+
+### 2. Error Handling
+
+```dart
+// ✅ GOOD: Always handle errors
+CyberCamera(
+  onError: (error) {
+    // Show user-friendly message
+    showErrorDialog(context, error);
+    
+    // Log for debugging
+    debugPrint('Camera error: $error');
+  },
+)
+
+// ❌ BAD: Ignore errors
+CyberCamera(
+  // No onError - user won't know what's wrong
+)
+```
+
+### 3. Camera Selection
+
+```dart
+// ✅ GOOD: Back camera cho documents
+CyberCamera(
+  label: 'CMND/CCCD',
+  defaultCamera: CameraLensDirection.back,
+)
+
+// ✅ GOOD: Front camera cho selfie
+CyberCamera(
+  label: 'Selfie',
+  defaultCamera: CameraLensDirection.front,
+)
+```
+
+### 4. Validation
+
+```dart
+// ✅ GOOD: Validate before proceeding
+CyberCamera(
+  onCaptured: (result) async {
+    // Check size
+    if (result.fileSize > 10 * 1024 * 1024) {
+      showError('File too large');
+      return;
+    }
+    
+    // Check dimensions
+    final valid = await validateImageDimensions(result.file);
+    if (!valid) {
+      showError('Invalid dimensions');
+      return;
+    }
+    
+    // Process
+    processImage(result);
+  },
+)
+```
+
+### 5. Permissions
+
+Nhớ request permissions trong manifest files:
+
+**Android (android/app/src/main/AndroidManifest.xml):**
+```xml
+<uses-permission android:name="android.permission.CAMERA" />
+<uses-feature android:name="android.hardware.camera" />
+<uses-feature android:name="android.hardware.camera.autofocus" />
+```
+
+**iOS (ios/Runner/Info.plist):**
+```xml
+<key>NSCameraUsageDescription</key>
+<string>We need camera access to take photos</string>
+```
+
+### 6. Label Usage
+
+```dart
+// ✅ GOOD: Clear, descriptive labels
+CyberCamera(
+  label: 'Ảnh đại diện',
+  ...
+)
+
+CyberCamera(
+  label: 'CMND/CCCD - Mặt trước',
+  ...
+)
+
+// ❌ BAD: Vague labels
+CyberCamera(
+  label: 'Ảnh',
+  ...
+)
+```
 
 ---
 
-## 📄 License
+## Troubleshooting
 
-MIT License - Copyright (c) 2024 CyberFramework
+### Camera không mở
+
+**Nguyên nhân:**
+1. Chưa request permissions
+2. Device không có camera
+3. Camera đang được app khác sử dụng
+
+**Giải pháp:**
+```dart
+// 1. Check permissions in manifest
+// 2. Add error handling
+CyberCamera(
+  onError: (error) {
+    if (error.contains('permission')) {
+      showPermissionDialog();
+    } else if (error.contains('không tìm thấy')) {
+      showNoCameraDialog();
+    }
+  },
+)
+```
+
+### Ảnh bị mờ sau compression
+
+**Nguyên nhân:**
+- `compressionQuality` quá thấp
+- `maxWidth`/`maxHeight` quá nhỏ
+
+**Giải pháp:**
+```dart
+// Tăng quality
+CyberCamera(
+  compressionQuality: 90, // Từ 85 lên 90
+  maxWidth: 2048,         // Từ 1920 lên 2048
+  maxHeight: 2048,
+)
+
+// Hoặc tắt compression
+CyberCamera(
+  enableCompression: false,
+)
+```
+
+### Binding không update
+
+**Nguyên nhân:**
+- Sai binding expression
+- Data row chưa được khởi tạo
+- Widget unmounted
+
+**Giải pháp:**
+```dart
+// Verify binding
+final row = CyberDataRow();
+
+CyberCamera(
+  imagePath: row.binding('photo'), // Đúng field name
+  onCaptured: (result) {
+    print('Updated: ${row['photo']}'); // Verify
+  },
+)
+```
+
+### File size quá lớn
+
+**Nguyên nhân:**
+- Compression bị tắt
+- Quality quá cao
+
+**Giải pháp:**
+```dart
+CyberCamera(
+  enableCompression: true,
+  compressionQuality: 85,  // Giảm từ 95
+  maxWidth: 1920,          // Giảm từ 2048
+  maxHeight: 1920,
+)
+```
+
+### Widget bị overflow
+
+**Nguyên nhân:**
+- Parent không có constraints
+- Height quá lớn
+
+**Giải pháp:**
+```dart
+// Wrap in scrollable
+SingleChildScrollView(
+  child: CyberCamera(
+    height: 300, // Fixed height
+  ),
+)
+
+// Hoặc dùng Expanded
+Column(
+  children: [
+    Expanded(
+      flex: 1,
+      child: CyberCamera(...),
+    ),
+  ],
+)
+```
+
+### Camera bị xoay sai hướng
+
+**Nguyên nhân:**
+- Device orientation issues
+- Camera plugin bug
+
+**Giải pháp:**
+```dart
+// Lock orientation trong app
+SystemChrome.setPreferredOrientations([
+  DeviceOrientation.portraitUp,
+]);
+```
 
 ---
 
-**Phiên bản:** 1.0.0  
-**Cập nhật:** 2024-01-01
+## Tips & Tricks
+
+### 1. Custom Camera Button
+
+Tạo button custom để mở camera:
+
+```dart
+class CustomCameraButton extends StatelessWidget {
+  final Function(CyberCameraResult) onCaptured;
+  
+  const CustomCameraButton({required this.onCaptured});
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton.icon(
+      icon: Icon(Icons.camera_alt),
+      label: Text('Chụp ảnh'),
+      onPressed: () async {
+        final view = CyberCameraView(
+          context: context,
+          enableCompression: true,
+          compressionQuality: 85,
+        );
+        
+        final result = await view.show();
+        if (result != null) {
+          onCaptured(result);
+        }
+      },
+    );
+  }
+}
+```
+
+### 2. Image Cropping
+
+Thêm cropping sau khi chụp:
+
+```dart
+CyberCamera(
+  onCaptured: (result) async {
+    // Crop image
+    final croppedFile = await cropImage(result.file);
+    
+    if (croppedFile != null) {
+      setState(() {
+        imagePath = croppedFile.path;
+      });
+    }
+  },
+)
+```
+
+### 3. Multiple Image Upload
+
+Upload nhiều ảnh cùng lúc:
+
+```dart
+class MultiImageUpload extends StatefulWidget {
+  @override
+  State<MultiImageUpload> createState() => _MultiImageUploadState();
+}
+
+class _MultiImageUploadState extends State<MultiImageUpload> {
+  List<String> imagePaths = [];
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // Show all images
+        ...imagePaths.map((path) => Image.file(File(path))),
+        
+        // Add more button
+        CyberCamera(
+          imagePath: null,
+          label: 'Thêm ảnh',
+          onCaptured: (result) {
+            setState(() {
+              imagePaths.add(result.file.path);
+            });
+          },
+        ),
+      ],
+    );
+  }
+}
+```
+
+### 4. Watermark
+
+Thêm watermark vào ảnh:
+
+```dart
+CyberCamera(
+  onCaptured: (result) async {
+    // Add watermark
+    final watermarkedFile = await addWatermark(
+      result.file,
+      text: 'Company Name',
+    );
+    
+    setState(() {
+      imagePath = watermarkedFile.path;
+    });
+  },
+)
+```
+
+---
+
+## Performance Tips
+
+1. **Enable Compression**: Luôn bật compression trừ khi thực sự cần ảnh gốc
+2. **Optimize Quality**: 85% là sweet spot cho most cases
+3. **Limit Max Size**: Đặt maxWidth/maxHeight hợp lý (1920x1920 cho mobile)
+4. **Dispose Properly**: Widget tự động dispose, không cần cleanup manual
+5. **Async Upload**: Upload ảnh async, không block UI
+
+---
+
+## Version History
+
+### 1.0.0
+- Initial release
+- Internal controller
+- Data binding support
+- Auto compression
+- Image preview & controls
+- Camera switch
+- Error handling
+
+---
+
+## License
+
+MIT License - CyberFramework

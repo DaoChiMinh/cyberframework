@@ -1,640 +1,1118 @@
-# CyberDate - Widget Chọn Ngày với Binding
+# CyberDate - Date Picker với Data Binding
 
-## Triết lý ERP/CyberFramework
+## Mục Lục
+1. [Giới Thiệu](#giới-thiệu)
+2. [CyberDate Widget](#cyberdate-widget)
+3. [CyberDateController](#cyberdatecontroller)
+4. [Ví Dụ Sử Dụng](#ví-dụ-sử-dụng)
+5. [Features](#features)
+6. [Best Practices](#best-practices)
+7. [Troubleshooting](#troubleshooting)
 
-CyberDate được thiết kế theo triết lý **Internal Controller + Binding**:
+---
 
-✅ **Không cần khai báo controller** - widget tự động quản lý state  
-✅ **Hỗ trợ binding tự động** - two-way binding với CyberDataRow  
-✅ **Đơn giản hoá code** - giống WPF/XAML binding pattern  
-✅ **Validation tự động** - min/max date, required field  
+## Giới Thiệu
 
-## Thuộc tính text
+`CyberDate` là một date picker widget theo ERP style với **Internal Controller** và **Data Binding** hai chiều. Widget này cung cấp iOS-style picker với khả năng format ngày tháng linh hoạt và null value handling.
 
-CyberDate sử dụng thuộc tính `text` (giống CyberNumeric) để nhất quán với triết lý binding:
+### Đặc Điểm Chính
 
-```dart
-// ✅ Dùng thuộc tính "text" 
-CyberDate(
-  text: dr.bind("ngay_sinh"),  
-  label: "Ngày sinh",
-)
-```
+- ✅ **Internal Controller**: Tự động quản lý state, không cần khai báo controller
+- ✅ **Two-Way Binding**: Tự động sync với CyberDataRow
+- ✅ **Null Value Handling**: Hỗ trợ null value (mặc định: 01/01/1900)
+- ✅ **Custom Format**: Hỗ trợ nhiều format ngày tháng
+- ✅ **iOS-Style Picker**: Bottom sheet với wheel picker
+- ✅ **Date Range**: Min/max date validation
+- ✅ **Clear Button**: Xóa giá trị về null value
+- ✅ **Validation**: Built-in và custom validation
 
-## Cách sử dụng
-
-### 1. Binding với CyberDataRow (Phổ biến nhất)
-
-```dart
-final dr = CyberDataRow({
-  'ma_nv': 'NV001',
-  'ten_nv': 'Nguyễn Văn A',
-  'ngay_sinh': DateTime(1990, 5, 15),
-  'ngay_vao_lam': DateTime(2020, 1, 10),
-  'ngay_het_hop_dong': null,
-});
-
-// ✅ Binding đơn giản
-CyberDate(
-  text: dr.bind("ngay_sinh"),
-  label: "Ngày sinh",
-  format: "dd/MM/yyyy",
-)
-
-// ✅ Binding với min/max date
-CyberDate(
-  text: dr.bind("ngay_vao_lam"),
-  label: "Ngày vào làm",
-  format: "dd/MM/yyyy",
-  minDate: DateTime(2000, 1, 1),
-  maxDate: DateTime.now(),
-  onChanged: (date) {
-    // Tự động set ngày hết hợp đồng = ngày vào làm + 2 năm
-    if (date != null) {
-      dr["ngay_het_hop_dong"] = DateTime(
-        date.year + 2,
-        date.month,
-        date.day,
-      );
-    }
-  },
-)
-
-// ✅ Binding với required field
-CyberDate(
-  text: dr.bind("ngay_het_hop_dong"),
-  label: "Ngày hết hợp đồng",
-  format: "dd/MM/yyyy",
-  isCheckEmpty: true, // Hiển thị dấu *
-  validator: (date) {
-    if (date == null) return "Vui lòng chọn ngày hết hợp đồng";
-    
-    final ngayVaoLam = dr["ngay_vao_lam"] as DateTime?;
-    if (ngayVaoLam != null && date.isBefore(ngayVaoLam)) {
-      return "Ngày hết hợp đồng phải sau ngày vào làm";
-    }
-    
-    return null; // Valid
-  },
-)
-```
-
-### 2. Giá trị tĩnh (không binding)
+### Import
 
 ```dart
-// ✅ Giá trị cố định
-CyberDate(
-  text: DateTime(2024, 1, 1),
-  label: "Ngày bắt đầu",
-  format: "dd/MM/yyyy",
-)
-
-// ✅ Giá trị hiện tại
-CyberDate(
-  text: DateTime.now(),
-  label: "Ngày hiện tại",
-  enabled: false, // readonly
-)
-
-// ✅ Null/rỗng
-CyberDate(
-  text: null,
-  label: "Chọn ngày",
-)
-```
-
-### 3. External Controller (Advanced - ít dùng)
-
-```dart
-// ⚠️ Chỉ dùng khi cần điều khiển từ code
-final fromDateController = CyberDateController();
-final toDateController = CyberDateController();
-
-CyberDate(
-  controller: fromDateController,
-  label: "Từ ngày",
-)
-
-CyberDate(
-  controller: toDateController,
-  label: "Đến ngày",
-)
-
-// Điều khiển từ code
-void _setThisMonth() {
-  fromDateController.setStartOfMonth();
-  toDateController.setEndOfMonth();
-}
-
-void _setThisYear() {
-  fromDateController.setStartOfYear();
-  toDateController.setEndOfYear();
-}
-
-void _clear() {
-  fromDateController.clear();
-  toDateController.clear();
-}
-```
-
-## Ưu điểm của cách mới
-
-### 1. Không cần khai báo controller
-
-**❌ Cách cũ (phức tạp)**
-```dart
-// Phải tạo controller thủ công
-final ngaySinhController = CyberDateController();
-final ngayVaoLamController = CyberDateController();
-
-// Phải sync data thủ công
-ngaySinhController.value = dr["ngay_sinh"];
-ngayVaoLamController.value = dr["ngay_vao_lam"];
-
-// Phải dispose thủ công
-@override
-void dispose() {
-  ngaySinhController.dispose();
-  ngayVaoLamController.dispose();
-  super.dispose();
-}
-```
-
-**✅ Cách mới (đơn giản)**
-```dart
-// Widget tự động quản lý tất cả
-CyberDate(text: dr.bind("ngay_sinh"), label: "Ngày sinh")
-CyberDate(text: dr.bind("ngay_vao_lam"), label: "Ngày vào làm")
-
-// Không cần dispose - widget tự xử lý
-```
-
-### 2. Two-way binding tự động
-
-```dart
-// ✅ Thay đổi UI → tự động update data
-CyberDate(
-  text: dr.bind("ngay_sinh"),
-  onChanged: (date) {
-    print(dr["ngay_sinh"]); // ← Đã được update tự động!
-  },
-)
-
-// ✅ Thay đổi data → tự động update UI
-dr["ngay_sinh"] = DateTime(1995, 3, 20); // ← UI tự động refresh!
-```
-
-### 3. Code ngắn gọn hơn 90%
-
-```dart
-// ❌ Cách cũ: 15+ dòng
-final controller = CyberDateController();
-controller.value = dr["ngay_sinh"];
-CyberDate(
-  controller: controller,
-  label: "Ngày sinh",
-  onChanged: (v) => dr["ngay_sinh"] = v,
-)
-@override
-void dispose() {
-  controller.dispose();
-  super.dispose();
-}
-
-// ✅ Cách mới: 1 dòng
-CyberDate(text: dr.bind("ngay_sinh"), label: "Ngày sinh")
-```
-
-## Format Pattern
-
-### Định dạng ngày phổ biến
-
-```dart
-format: "dd/MM/yyyy"       // 15/05/1990
-format: "dd-MM-yyyy"       // 15-05-1990
-format: "yyyy-MM-dd"       // 1990-05-15 (ISO format)
-format: "dd/MM/yy"         // 15/05/90
-format: "dd MMM yyyy"      // 15 May 1990
-format: "dd MMMM yyyy"     // 15 Tháng 5 1990
-format: "EEEE, dd/MM/yyyy" // Thứ Hai, 15/05/1990
-```
-
-### Custom formatter
-
-```dart
-// Sử dụng DateFormat từ intl package
+import 'package:cyberframework/cyberframework.dart';
 import 'package:intl/intl.dart';
-
-final customFormatter = DateFormat('dd/MM/yyyy', 'vi_VN');
-
-CyberDate(
-  text: dr.bind("ngay_sinh"),
-  formatter: customFormatter,
-)
 ```
 
-## Validation
+---
 
-### 1. Built-in validation
+## CyberDate Widget
+
+### Constructor
 
 ```dart
-CyberDate(
-  text: dr.bind("ngay_sinh"),
-  label: "Ngày sinh",
-  
-  // Required field
-  isCheckEmpty: true,
-  
-  // Date range
-  minDate: DateTime(1900, 1, 1),
-  maxDate: DateTime.now(),
-)
+const CyberDate({
+  super.key,
+  this.text,
+  this.controller,
+  this.label,
+  this.hint,
+  this.format = "dd/MM/yyyy",
+  this.prefixIcon,
+  this.borderSize = 1,
+  this.borderRadius,
+  this.enabled = true,
+  this.style,
+  this.decoration,
+  this.onChanged,
+  this.onLeaver,
+  this.minDate,
+  this.maxDate,
+  this.isShowLabel = true,
+  this.backgroundColor,
+  this.borderColor = Colors.transparent,
+  this.focusColor,
+  this.labelStyle,
+  this.isVisible = true,
+  this.isCheckEmpty = false,
+  this.formatter,
+  this.validator,
+  this.errorText,
+  this.nullValue,
+  this.showClearButton = false,
+})
 ```
 
-### 2. Custom validation
+### Properties
 
-```dart
-CyberDate(
-  text: dr.bind("ngay_het_hop_dong"),
-  label: "Ngày hết hợp đồng",
-  validator: (date) {
-    if (date == null) {
-      return "Vui lòng chọn ngày";
-    }
-    
-    final ngayVaoLam = dr["ngay_vao_lam"] as DateTime?;
-    if (ngayVaoLam == null) {
-      return "Vui lòng chọn ngày vào làm trước";
-    }
-    
-    if (date.isBefore(ngayVaoLam)) {
-      return "Ngày hết hợp đồng phải sau ngày vào làm";
-    }
-    
-    final duration = date.difference(ngayVaoLam).inDays;
-    if (duration < 365) {
-      return "Hợp đồng tối thiểu 1 năm";
-    }
-    
-    return null; // Valid
-  },
-)
-```
+#### Data Binding
 
-### 3. External error text
+| Property | Type | Mô Tả | Mặc Định |
+|----------|------|-------|----------|
+| `text` | `dynamic` | Binding hoặc static value | null |
+| `controller` | `CyberDateController?` | External controller (optional) | null |
 
-```dart
-String? _errorMessage;
+⚠️ **KHÔNG dùng cả text VÀ controller cùng lúc**
 
-CyberDate(
-  text: dr.bind("ngay_sinh"),
-  errorText: _errorMessage,
-)
+#### Display
 
-// Set error từ code
-void _validateAge() {
-  final ngaySinh = dr["ngay_sinh"] as DateTime?;
-  if (ngaySinh != null) {
-    final age = DateTime.now().difference(ngaySinh).inDays ~/ 365;
-    if (age < 18) {
-      setState(() {
-        _errorMessage = "Phải đủ 18 tuổi";
-      });
-      return;
-    }
-  }
-  
-  setState(() {
-    _errorMessage = null;
-  });
-}
-```
+| Property | Type | Mô Tả | Mặc Định |
+|----------|------|-------|----------|
+| `label` | `String?` | Label hiển thị phía trên | null |
+| `hint` | `String?` | Hint text khi chưa chọn | "Chọn ngày" |
+| `format` | `String` | Date format pattern | "dd/MM/yyyy" |
+| `formatter` | `DateFormat?` | Custom DateFormat object | null |
+| `prefixIcon` | `String?` | Icon code bên trái | null |
 
-## Callbacks
+#### Validation & Constraints
 
-```dart
-CyberDate(
-  text: dr.bind("ngay_vao_lam"),
-  
-  // ✅ onChanged: gọi khi chọn ngày mới
-  onChanged: (DateTime? date) {
-    print("Ngày được chọn: $date");
-    
-    // Tự động tính ngày hết hợp đồng
-    if (date != null) {
-      dr["ngay_het_hop_dong"] = DateTime(
-        date.year + 2,
-        date.month,
-        date.day,
-      );
-    }
-  },
-  
-  // ✅ onLeaver: gọi khi đóng date picker
-  onLeaver: (dynamic date) {
-    print("Hoàn thành chọn ngày: $date");
-    _validateContractDuration();
-  },
-)
-```
+| Property | Type | Mô Tả | Mặc Định |
+|----------|------|-------|----------|
+| `minDate` | `DateTime?` | Ngày tối thiểu | 100 năm trước |
+| `maxDate` | `DateTime?` | Ngày tối đa | 100 năm sau |
+| `validator` | `String? Function(DateTime?)?` | Custom validator | null |
+| `errorText` | `String?` | Error message hiển thị | null |
+| `isCheckEmpty` | `dynamic` | Hiển thị dấu * bắt buộc | false |
 
-## Visibility Binding
+#### Null Value
 
-```dart
-final dr = CyberDataRow({
-  'loai_hop_dong': 'CO_DINH', // CO_DINH, THU_VIEC
-  'ngay_vao_lam': DateTime.now(),
-  'ngay_het_hop_dong': null,
-});
+| Property | Type | Mô Tả | Mặc Định |
+|----------|------|-------|----------|
+| `nullValue` | `DateTime?` | Giá trị đại diện cho null | DateTime(1900, 1, 1) |
+| `showClearButton` | `bool` | Hiển thị nút xóa | false |
 
-CyberDate(
-  text: dr.bind("ngay_het_hop_dong"),
-  label: "Ngày hết hợp đồng",
-  
-  // ✅ Chỉ hiển thị với hợp đồng có định
-  isVisible: dr["loai_hop_dong"] == "CO_DINH",
-)
-```
+**Null Value Concept:**
+- Khi date = nullValue → hiển thị hint text
+- Clear button → set về nullValue
+- Default: `DateTime(1900, 1, 1)`
 
-## Controller Methods (Advanced)
+#### Callbacks
 
-Khi dùng external controller, có các methods hữu ích:
+| Property | Type | Mô Tả |
+|----------|------|-------|
+| `onChanged` | `ValueChanged<DateTime?>?` | Khi giá trị thay đổi |
+| `onLeaver` | `Function(dynamic)?` | Khi rời khỏi control |
+
+#### Styling
+
+| Property | Type | Mô Tả | Mặc Định |
+|----------|------|-------|----------|
+| `style` | `TextStyle?` | Style cho text | null |
+| `labelStyle` | `TextStyle?` | Style cho label | null |
+| `decoration` | `InputDecoration?` | Custom decoration | null |
+| `backgroundColor` | `Color?` | Màu nền | Color(0xFFF5F5F5) |
+| `borderColor` | `Color?` | Màu border | Colors.transparent |
+| `focusColor` | `Color?` | Màu khi focus | null |
+| `borderSize` | `int?` | Độ dày border (px) | 1 |
+| `borderRadius` | `int?` | Bo góc (px) | 4 |
+| `enabled` | `bool` | Enable/disable | true |
+| `isShowLabel` | `bool` | Hiển thị label | true |
+| `isVisible` | `dynamic` | Hiển thị/ẩn (có thể binding) | true |
+
+---
+
+## CyberDateController
+
+**NOTE**: Controller là **OPTIONAL**. Không cần khai báo trong hầu hết trường hợp.
+
+### Properties & Methods
 
 ```dart
 final controller = CyberDateController();
 
-// Set giá trị
-controller.value = DateTime(2024, 1, 1);
-controller.setSilently(DateTime(2024, 1, 1)); // Không trigger listener
+// Properties
+DateTime? value = controller.value;
+bool isEmpty = controller.isEmpty;
+bool isNotEmpty = controller.isNotEmpty;
+
+// Basic operations
+controller.value = DateTime.now();
+controller.clear();
 
 // Quick setters
-controller.setToday();              // Hôm nay
-controller.setStartOfMonth();       // Đầu tháng
-controller.setEndOfMonth();         // Cuối tháng
-controller.setStartOfYear();        // Đầu năm
-controller.setEndOfYear();          // Cuối năm
-controller.setDate(2024, 6, 15);    // Custom date
+controller.setToday();
+controller.setStartOfMonth();
+controller.setEndOfMonth();
+controller.setStartOfYear();
+controller.setEndOfYear();
+controller.setDate(2024, 12, 31);
 
 // Date arithmetic
-controller.addDays(7);              // Thêm 7 ngày
-controller.subtractDays(3);         // Trừ 3 ngày
-controller.addMonths(2);            // Thêm 2 tháng
-controller.addYears(1);             // Thêm 1 năm
+controller.addDays(7);
+controller.subtractDays(3);
+controller.addMonths(1);
+controller.addYears(1);
 
-// Validation helpers
-controller.isEmpty;                 // Kiểm tra null
-controller.isNotEmpty;              // Kiểm tra not null
-controller.isBefore(DateTime.now());
-controller.isAfter(DateTime.now());
+// Comparisons
+bool before = controller.isBefore(DateTime.now());
+bool after = controller.isAfter(DateTime.now());
 
-// Clear
-controller.clear();                 // Set về null
+// Silent update (không notify)
+controller.setSilently(DateTime.now());
 ```
+
+---
+
+## Ví Dụ Sử Dụng
+
+### 1. Sử Dụng Cơ Bản (Recommended)
+
+Simple binding với data row.
+
+```dart
+class EmployeeForm extends StatefulWidget {
+  @override
+  State<EmployeeForm> createState() => _EmployeeFormState();
+}
+
+class _EmployeeFormState extends State<EmployeeForm> {
+  final drEmployee = CyberDataRow();
+
+  @override
+  void initState() {
+    super.initState();
+    
+    // Initialize dates
+    drEmployee['ngay_sinh'] = DateTime(1990, 1, 1);
+    drEmployee['ngay_vao_lam'] = DateTime.now();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        CyberDate(
+          text: drEmployee.bind('ngay_sinh'),
+          label: 'Ngày sinh',
+          hint: 'Chọn ngày sinh',
+        ),
+        
+        SizedBox(height: 16),
+        
+        CyberDate(
+          text: drEmployee.bind('ngay_vao_lam'),
+          label: 'Ngày vào làm',
+          maxDate: DateTime.now(), // Không cho chọn tương lai
+        ),
+      ],
+    );
+  }
+}
+```
+
+### 2. Custom Format
+
+Nhiều định dạng ngày tháng.
+
+```dart
+// dd/MM/yyyy - Mặc định
+CyberDate(
+  text: drOrder.bind('order_date'),
+  label: 'Ngày đặt hàng',
+  format: 'dd/MM/yyyy',
+)
+
+// yyyy-MM-dd - ISO format
+CyberDate(
+  text: drEvent.bind('event_date'),
+  label: 'Ngày sự kiện',
+  format: 'yyyy-MM-dd',
+)
+
+// dd MMM yyyy - With month name
+CyberDate(
+  text: drInvoice.bind('invoice_date'),
+  label: 'Ngày hóa đơn',
+  format: 'dd MMM yyyy', // 01 Jan 2024
+)
+
+// Custom formatter
+CyberDate(
+  text: drReport.bind('report_date'),
+  label: 'Ngày báo cáo',
+  formatter: DateFormat('EEEE, dd/MM/yyyy', 'vi_VN'), // Thứ Hai, 01/01/2024
+)
+```
+
+### 3. Date Range Validation
+
+Giới hạn khoảng ngày.
+
+```dart
+class BookingForm extends StatefulWidget {
+  @override
+  State<BookingForm> createState() => _BookingFormState();
+}
+
+class _BookingFormState extends State<BookingForm> {
+  final drBooking = CyberDataRow();
+
+  @override
+  Widget build(BuildContext context) {
+    final today = DateTime.now();
+    final tomorrow = today.add(Duration(days: 1));
+    final maxDate = today.add(Duration(days: 90));
+
+    return Column(
+      children: [
+        // Check-in: Từ ngày mai đến 90 ngày sau
+        CyberDate(
+          text: drBooking.bind('check_in'),
+          label: 'Ngày nhận phòng',
+          minDate: tomorrow,
+          maxDate: maxDate,
+        ),
+        
+        SizedBox(height: 16),
+        
+        // Check-out: Sau check-in
+        ListenableBuilder(
+          listenable: drBooking,
+          builder: (context, _) {
+            final checkIn = drBooking['check_in'] as DateTime?;
+            final minCheckOut = checkIn?.add(Duration(days: 1)) ?? tomorrow;
+            
+            return CyberDate(
+              text: drBooking.bind('check_out'),
+              label: 'Ngày trả phòng',
+              minDate: minCheckOut,
+              maxDate: maxDate,
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+```
+
+### 4. Null Value & Clear Button
+
+Xử lý giá trị null.
+
+```dart
+class ContractForm extends StatefulWidget {
+  @override
+  State<ContractForm> createState() => _ContractFormState();
+}
+
+class _ContractFormState extends State<ContractForm> {
+  final drContract = CyberDataRow();
+
+  @override
+  void initState() {
+    super.initState();
+    
+    // Ngày bắt đầu bắt buộc
+    drContract['start_date'] = DateTime.now();
+    
+    // Ngày kết thúc không bắt buộc (null)
+    drContract['end_date'] = DateTime(1900, 1, 1); // nullValue
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        CyberDate(
+          text: drContract.bind('start_date'),
+          label: 'Ngày bắt đầu',
+          isCheckEmpty: true, // Required
+        ),
+        
+        SizedBox(height: 16),
+        
+        // Có thể null - hiển thị nút Clear
+        CyberDate(
+          text: drContract.bind('end_date'),
+          label: 'Ngày kết thúc',
+          hint: 'Không xác định',
+          showClearButton: true, // Hiển thị nút xóa
+          nullValue: DateTime(1900, 1, 1), // Custom null value
+        ),
+      ],
+    );
+  }
+}
+```
+
+### 5. Custom Validation
+
+Validator tùy chỉnh.
+
+```dart
+class EventForm extends StatefulWidget {
+  @override
+  State<EventForm> createState() => _EventFormState();
+}
+
+class _EventFormState extends State<EventForm> {
+  final drEvent = CyberDataRow();
+
+  String? validateEventDate(DateTime? date) {
+    if (date == null) {
+      return 'Vui lòng chọn ngày';
+    }
+    
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    
+    // Không cho chọn ngày quá khứ
+    if (date.isBefore(today)) {
+      return 'Ngày sự kiện không thể là quá khứ';
+    }
+    
+    // Không cho chọn cuối tuần
+    if (date.weekday == DateTime.saturday || 
+        date.weekday == DateTime.sunday) {
+      return 'Sự kiện không thể tổ chức vào cuối tuần';
+    }
+    
+    return null; // Valid
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CyberDate(
+      text: drEvent.bind('event_date'),
+      label: 'Ngày tổ chức sự kiện',
+      validator: validateEventDate,
+    );
+  }
+}
+```
+
+### 6. Với Controller (Advanced)
+
+Programmatic control.
+
+```dart
+class ReportForm extends StatefulWidget {
+  @override
+  State<ReportForm> createState() => _ReportFormState();
+}
+
+class _ReportFormState extends State<ReportForm> {
+  final dateController = CyberDateController();
+
+  @override
+  void initState() {
+    super.initState();
+    
+    // Set initial date
+    dateController.setToday();
+    
+    // Listen to changes
+    dateController.addListener(() {
+      print('Date changed: ${dateController.value}');
+    });
+  }
+
+  @override
+  void dispose() {
+    dateController.dispose();
+    super.dispose();
+  }
+
+  void setToday() {
+    dateController.setToday();
+  }
+
+  void setStartOfMonth() {
+    dateController.setStartOfMonth();
+  }
+
+  void setEndOfMonth() {
+    dateController.setEndOfMonth();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        CyberDate(
+          controller: dateController,
+          label: 'Ngày báo cáo',
+        ),
+        
+        SizedBox(height: 16),
+        
+        // Quick actions
+        Wrap(
+          spacing: 8,
+          children: [
+            ElevatedButton(
+              onPressed: setToday,
+              child: Text('Hôm nay'),
+            ),
+            ElevatedButton(
+              onPressed: setStartOfMonth,
+              child: Text('Đầu tháng'),
+            ),
+            ElevatedButton(
+              onPressed: setEndOfMonth,
+              child: Text('Cuối tháng'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+```
+
+### 7. Date Range Picker Pattern
+
+Chọn khoảng ngày.
+
+```dart
+class DateRangePicker extends StatefulWidget {
+  @override
+  State<DateRangePicker> createState() => _DateRangePickerState();
+}
+
+class _DateRangePickerState extends State<DateRangePicker> {
+  final drRange = CyberDataRow();
+
+  @override
+  void initState() {
+    super.initState();
+    
+    // Default: This month
+    final now = DateTime.now();
+    drRange['from_date'] = DateTime(now.year, now.month, 1);
+    drRange['to_date'] = DateTime(now.year, now.month + 1, 0);
+  }
+
+  void setThisWeek() {
+    final now = DateTime.now();
+    final weekday = now.weekday;
+    final monday = now.subtract(Duration(days: weekday - 1));
+    final sunday = monday.add(Duration(days: 6));
+    
+    drRange['from_date'] = DateTime(monday.year, monday.month, monday.day);
+    drRange['to_date'] = DateTime(sunday.year, sunday.month, sunday.day);
+  }
+
+  void setThisMonth() {
+    final now = DateTime.now();
+    drRange['from_date'] = DateTime(now.year, now.month, 1);
+    drRange['to_date'] = DateTime(now.year, now.month + 1, 0);
+  }
+
+  void setThisYear() {
+    final now = DateTime.now();
+    drRange['from_date'] = DateTime(now.year, 1, 1);
+    drRange['to_date'] = DateTime(now.year, 12, 31);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        CyberDate(
+          text: drRange.bind('from_date'),
+          label: 'Từ ngày',
+        ),
+        
+        SizedBox(height: 16),
+        
+        ListenableBuilder(
+          listenable: drRange,
+          builder: (context, _) {
+            final fromDate = drRange['from_date'] as DateTime?;
+            
+            return CyberDate(
+              text: drRange.bind('to_date'),
+              label: 'Đến ngày',
+              minDate: fromDate?.add(Duration(days: 1)),
+            );
+          },
+        ),
+        
+        SizedBox(height: 16),
+        
+        Wrap(
+          spacing: 8,
+          children: [
+            ElevatedButton(
+              onPressed: setThisWeek,
+              child: Text('Tuần này'),
+            ),
+            ElevatedButton(
+              onPressed: setThisMonth,
+              child: Text('Tháng này'),
+            ),
+            ElevatedButton(
+              onPressed: setThisYear,
+              child: Text('Năm nay'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+```
+
+### 8. Birthday Picker
+
+Chọn ngày sinh với validation.
+
+```dart
+CyberDate(
+  text: drUser.bind('birthday'),
+  label: 'Ngày sinh',
+  format: 'dd/MM/yyyy',
+  minDate: DateTime(1900, 1, 1),
+  maxDate: DateTime.now().subtract(Duration(days: 365 * 18)), // >= 18 tuổi
+  validator: (date) {
+    if (date == null) return 'Vui lòng chọn ngày sinh';
+    
+    final now = DateTime.now();
+    final age = now.year - date.year;
+    
+    if (age < 18) {
+      return 'Phải đủ 18 tuổi';
+    }
+    
+    if (age > 100) {
+      return 'Ngày sinh không hợp lệ';
+    }
+    
+    return null;
+  },
+)
+```
+
+### 9. Expiry Date Picker
+
+Chọn ngày hết hạn.
+
+```dart
+class ProductForm extends StatefulWidget {
+  @override
+  State<ProductForm> createState() => _ProductFormState();
+}
+
+class _ProductFormState extends State<ProductForm> {
+  final drProduct = CyberDataRow();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        CyberDate(
+          text: drProduct.bind('manufacture_date'),
+          label: 'Ngày sản xuất',
+          maxDate: DateTime.now(),
+        ),
+        
+        SizedBox(height: 16),
+        
+        ListenableBuilder(
+          listenable: drProduct,
+          builder: (context, _) {
+            final mfgDate = drProduct['manufacture_date'] as DateTime?;
+            
+            return CyberDate(
+              text: drProduct.bind('expiry_date'),
+              label: 'Ngày hết hạn',
+              minDate: mfgDate?.add(Duration(days: 1)),
+              validator: (date) {
+                if (date == null) return null;
+                if (mfgDate == null) return 'Chọn ngày sản xuất trước';
+                
+                final diff = date.difference(mfgDate).inDays;
+                if (diff < 7) {
+                  return 'Hạn sử dụng tối thiểu 7 ngày';
+                }
+                
+                return null;
+              },
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+```
+
+### 10. Multiple Date Fields
+
+Form với nhiều trường ngày.
+
+```dart
+class ProjectForm extends StatefulWidget {
+  @override
+  State<ProjectForm> createState() => _ProjectFormState();
+}
+
+class _ProjectFormState extends State<ProjectForm> {
+  final drProject = CyberDataRow();
+
+  @override
+  void initState() {
+    super.initState();
+    
+    final today = DateTime.now();
+    drProject['start_date'] = today;
+    drProject['planned_end_date'] = today.add(Duration(days: 30));
+    drProject['actual_end_date'] = DateTime(1900, 1, 1); // null
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        CyberDate(
+          text: drProject.bind('start_date'),
+          label: 'Ngày bắt đầu',
+          isCheckEmpty: true,
+        ),
+        
+        SizedBox(height: 16),
+        
+        CyberDate(
+          text: drProject.bind('planned_end_date'),
+          label: 'Ngày dự kiến hoàn thành',
+          isCheckEmpty: true,
+        ),
+        
+        SizedBox(height: 16),
+        
+        CyberDate(
+          text: drProject.bind('actual_end_date'),
+          label: 'Ngày hoàn thành thực tế',
+          hint: 'Chưa hoàn thành',
+          showClearButton: true,
+          nullValue: DateTime(1900, 1, 1),
+        ),
+      ],
+    );
+  }
+}
+```
+
+---
+
+## Features
+
+### 1. Internal Controller
+
+Widget tự động quản lý state.
+
+```dart
+// ✅ GOOD: Simple binding
+CyberDate(
+  text: drOrder.bind('order_date'),
+  label: 'Ngày đặt hàng',
+)
+```
+
+### 2. Two-Way Binding
+
+Tự động sync UI ↔ Data Row.
+
+```dart
+// Change in UI → Update data row
+// Change in data row → Update UI
+
+drOrder['order_date'] = DateTime.now(); // UI updates
+// User selects date → drOrder['order_date'] updates
+```
+
+### 3. Null Value Handling
+
+Giá trị đại diện cho null.
+
+```dart
+// Default null value: 01/01/1900
+final nullVal = CyberDate.defaultNullValue;
+
+// Custom null value
+CyberDate(
+  nullValue: DateTime(2000, 1, 1),
+  showClearButton: true,
+)
+```
+
+### 4. iOS-Style Picker
+
+Bottom sheet với wheel scrolling.
+
+- Day - Month - Year wheels
+- Smooth scrolling
+- Visual feedback
+- "Hủy" / "Xong" buttons
+
+### 5. Date Format
+
+Linh hoạt với nhiều format.
+
+```dart
+'dd/MM/yyyy'      // 01/01/2024
+'yyyy-MM-dd'      // 2024-01-01
+'dd MMM yyyy'     // 01 Jan 2024
+'EEEE, dd/MM/yy'  // Monday, 01/01/24
+```
+
+### 6. Validation
+
+Built-in và custom validation.
+
+```dart
+// Built-in: min/max date
+CyberDate(
+  minDate: DateTime(2020, 1, 1),
+  maxDate: DateTime(2030, 12, 31),
+)
+
+// Custom validator
+CyberDate(
+  validator: (date) {
+    if (date == null) return 'Required';
+    // Custom logic...
+    return null;
+  },
+)
+```
+
+### 7. Clear Button
+
+Xóa về null value.
+
+```dart
+CyberDate(
+  showClearButton: true,
+  // Shows clear icon when has value
+)
+```
+
+---
 
 ## Best Practices
 
-### ✅ DO - Nên làm
+### 1. Sử Dụng Binding (Recommended)
 
 ```dart
-// 1. Dùng binding cho form nhập liệu
-CyberDate(text: dr.bind("ngay_sinh"), label: "Ngày sinh")
-
-// 2. Set min/max date hợp lý
+// ✅ GOOD
 CyberDate(
-  text: dr.bind("ngay_sinh"),
+  text: drEmployee.bind('ngay_sinh'),
+  label: 'Ngày sinh',
+)
+
+// ❌ BAD: Manual state
+DateTime? selectedDate;
+CyberDate(
+  text: selectedDate,
+  onChanged: (date) {
+    setState(() {
+      selectedDate = date;
+      drEmployee['ngay_sinh'] = date;
+    });
+  },
+)
+```
+
+### 2. Format Selection
+
+```dart
+// ✅ GOOD: dd/MM/yyyy cho Việt Nam
+CyberDate(
+  format: 'dd/MM/yyyy',
+  ...
+)
+
+// ✅ GOOD: yyyy-MM-dd cho database
+CyberDate(
+  format: 'yyyy-MM-dd',
+  ...
+)
+```
+
+### 3. Date Range
+
+```dart
+// ✅ GOOD: Rõ ràng, có ý nghĩa
+CyberDate(
   minDate: DateTime(1900, 1, 1),
   maxDate: DateTime.now(),
+  ...
 )
 
-// 3. Dùng validator cho logic phức tạp
+// ❌ BAD: Quá rộng, không hợp lý
 CyberDate(
-  text: dr.bind("ngay_het_hd"),
-  validator: (date) => _validateContractEnd(date),
-)
-
-// 4. Dùng onChanged cho tính toán liên quan
-CyberDate(
-  text: dr.bind("ngay_vao_lam"),
-  onChanged: (_) => _calculateContractEnd(),
+  minDate: DateTime(1, 1, 1),
+  maxDate: DateTime(9999, 12, 31),
+  ...
 )
 ```
 
-### ❌ DON'T - Không nên làm
+### 4. Validation Messages
 
 ```dart
-// ❌ Không dùng cả text VÀ controller
-CyberDate(
-  text: dr.bind("ngay_sinh"),
-  controller: myController, // LỖI!
-)
-
-// ❌ Không tạo controller không cần thiết
-final ctrl = CyberDateController(); // Không cần!
-CyberDate(text: dr.bind("ngay_sinh")) // ← Đủ rồi
-
-// ❌ Không sync thủ công
-onChanged: (date) {
-  dr["ngay_sinh"] = date; // ← Không cần! Tự động rồi
+// ✅ GOOD: Clear, helpful
+validator: (date) {
+  if (date == null) return 'Vui lòng chọn ngày';
+  if (date.isBefore(minDate)) {
+    return 'Ngày phải sau ${formatDate(minDate)}';
+  }
+  return null;
 }
 
-// ❌ Không dùng format không phù hợp
-format: "yyyy-dd-MM" // ← Sai! Ngày và tháng đảo
+// ❌ BAD: Vague
+validator: (date) {
+  if (date == null) return 'Error';
+  return null;
+}
 ```
 
-## Common Use Cases
-
-### 1. Date Range Selector
+### 5. Null Values
 
 ```dart
-final drFilter = CyberDataRow({
-  'tu_ngay': DateTime.now().subtract(Duration(days: 30)),
-  'den_ngay': DateTime.now(),
-});
-
-// Từ ngày
+// ✅ GOOD: Use default null value
 CyberDate(
-  text: drFilter.bind("tu_ngay"),
-  label: "Từ ngày",
-  maxDate: drFilter["den_ngay"], // Không được sau "đến ngày"
-  onChanged: (_) => setState(() {}),
+  showClearButton: true,
+  // Uses DateTime(1900, 1, 1)
 )
 
-// Đến ngày  
+// ✅ GOOD: Custom null for specific case
 CyberDate(
-  text: drFilter.bind("den_ngay"),
-  label: "Đến ngày",
-  minDate: drFilter["tu_ngay"], // Không được trước "từ ngày"
-  maxDate: DateTime.now(),
+  nullValue: DateTime(1970, 1, 1),
+  showClearButton: true,
 )
 ```
 
-### 2. Age Calculation
+---
 
+## Troubleshooting
+
+### Date không update vào binding
+
+**Nguyên nhân:** Không dùng binding
+
+**Giải pháp:**
 ```dart
+// ✅ CORRECT
 CyberDate(
-  text: dr.bind("ngay_sinh"),
-  label: "Ngày sinh",
-  maxDate: DateTime.now(),
-  onChanged: (date) {
-    if (date != null) {
-      final age = DateTime.now().difference(date).inDays ~/ 365;
-      dr["tuoi"] = age;
-    }
-  },
+  text: drOrder.bind('order_date'),
+  ...
+)
+
+// ❌ WRONG
+CyberDate(
+  text: drOrder['order_date'],
+  ...
 )
 ```
 
-### 3. Contract Duration
+### Format error
 
+**Nguyên nhân:** Pattern không hợp lệ
+
+**Giải pháp:**
 ```dart
+// ✅ CORRECT
 CyberDate(
-  text: dr.bind("ngay_vao_lam"),
-  label: "Ngày vào làm",
-  onChanged: (date) {
-    if (date != null) {
-      // Hợp đồng 2 năm
-      dr["ngay_het_hop_dong"] = DateTime(
-        date.year + 2,
-        date.month,
-        date.day,
-      );
-    }
-  },
+  format: 'dd/MM/yyyy', // Valid
 )
 
+// ❌ WRONG
 CyberDate(
-  text: dr.bind("ngay_het_hop_dong"),
-  label: "Ngày hết hợp đồng",
-  enabled: false, // Auto-calculated
+  format: 'dd/mm/yyyy', // mm = minutes!
 )
 ```
 
-### 4. Quick Date Buttons
+### Validation không chạy
+
+**Nguyên nhân:** Validator return giá trị sai
+
+**Giải pháp:**
+```dart
+// ✅ CORRECT
+validator: (date) {
+  if (invalid) return 'Error message';
+  return null; // Valid!
+}
+
+// ❌ WRONG
+validator: (date) {
+  if (invalid) return 'Error';
+  return ''; // Should be null!
+}
+```
+
+### Null value không hoạt động
+
+**Nguyên nhân:** So sánh sai
+
+**Giải pháp:**
+```dart
+// Date được so sánh theo year, month, day
+// Time component bị ignore
+
+// ✅ Check null properly
+if (date == null || date == nullValue) {
+  // Handle null
+}
+```
+
+### Min/max validation không chính xác
+
+**Nguyên nhân:** Time component
+
+**Giải pháp:**
+```dart
+// ✅ CORRECT: Only date part
+final minDate = DateTime(2020, 1, 1);
+
+// ❌ WRONG: With time
+final minDate = DateTime.now(); // Has time!
+```
+
+---
+
+## Tips & Tricks
+
+### 1. Quick Date Setters
 
 ```dart
 final controller = CyberDateController();
 
-Row(
-  children: [
-    ElevatedButton(
-      onPressed: () => controller.setToday(),
-      child: Text("Hôm nay"),
-    ),
-    ElevatedButton(
-      onPressed: () => controller.setStartOfMonth(),
-      child: Text("Đầu tháng"),
-    ),
-    ElevatedButton(
-      onPressed: () => controller.setEndOfMonth(),
-      child: Text("Cuối tháng"),
-    ),
-  ],
-)
+// Today
+controller.setToday();
 
-CyberDate(
-  controller: controller,
-  label: "Ngày chọn",
-)
+// First/last day of month
+controller.setStartOfMonth();
+controller.setEndOfMonth();
+
+// First/last day of year
+controller.setStartOfYear();
+controller.setEndOfYear();
+
+// Date arithmetic
+controller.addDays(7);
+controller.addMonths(1);
+controller.addYears(1);
 ```
 
-## Migration Guide
-
-Nếu bạn đang dùng code cũ, thay đổi rất đơn giản:
-
-### Từ initialValue/value
+### 2. Compare Dates
 
 ```dart
-// ❌ Code cũ
-CyberDate(
-  initialValue: dr["ngay_sinh"],
-  onChanged: (date) => dr["ngay_sinh"] = date,
-)
-
-// ✅ Code mới  
-CyberDate(text: dr.bind("ngay_sinh"))
-```
-
-### Từ controller
-
-```dart
-// ❌ Code cũ - cần controller
 final controller = CyberDateController();
-controller.value = dr["ngay_sinh"];
 
-CyberDate(
-  controller: controller,
-  onChanged: (date) => dr["ngay_sinh"] = date,
-)
-
-// Phải dispose
-@override
-void dispose() {
-  controller.dispose();
-  super.dispose();
+if (controller.isBefore(deadline)) {
+  print('Still have time');
 }
 
-// ✅ Code mới - không cần controller
-CyberDate(text: dr.bind("ngay_sinh"))
+if (controller.isAfter(startDate)) {
+  print('Started');
+}
 ```
 
-## Khi nào dùng External Controller?
+### 3. Age Calculation
 
-Chỉ dùng `controller` khi:
+```dart
+DateTime? birthday = drUser['birthday'];
+if (birthday != null) {
+  final now = DateTime.now();
+  int age = now.year - birthday.year;
+  
+  // Adjust for birthday not yet occurred this year
+  if (now.month < birthday.month ||
+      (now.month == birthday.month && now.day < birthday.day)) {
+    age--;
+  }
+  
+  print('Age: $age');
+}
+```
 
-1. **Cần điều khiển programmatically**
-   ```dart
-   // Quick date selection
-   _controller.setToday();
-   _controller.setStartOfMonth();
-   ```
+### 4. Business Days
 
-2. **Cần date arithmetic**
-   ```dart
-   _controller.addDays(7);
-   _controller.addMonths(1);
-   ```
+```dart
+bool isWeekend(DateTime date) {
+  return date.weekday == DateTime.saturday ||
+         date.weekday == DateTime.sunday;
+}
 
-3. **Cần share state giữa nhiều widget**
-   ```dart
-   final sharedController = CyberDateController();
-   CyberDate(controller: sharedController) // Widget 1
-   CyberDate(controller: sharedController) // Widget 2
-   ```
+DateTime nextBusinessDay(DateTime date) {
+  DateTime next = date.add(Duration(days: 1));
+  while (isWeekend(next)) {
+    next = next.add(Duration(days: 1));
+  }
+  return next;
+}
+```
 
-**Trong 95% trường hợp, chỉ cần dùng binding!**
+### 5. Date Formatting Helper
 
-## So sánh với các widget khác
+```dart
+String formatDate(DateTime? date, [String pattern = 'dd/MM/yyyy']) {
+  if (date == null) return '';
+  return DateFormat(pattern).format(date);
+}
 
-| Widget | Thuộc tính binding | Kiểu dữ liệu | Format |
-|--------|-------------------|--------------|--------|
-| **CyberText** | `text: dr.bind("name")` | String? | N/A |
-| **CyberNumeric** | `text: dr.bind("qty")` | num? | `#,##0.##` |
-| **CyberDate** | `text: dr.bind("date")` | DateTime? | `dd/MM/yyyy` |
-| **CyberCheckbox** | `value: dr.bind("flag")` | bool? | N/A |
+// Usage
+Text('Ngày: ${formatDate(drOrder['order_date'])}')
+```
 
-## Tính năng đặc biệt
+---
 
-### 1. iOS-style Date Picker
+## Performance Tips
 
-CyberDate sử dụng iOS-style wheel picker thay vì Material DatePicker mặc định:
+1. **Reuse Controller**: Tạo một lần, reuse nhiều nơi
+2. **Date Normalization**: Chỉ lưu date part, bỏ time
+3. **Validation Cache**: Cache validation results nếu phức tạp
+4. **Format Once**: Tạo DateFormat một lần, reuse
+5. **Dispose**: Always dispose controllers
 
-- Giao diện đẹp, mượt mà
-- Dễ sử dụng hơn trên mobile
-- Tùy chỉnh ngôn ngữ (Vietnamese)
-- Hỗ trợ min/max date tự động
+---
 
-### 2. Smart Validation
+## Version History
 
-- Auto-validation theo min/max date
-- Custom validator support
-- Error display tích hợp
-- Required field marking (*)
+### 1.0.0
+- Initial release
+- Internal controller
+- Two-way binding
+- Null value handling
+- iOS-style picker
+- Custom format support
+- Date range validation
 
-### 3. Flexible Formatting
+---
 
-- Support DateFormat từ intl package
-- Multiple format patterns
-- Vietnamese month names
-- Custom formatters
+## License
 
-Tất cả đều **tự động hoạt động** với binding pattern!
+MIT License - CyberFramework
