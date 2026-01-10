@@ -1,12 +1,20 @@
 import 'package:flutter/material.dart';
 
+// ============================================================================
+// ENUMS
+// ============================================================================
+
 enum PopupPosition { top, center, bottom, fullScreen }
 
 enum PopupAnimation { slide, fade, scale, slideAndFade, none }
 
+// ============================================================================
+// ✅ OPTIMIZED: CyberPopup - Performance & Memory Optimized
+// ============================================================================
+
 class CyberPopup {
   final BuildContext context;
-  final Widget child; // Widget tùy chỉnh hoàn toàn
+  final Widget child;
   final PopupPosition position;
   final PopupAnimation animation;
   final bool barrierDismissible;
@@ -22,6 +30,37 @@ class CyberPopup {
   final Function()? onShow;
   final Duration transitionDuration;
   final bool isScrollControlled;
+
+  // ✅ OPTIMIZED: Static const default values
+  static const EdgeInsets _defaultMargin = EdgeInsets.symmetric(horizontal: 20);
+  static const EdgeInsets _defaultBottomPadding = EdgeInsets.all(20);
+  static const BorderRadius _defaultBorderRadius = BorderRadius.all(
+    Radius.circular(12),
+  );
+  static const BorderRadius _defaultBottomSheetRadius = BorderRadius.vertical(
+    top: Radius.circular(20),
+  );
+  static const BoxShadow _defaultBoxShadow = BoxShadow(
+    color: Color(0x33000000), // ✅ Const color instead of withValues
+    blurRadius: 10,
+    offset: Offset(0, 4),
+  );
+
+  // ✅ OPTIMIZED: Cached values (initialized in constructor)
+  late final Alignment _alignment;
+  late final BoxDecoration _containerDecoration;
+  late final BoxDecoration _bottomSheetDecoration;
+  late final Widget _cachedDialogContent;
+  late final Widget _cachedBottomSheetContent;
+  late final Widget _cachedFullScreenContent;
+  late final Offset _slideBegin;
+
+  // ✅ OPTIMIZED: Animation caching
+  Animation<double>? _scaleAnimation;
+  Animation<Offset>? _slideAnimation;
+  CurvedAnimation? _curvedAnimation;
+  CurvedAnimation? _slideCurvedAnimation;
+  bool _animationsInitialized = false;
 
   CyberPopup({
     required this.context,
@@ -41,9 +80,74 @@ class CyberPopup {
     this.onShow,
     this.transitionDuration = const Duration(milliseconds: 100),
     this.isScrollControlled = true,
-  });
+  }) {
+    // ✅ Initialize all cached values in constructor
+    _initializeCachedValues();
+  }
 
-  // Show với kết quả trả về
+  /// ✅ OPTIMIZED: Initialize all cached values once
+  void _initializeCachedValues() {
+    // Cache alignment
+    _alignment = _calculateAlignment();
+
+    // Cache slide begin offset
+    _slideBegin = _calculateSlideBegin();
+
+    // Cache container decoration
+    _containerDecoration = BoxDecoration(
+      color: backgroundColor ?? Colors.transparent,
+      borderRadius: borderRadius ?? _defaultBorderRadius,
+      boxShadow: boxShadow != null
+          ? [boxShadow!]
+          : backgroundColor != null && backgroundColor != Colors.transparent
+          ? [_defaultBoxShadow]
+          : null,
+    );
+
+    // Cache bottom sheet decoration
+    _bottomSheetDecoration = BoxDecoration(
+      color: backgroundColor ?? Colors.white,
+      borderRadius: borderRadius ?? _defaultBottomSheetRadius,
+      boxShadow: boxShadow != null ? [boxShadow!] : null,
+    );
+
+    // ✅ Pre-build content widgets
+    _cachedDialogContent = _buildContent();
+    _cachedBottomSheetContent = _buildBottomSheetContent();
+    _cachedFullScreenContent = _buildFullScreenContent();
+  }
+
+  /// ✅ Calculate alignment once
+  Alignment _calculateAlignment() {
+    switch (position) {
+      case PopupPosition.top:
+        return Alignment.topCenter;
+      case PopupPosition.center:
+        return Alignment.center;
+      case PopupPosition.bottom:
+        return Alignment.bottomCenter;
+      case PopupPosition.fullScreen:
+        return Alignment.center;
+    }
+  }
+
+  /// ✅ Calculate slide begin offset once
+  Offset _calculateSlideBegin() {
+    switch (position) {
+      case PopupPosition.top:
+        return const Offset(0, -1);
+      case PopupPosition.bottom:
+        return const Offset(0, 1);
+      default:
+        return const Offset(0, 0.3);
+    }
+  }
+
+  // ========================================================================
+  // PUBLIC METHODS
+  // ========================================================================
+
+  /// Show popup với kết quả trả về
   Future<T?> show<T>() async {
     onShow?.call();
 
@@ -56,17 +160,26 @@ class CyberPopup {
     }
   }
 
+  /// Show as bottom sheet
   Future<T?> showBotton<T>() async {
     onShow?.call();
-
     return await _showAsBottomSheet<T>();
   }
 
+  /// Show as full screen
   Future<T?> showFullScreen<T>() async {
     onShow?.call();
-
     return await _showAsFullScreen<T>();
   }
+
+  /// Helper method để đóng popup từ bên trong
+  static void close<T>(BuildContext context, [T? result]) {
+    Navigator.of(context).pop(result);
+  }
+
+  // ========================================================================
+  // ✅ OPTIMIZED: SHOW METHODS
+  // ========================================================================
 
   Future<T?> _showAsDialog<T>() async {
     final result = await showGeneralDialog<T>(
@@ -76,7 +189,7 @@ class CyberPopup {
       barrierColor: barrierColor ?? Colors.black54,
       transitionDuration: transitionDuration,
       pageBuilder: (context, animation, secondaryAnimation) {
-        return _buildContent();
+        return _cachedDialogContent; // ✅ Use cached content
       },
       transitionBuilder: (context, animation, secondaryAnimation, child) {
         return _buildTransition(animation, child);
@@ -90,16 +203,12 @@ class CyberPopup {
   Future<T?> _showAsBottomSheet<T>() async {
     final result = await showModalBottomSheet<T>(
       context: context,
-      isScrollControlled: true,
+      isScrollControlled: isScrollControlled,
       backgroundColor: Colors.transparent,
       barrierColor: barrierColor,
       isDismissible: barrierDismissible,
-      //builder: (context) => _buildBottomSheetContent(),
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom, // ✅ Important
-        ),
-        child: _buildBottomSheetContent(),
+      builder: (context) => _BottomSheetWrapper(
+        child: _cachedBottomSheetContent, // ✅ Use cached content
       ),
     );
 
@@ -114,7 +223,7 @@ class CyberPopup {
         barrierDismissible: barrierDismissible,
         barrierColor: barrierColor ?? Colors.black54,
         pageBuilder: (context, animation, secondaryAnimation) {
-          return _buildFullScreenContent();
+          return _cachedFullScreenContent; // ✅ Use cached content
         },
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(opacity: animation, child: child);
@@ -126,29 +235,21 @@ class CyberPopup {
     return result;
   }
 
+  // ========================================================================
+  // ✅ OPTIMIZED: BUILD METHODS (Cached)
+  // ========================================================================
+
   Widget _buildContent() {
     return SafeArea(
       child: Align(
-        alignment: _getAlignment(),
+        alignment: _alignment, // ✅ Cached alignment
         child: Container(
           width: width,
           height: height,
-          margin: margin ?? const EdgeInsets.symmetric(horizontal: 20),
+          margin: margin ?? _defaultMargin,
           padding: padding,
-          decoration: BoxDecoration(
-            color: backgroundColor ?? Colors.transparent,
-            borderRadius: borderRadius ?? BorderRadius.circular(12),
-            boxShadow: boxShadow != null
-                ? [boxShadow!]
-                : [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.2),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-          ),
-          child: Material(color: Colors.transparent, child: child),
+          decoration: _containerDecoration, // ✅ Cached decoration
+          child: child, // ✅ No Material wrapper
         ),
       ),
     );
@@ -158,15 +259,9 @@ class CyberPopup {
     return Container(
       width: width ?? double.infinity,
       height: height,
-      padding: padding ?? const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: backgroundColor ?? Colors.white,
-        borderRadius:
-            borderRadius ??
-            const BorderRadius.vertical(top: Radius.circular(20)),
-        boxShadow: boxShadow != null ? [boxShadow!] : null,
-      ),
-      child: Material(color: Colors.transparent, child: child),
+      padding: padding ?? _defaultBottomPadding,
+      decoration: _bottomSheetDecoration, // ✅ Cached decoration
+      child: child, // ✅ No Material wrapper
     );
   }
 
@@ -177,77 +272,95 @@ class CyberPopup {
     );
   }
 
-  Alignment _getAlignment() {
-    switch (position) {
-      case PopupPosition.top:
-        return Alignment.topCenter;
-      case PopupPosition.center:
-        return Alignment.center;
-      case PopupPosition.bottom:
-        return Alignment.bottomCenter;
-      case PopupPosition.fullScreen:
-        return Alignment.center;
-    }
+  // ========================================================================
+  // ✅ OPTIMIZED: ANIMATION METHODS
+  // ========================================================================
+
+  /// ✅ OPTIMIZED: Initialize animations ONCE
+  void _initializeAnimations(Animation<double> animation) {
+    if (_animationsInitialized) return;
+    _animationsInitialized = true;
+
+    // Create curved animation for scale
+    _curvedAnimation = CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeOutCubic,
+    );
+
+    // Create scale animation
+    _scaleAnimation = Tween<double>(
+      begin: 0.95,
+      end: 1.0,
+    ).animate(_curvedAnimation!);
+
+    // Create curved animation for slide
+    _slideCurvedAnimation = CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeOut,
+    );
+
+    // Create slide animation
+    _slideAnimation = Tween<Offset>(
+      begin: _slideBegin, // ✅ Use cached offset
+      end: Offset.zero,
+    ).animate(_slideCurvedAnimation!);
   }
 
+  /// ✅ OPTIMIZED: Build transition using cached animations
   Widget _buildTransition(Animation<double> animation, Widget child) {
+    // ✅ Initialize animations once
+    _initializeAnimations(animation);
+
     switch (this.animation) {
       case PopupAnimation.slide:
-        return _slideTransition(animation, child);
+        return SlideTransition(
+          position: _slideAnimation!, // ✅ Cached animation
+          child: child,
+        );
+
       case PopupAnimation.fade:
         return FadeTransition(opacity: animation, child: child);
+
       case PopupAnimation.scale:
         return ScaleTransition(
-          scale:
-              Tween<double>(
-                begin: 0.95, // ✅ Tăng từ 0.8 lên 0.95 để giảm hiệu ứng nháy
-                end: 1.0,
-              ).animate(
-                CurvedAnimation(
-                  parent: animation,
-                  curve: Curves.easeOutCubic, // ✅ Smooth hơn
-                ),
-              ),
-          child: FadeTransition(
-            // ✅ Thêm fade để mượt hơn
-            opacity: animation,
-            child: child,
-          ),
+          scale: _scaleAnimation!, // ✅ Cached animation
+          child: FadeTransition(opacity: animation, child: child),
         );
+
       case PopupAnimation.slideAndFade:
         return FadeTransition(
           opacity: animation,
-          child: _slideTransition(animation, child),
+          child: SlideTransition(
+            position: _slideAnimation!, // ✅ Cached animation
+            child: child,
+          ),
         );
+
       case PopupAnimation.none:
         return child;
     }
   }
+}
 
-  Widget _slideTransition(Animation<double> animation, Widget child) {
-    Offset begin;
-    switch (position) {
-      case PopupPosition.top:
-        begin = const Offset(0, -1);
-        break;
-      case PopupPosition.bottom:
-        begin = const Offset(0, 1);
-        break;
-      default:
-        begin = const Offset(0, 0.3);
-    }
+// ============================================================================
+// ✅ OPTIMIZED: Bottom Sheet Keyboard Wrapper
+// ============================================================================
 
-    return SlideTransition(
-      position: Tween<Offset>(
-        begin: begin,
-        end: Offset.zero,
-      ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
+/// Wrapper for bottom sheet with smooth keyboard animation
+class _BottomSheetWrapper extends StatelessWidget {
+  final Widget child;
+
+  const _BottomSheetWrapper({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
+    return AnimatedPadding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      duration: const Duration(milliseconds: 100),
+      curve: Curves.easeOut,
       child: child,
     );
-  }
-
-  // Helper method để đóng popup từ bên trong
-  static void close<T>(BuildContext context, [T? result]) {
-    Navigator.of(context).pop(result);
   }
 }
