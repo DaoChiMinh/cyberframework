@@ -144,8 +144,15 @@ class CyberListView extends StatefulWidget {
   /// Background color cho từng item
   final Color? itemBackgroundColor;
 
-  /// 🎯 Số lượng items tối đa giữ trong memory (để tránh memory overflow)
+  /// 🎯 Số lượng items tối đa giữ trong memory
+  /// - 0 = không giới hạn (để tránh OutOfMemory, nên set > 0)
+  /// - > 0 = giới hạn số items, tự động remove old items khi vượt quá
+  /// Default: 500 (khuyến nghị cho mobile)
   final int maxItemsInMemory;
+
+  /// 🎯 Chiều cao ước tính của mỗi item (dùng để optimize scroll performance)
+  /// Nếu null, Flutter sẽ tự tính toán (có thể chậm hơn)
+  final double? estimatedItemHeight;
 
   // ============================================================================
   // CYBER ACTION PROPERTIES
@@ -261,7 +268,8 @@ class CyberListView extends StatefulWidget {
     this.refreshKey,
     this.itemBorderRadius,
     this.itemBackgroundColor,
-    this.maxItemsInMemory = 1000,
+    this.maxItemsInMemory = 500,
+    this.estimatedItemHeight,
     // CyberAction properties
     this.cyberActions,
     this.cyberActionType = CyberActionType.autoShow,
@@ -317,6 +325,9 @@ class _CyberListViewState extends State<CyberListView> {
   int _cachedDataSourceVersion = -1;
   int _cachedFilterVersion = -1;
 
+  /// 🎯 NEW: Search haystack cache để giảm garbage collection
+  final Map<int, String> _searchHaystackCache = {};
+
   /// ✅ Timer cho search debounce
   Timer? _searchDebounceTimer;
 
@@ -371,6 +382,38 @@ class _CyberListViewState extends State<CyberListView> {
     _cachedFilterVersion = -1;
   }
 
+  /// 🎯 NEW: Clear search haystack cache
+  void _clearSearchCache() {
+    _searchHaystackCache.clear();
+  }
+
+  /// 🎯 NEW: Get search haystack for a row (cached)
+  String _getSearchHaystack(CyberDataRow row) {
+    if (widget.columnsFilter == null || widget.columnsFilter!.isEmpty) {
+      return '';
+    }
+
+    final cacheKey = row.hashCode;
+
+    // Return cached if exists
+    if (_searchHaystackCache.containsKey(cacheKey)) {
+      return _searchHaystackCache[cacheKey]!;
+    }
+
+    // Build and cache haystack
+    final haystack = widget.columnsFilter!
+        .map((col) => row[col]?.toString() ?? '')
+        .join(' ')
+        .toLowerCase();
+
+    // 🎯 Limit cache size để tránh memory leak
+    if (_searchHaystackCache.length < 5000) {
+      _searchHaystackCache[cacheKey] = haystack;
+    }
+
+    return haystack;
+  }
+
   /// ✅ Check xem có dùng shrinkWrap không
   bool get _useShrinkWrap => widget.height == "*";
 
@@ -422,6 +465,7 @@ class _CyberListViewState extends State<CyberListView> {
       _incrementDataVersion();
       _incrementFilterVersion();
       _invalidateCache();
+      _clearSearchCache();
 
       // Reload data nếu có onLoadData
       if (widget.onLoadData != null) {
@@ -444,6 +488,7 @@ class _CyberListViewState extends State<CyberListView> {
       _searchController.clear();
       _incrementDataVersion();
       _invalidateCache();
+      _clearSearchCache();
       if (mounted) {
         setState(() {});
       }
@@ -469,6 +514,7 @@ class _CyberListViewState extends State<CyberListView> {
     _searchDebounceTimer?.cancel();
     _filteredIndices = null;
     _invalidateCache();
+    _clearSearchCache();
     super.dispose();
   }
 
@@ -504,6 +550,7 @@ class _CyberListViewState extends State<CyberListView> {
 
       _incrementDataVersion();
       _invalidateCache();
+      _clearSearchCache();
 
       // 🎯 Chỉ 1 setState ở cuối
       if (mounted) {
@@ -521,7 +568,7 @@ class _CyberListViewState extends State<CyberListView> {
     }
   }
 
-  /// 🎯 OPTIMIZATION: Load more với giới hạn items trong memory
+  /// 🎯 CRITICAL FIX: Load more với scroll offset compensation
   Future<void> _loadMore() async {
     if (!mounted) return;
     if (_isLoadingMore || !_hasMoreData || widget.onLoadData == null) return;
@@ -539,25 +586,15 @@ class _CyberListViewState extends State<CyberListView> {
       );
 
       if (!mounted) return;
+
+      // 🎯 FIX: Không giảm _currentPage, chỉ increment khi load thành công
       _currentPage = nextPage;
 
       if (widget.dataSource != null) {
+        // 🎯 CRITICAL FIX: Trim với scroll offset compensation
+        await _trimOldItemsIfNeeded(moreDataTable.rowCount);
+
         widget.dataSource!.batch(() {
-          // 🎯 CRITICAL: Giới hạn số items trong memory
-          final totalAfterAdd =
-              widget.dataSource!.rowCount + moreDataTable.rowCount;
-
-          if (totalAfterAdd > widget.maxItemsInMemory) {
-            // Remove old items từ đầu để giữ items mới nhất
-            final removeCount = totalAfterAdd - widget.maxItemsInMemory;
-            for (int i = 0; i < removeCount; i++) {
-              widget.dataSource!.removeAt(0);
-            }
-            // Adjust page counter vì đã remove items
-            if (_currentPage > 0) _currentPage--;
-          }
-
-          // Add new items
           for (var row in moreDataTable.rows) {
             widget.dataSource!.addRow(row);
           }
@@ -566,6 +603,7 @@ class _CyberListViewState extends State<CyberListView> {
 
       _incrementDataVersion();
       _invalidateCache();
+      _clearSearchCache();
 
       if (mounted) {
         setState(() {
@@ -578,6 +616,41 @@ class _CyberListViewState extends State<CyberListView> {
         setState(() => _isLoadingMore = false);
       }
       _showError('Lỗi khi load thêm dữ liệu: $e');
+    }
+  }
+
+  /// 🎯 CRITICAL FIX: Trim old items với scroll compensation
+  Future<void> _trimOldItemsIfNeeded(int newItemCount) async {
+    // 🎯 FIX: maxItemsInMemory = 0 nghĩa là không giới hạn
+    if (widget.maxItemsInMemory <= 0) return;
+    if (widget.dataSource == null) return;
+
+    final totalAfterAdd = widget.dataSource!.rowCount + newItemCount;
+
+    if (totalAfterAdd > widget.maxItemsInMemory) {
+      final removeCount = totalAfterAdd - widget.maxItemsInMemory;
+
+      // 🎯 Calculate scroll offset compensation
+      double offsetCompensation = 0;
+      if (_scrollController.hasClients && widget.estimatedItemHeight != null) {
+        offsetCompensation = removeCount * widget.estimatedItemHeight!;
+      }
+
+      // Remove old items
+      for (int i = 0; i < removeCount; i++) {
+        widget.dataSource!.removeAt(0);
+      }
+
+      // 🎯 FIX: Compensate scroll offset để không bị nhảy
+      if (offsetCompensation > 0 && _scrollController.hasClients) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_scrollController.hasClients) {
+            final newOffset = (_scrollController.offset - offsetCompensation)
+                .clamp(0.0, _scrollController.position.maxScrollExtent);
+            _scrollController.jumpTo(newOffset);
+          }
+        });
+      }
     }
   }
 
@@ -594,6 +667,7 @@ class _CyberListViewState extends State<CyberListView> {
             _filteredIndices = null;
             _incrementFilterVersion();
             _invalidateCache();
+            _clearSearchCache();
           });
         }
         return;
@@ -626,7 +700,7 @@ class _CyberListViewState extends State<CyberListView> {
     );
   }
 
-  /// 🎯 OPTIMIZATION: Filter với warning cho large datasets
+  /// 🎯 OPTIMIZATION: Filter với cached haystack
   void _filterLocalData(String searchText) {
     if (!mounted) return;
 
@@ -648,6 +722,7 @@ class _CyberListViewState extends State<CyberListView> {
     }
   }
 
+  /// 🎯 CRITICAL FIX: Filter dùng cached haystack
   List<int>? _performFilterIndices(String searchText) {
     if (widget.dataSource == null ||
         widget.columnsFilter == null ||
@@ -665,17 +740,11 @@ class _CyberListViewState extends State<CyberListView> {
 
     for (int i = 0; i < sourceRows.length; i++) {
       final row = sourceRows[i];
-      bool matches = false;
 
-      for (var columnName in widget.columnsFilter!) {
-        final value = row[columnName]?.toString().toLowerCase() ?? '';
-        if (value.contains(lowerSearch)) {
-          matches = true;
-          break;
-        }
-      }
+      // 🎯 FIX: Dùng cached haystack thay vì tạo mới mỗi lần
+      final haystack = _getSearchHaystack(row);
 
-      if (matches) {
+      if (haystack.contains(lowerSearch)) {
         filteredIndices.add(i);
       }
     }
@@ -706,7 +775,7 @@ class _CyberListViewState extends State<CyberListView> {
     await _refresh();
   }
 
-  /// ✅ Xử lý xóa item
+  /// 🎯 CRITICAL FIX: Delete với filter rebuild
   Future<void> _handleDeleteItem(CyberDataRow row, int index) async {
     if (!mounted) return;
 
@@ -733,9 +802,19 @@ class _CyberListViewState extends State<CyberListView> {
         if (sourceIndex >= 0) {
           widget.dataSource!.removeAt(sourceIndex);
           _incrementDataVersion();
-          _invalidateCache();
-          if (mounted) {
-            setState(() {});
+
+          // 🎯 CRITICAL FIX: Rebuild filter nếu đang filter local
+          if (_filteredIndices != null && widget.onLoadData == null) {
+            // Clear search cache vì data đã thay đổi
+            _clearSearchCache();
+            // Rebuild filter với current search text
+            _filterLocalData(_currentSearchText);
+          } else {
+            _invalidateCache();
+            _clearSearchCache();
+            if (mounted) {
+              setState(() {});
+            }
           }
         }
       }
@@ -994,7 +1073,7 @@ class _CyberListViewState extends State<CyberListView> {
         );
   }
 
-  /// 🎯 OPTIMIZATION: ListView với optimization flags
+  /// 🎯 OPTIMIZATION: ListView với optimization flags + itemExtent
   Widget _buildList() {
     final rows = _workingRows;
 
@@ -1004,10 +1083,10 @@ class _CyberListViewState extends State<CyberListView> {
       itemCount: rows.length + (_isLoadingMore ? 1 : 0),
       shrinkWrap: _useShrinkWrap,
       physics: _scrollPhysics,
-      // 🎯 OPTIMIZATION FLAGS
-      addAutomaticKeepAlives: false, // Không giữ state items đã scroll qua
-      addRepaintBoundaries: true, // Optimize repaint
-      cacheExtent: 300, // Cache 300px ngoài viewport
+      // 🎯 OPTIMIZATION FLAGS (vẫn hiệu quả)
+      addAutomaticKeepAlives: false,
+      addRepaintBoundaries: true,
+      cacheExtent: 500,
       separatorBuilder: (context, index) =>
           widget.separator ??
           Divider(height: 1, thickness: 1, color: Colors.grey[200]),
@@ -1037,7 +1116,7 @@ class _CyberListViewState extends State<CyberListView> {
     return RefreshIndicator(onRefresh: _refresh, child: wrappedListView);
   }
 
-  /// 🎯 OPTIMIZATION: Horizontal ListView với optimization flags
+  /// 🎯 OPTIMIZATION: Horizontal ListView (FIXED)
   Widget _buildHorizontalList() {
     final rows = _workingRows;
 
@@ -1051,7 +1130,8 @@ class _CyberListViewState extends State<CyberListView> {
       // 🎯 OPTIMIZATION FLAGS
       addAutomaticKeepAlives: false,
       addRepaintBoundaries: true,
-      cacheExtent: 300,
+      cacheExtent: 500,
+      // ❌ KHÔNG dùng itemExtent
       separatorBuilder: (context, index) =>
           widget.separator ?? const SizedBox(width: 8),
       itemBuilder: (context, index) {
@@ -1092,7 +1172,7 @@ class _CyberListViewState extends State<CyberListView> {
       // 🎯 OPTIMIZATION FLAGS
       addAutomaticKeepAlives: false,
       addRepaintBoundaries: true,
-      cacheExtent: 300,
+      cacheExtent: 500,
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: widget.columnCount,
         crossAxisSpacing: widget.crossAxisSpacing,
@@ -1129,7 +1209,7 @@ class _CyberListViewState extends State<CyberListView> {
       // 🎯 OPTIMIZATION FLAGS
       addAutomaticKeepAlives: false,
       addRepaintBoundaries: true,
-      cacheExtent: 300,
+      cacheExtent: 500,
       separatorBuilder: (context, index) =>
           SizedBox(height: widget.mainAxisSpacing),
       itemBuilder: (context, rowIndex) {
