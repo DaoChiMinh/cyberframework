@@ -51,15 +51,14 @@ abstract class CyberBaseEdit extends CyberForm {
 
   @override
   Future<void> SaveData() async {}
+  String getXML(List<CyberDataTable> dts, List<String> names) {
+    return ToXml(dts, names);
+  }
 
-  Future<bool> buildSaveXml(
-    List<CyberDataTable> dts,
-    List<String> names,
-  ) async {
-    String strXml = ToXml(dts, names);
+  Future<bool> buildSaveXml(String Cp_Name, String StrParameter) async {
     ReturnData returnData = await context.callApi(
-      functionName: "${cp_name}_Save",
-      parameter: strXml,
+      functionName: Cp_Name,
+      parameter: StrParameter,
     );
 
     if (!returnData.isValid()) return false;
