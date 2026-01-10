@@ -912,5 +912,11 @@ abstract class CyberForm {
     }
   }
 
+  void close({dynamic result}) {
+    if (!_isDisposed && _context.mounted) {
+      Navigator.pop(_context, result);
+    }
+  }
+
   bool get isDisposed => _isDisposed;
 }
