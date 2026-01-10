@@ -380,3 +380,109 @@ String _formatDatePattern(DateTime date, String pattern) {
 
   return result;
 }
+
+// Thêm vào file lib/Module/exten.dart
+
+/// ✅ Convert list CyberDataTable to XML with custom table names
+///
+/// Usage:
+/// ```dart
+/// String xml = ToXml([tb1, tb2], ["TB1", "TB2"]);
+///
+/// // With include/exclude columns
+/// String xml = ToXml(
+///   [tb1, tb2],
+///   ["TB1", "TB2"],
+///   tableIncludeColumns: {
+///     "TB1": ["id", "name", "email"],
+///     "TB2": ["product_id", "quantity"]
+///   }
+/// );
+///
+/// // Or exclude columns
+/// String xml = ToXml(
+///   [tb1, tb2],
+///   ["TB1", "TB2"],
+///   tableExcludeColumns: {
+///     "TB1": ["created_date", "modified_date"],
+///   }
+/// );
+/// ```
+String ToXml(
+  List<CyberDataTable> tables,
+  List<String> tableNames, {
+  Map<String, List<String>>? tableIncludeColumns,
+  Map<String, List<String>>? tableExcludeColumns,
+}) {
+  // Validate input
+  if (tables.isEmpty) {
+    return '';
+  }
+
+  if (tables.length != tableNames.length) {
+    throw ArgumentError(
+      'Tables and tableNames must have the same length. '
+      'Got ${tables.length} tables and ${tableNames.length} names.',
+    );
+  }
+
+  final StringBuffer xml = StringBuffer();
+
+  // Process each table
+  for (int i = 0; i < tables.length; i++) {
+    final table = tables[i];
+    final tableName = tableNames[i];
+
+    // Get include/exclude columns for this table
+    List<String>? includeColumns = tableIncludeColumns?[tableName];
+    List<String>? excludeColumns = tableExcludeColumns?[tableName];
+
+    // Generate XML for this table with custom name
+    xml.write(
+      table.toXml(
+        tableNameOverride: tableName,
+        includeColumns: includeColumns,
+        excludeColumns: excludeColumns,
+      ),
+    );
+  }
+
+  return xml.toString();
+}
+
+/// ✅ ALIAS: Shorter name for convenience
+String tablesToXml(
+  List<CyberDataTable> tables,
+  List<String> tableNames, {
+  Map<String, List<String>>? tableIncludeColumns,
+  Map<String, List<String>>? tableExcludeColumns,
+}) {
+  return ToXml(
+    tables,
+    tableNames,
+    tableIncludeColumns: tableIncludeColumns,
+    tableExcludeColumns: tableExcludeColumns,
+  );
+}
+
+/// ✅ EXTENSION: Alternative syntax using extension method
+extension CyberDataTableListExtension on List<CyberDataTable> {
+  /// Convert list of tables to XML with custom names
+  ///
+  /// Usage:
+  /// ```dart
+  /// String xml = [tb1, tb2].toXml(["TB1", "TB2"]);
+  /// ```
+  String toXml(
+    List<String> tableNames, {
+    Map<String, List<String>>? tableIncludeColumns,
+    Map<String, List<String>>? tableExcludeColumns,
+  }) {
+    return ToXml(
+      this,
+      tableNames,
+      tableIncludeColumns: tableIncludeColumns,
+      tableExcludeColumns: tableExcludeColumns,
+    );
+  }
+}

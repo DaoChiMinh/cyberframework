@@ -56,7 +56,7 @@ abstract class CyberBaseEdit extends CyberForm {
     List<CyberDataTable> dts,
     List<String> names,
   ) async {
-    String strXml = "";
+    String strXml = ToXml(dts, names);
     ReturnData returnData = await context.callApi(
       functionName: "${cp_name}_Save",
       parameter: strXml,
