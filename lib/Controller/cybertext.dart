@@ -53,7 +53,7 @@ class CyberText extends StatefulWidget {
   /// Số dòng tối đa
   final int? maxLines;
 
-  /// Độ dài tối đa
+  /// Số độ dài tối đa
   final int? maxLength;
 
   /// Có cho phép nhập hay không
@@ -151,27 +151,34 @@ class _CyberTextState extends State<CyberText> {
   late TextEditingController _textController;
   late FocusNode _focusNode;
 
-  /// Internal controller - TỰ ĐỘNG tạo nếu không có external controller
+  /// Internal controller - CHỈ tạo khi cần (lazy initialization)
   late CyberTextController _internalController;
 
   /// Controller thực sự đang dùng (internal hoặc external)
   CyberTextController get _activeController =>
       widget.controller ?? _internalController;
 
-  /// Binding hiện tại (nếu đang dùng binding mode)
-  CyberBindingExpression? _currentBinding;
-
   bool _obscure = true;
 
   // === FLAG CHỐNG LOOP ===
   bool _isInternalUpdate = false;
 
+  // === CACHE STATE ĐỂ TỐI ƯU setState() ===
+  bool? _lastIsValid;
+  String? _lastHelperText;
+  bool? _lastEnabled;
+
   @override
   void initState() {
     super.initState();
 
-    // === TẠO INTERNAL CONTROLLER ===
-    _internalController = _createInternalController();
+    // === TẠO INTERNAL CONTROLLER (chỉ khi cần) ===
+    if (widget.controller == null) {
+      _internalController = _createInternalController();
+      _internalController.addListener(_onControllerChanged);
+    } else {
+      widget.controller!.addListener(_onControllerChanged);
+    }
 
     // === TẠO TEXT CONTROLLER ===
     final initialValue = _getInitialValue();
@@ -181,14 +188,11 @@ class _CyberTextState extends State<CyberText> {
     _focusNode = FocusNode();
     _focusNode.addListener(_onFocusChanged);
 
-    // === LẮNG NGHE CONTROLLER ===
-    _activeController.addListener(_onControllerChanged);
-
     // === LẮNG NGHE TEXT INPUT ===
     _textController.addListener(_onTextChanged);
 
-    // === SETUP BINDING (nếu có) ===
-    _setupBindingListener();
+    // ✅ FIX: BỎ _setupBindingListener() - controller đã handle binding
+    // Controller withBinding đã có listener vào DataRow rồi
   }
 
   @override
@@ -219,11 +223,7 @@ class _CyberTextState extends State<CyberText> {
 
     // === XỬ LÝ THAY ĐỔI TEXT/BINDING ===
     if (widget.text != oldWidget.text) {
-      // Cleanup old binding listener
-      _cleanupBindingListener();
-
-      // Setup new binding listener
-      _setupBindingListener();
+      // ✅ FIX: BỎ cleanup/setup binding listener - không cần nữa
 
       // Recreate internal controller với binding mới
       if (widget.controller == null) {
@@ -265,13 +265,12 @@ class _CyberTextState extends State<CyberText> {
     _focusNode.removeListener(_onFocusChanged);
     _focusNode.dispose();
 
-    // Cleanup binding listener
-    _cleanupBindingListener();
+    // ✅ FIX: BỎ cleanup binding listener - không cần nữa
 
-    // Dispose internal controller nếu đang dùng
-    if (widget.controller == null) {
-      _internalController.dispose();
-    }
+    // ✅ FIX: LUÔN dispose internal controller vì State tạo ra nó
+    // Ngay cả khi đang dùng external controller, internal controller vẫn được tạo
+    // trong initState nên phải dispose
+    _internalController.dispose();
 
     super.dispose();
   }
@@ -304,36 +303,8 @@ class _CyberTextState extends State<CyberText> {
     );
   }
 
-  /// Setup listener cho binding (nếu có)
-  void _setupBindingListener() {
-    if (_isBindingExpressionMode()) {
-      _currentBinding = widget.text as CyberBindingExpression;
-      // Lắng nghe thay đổi từ DataRow
-      _currentBinding!.row.addListener(_onBindingChanged);
-    }
-  }
-
-  /// Cleanup binding listener
-  void _cleanupBindingListener() {
-    if (_currentBinding != null) {
-      _currentBinding!.row.removeListener(_onBindingChanged);
-      _currentBinding = null;
-    }
-  }
-
-  /// Callback khi binding value thay đổi (từ code khác)
-  void _onBindingChanged() {
-    if (!mounted || _isInternalUpdate) return;
-
-    // Sync từ binding → controller → text
-    final newValue = _currentBinding!.value?.toString() ?? '';
-
-    if (_activeController.value != newValue) {
-      _isInternalUpdate = true;
-      _activeController.setValue(newValue);
-      _isInternalUpdate = false;
-    }
-  }
+  // ✅ FIX: XÓA _setupBindingListener(), _cleanupBindingListener(), _onBindingChanged()
+  // Controller đã handle binding, không cần widget duplicate listener nữa
 
   /// Lấy giá trị ban đầu cho TextController
   String _getInitialValue() {
@@ -374,20 +345,6 @@ class _CyberTextState extends State<CyberText> {
     return widget.label;
   }
 
-  /// Parse icon code từ hex string sang IconData
-  // IconData? _parseIconCode(String? iconCode) {
-  //   if (iconCode == null || iconCode.isEmpty) return null;
-
-  //   try {
-  //     // Parse hex string sang int (VD: "e853" -> 0xe853)
-  //     final codePoint = int.parse(iconCode, radix: 16);
-  //     return IconData(codePoint, fontFamily: 'MaterialIcons');
-  //   } catch (e) {
-  //     debugPrint('CyberText: Invalid icon code "$iconCode"');
-  //     return null;
-  //   }
-  // }
-
   // === SYNC CONTROLLER ↔ TEXT CONTROLLER (ANTI-LOOP) ===
 
   /// Controller thay đổi → Cập nhật TextController
@@ -397,18 +354,33 @@ class _CyberTextState extends State<CyberText> {
     _syncFromController();
   }
 
+  /// ✅ FIX: CHỈ setState() khi thực sự có thay đổi visual
   void _syncFromController() {
-    final newValue = _activeController.displayValue ?? '';
+    final c = _activeController;
+    final newValue = c.displayValue ?? '';
 
-    // ✅ CRITICAL: Check trước khi set
-    // Nếu không check → cursor nhảy vị trí, lag nhẹ
+    // Sync text nếu khác
     if (_textController.text != newValue) {
       _isInternalUpdate = true;
       _textController.text = newValue;
       _isInternalUpdate = false;
     }
 
-    setState(() {}); // Rebuild cho validation indicator
+    // ✅ CHỈ setState khi có thay đổi visual properties
+    final needRebuild =
+        _lastIsValid != c.isValid ||
+        _lastHelperText != c.helperText ||
+        _lastEnabled != c.enabled;
+
+    if (needRebuild) {
+      _lastIsValid = c.isValid;
+      _lastHelperText = c.helperText;
+      _lastEnabled = c.enabled;
+
+      if (mounted) {
+        setState(() {});
+      }
+    }
   }
 
   /// TextController thay đổi → Cập nhật Controller (và Binding nếu có)
@@ -430,8 +402,9 @@ class _CyberTextState extends State<CyberText> {
         _isInternalUpdate = false;
       }
 
-      // Nếu có binding, controller sẽ tự động update DataRow
-      // DataRow sẽ notify và trigger _onBindingChanged
+      // ✅ Controller sẽ tự động update DataRow (nếu có binding)
+      // DataRow notify → controller listener → _onControllerChanged
+      // KHÔNG CẦN widget listen DataRow trực tiếp nữa
     } else {
       // Static String mode: callback
       widget.onChanged?.call(text);
@@ -556,7 +529,7 @@ class _CyberTextState extends State<CyberText> {
     return InputDecoration(
       hintText: effectiveHint,
       hintStyle: TextStyle(
-        color: Colors.grey.shade500, // tương đương secondaryLabel
+        color: Colors.grey.shade500,
         fontSize: 15,
         fontWeight: FontWeight.w400,
       ),
@@ -582,7 +555,6 @@ class _CyberTextState extends State<CyberText> {
                 });
               },
             ),
-      // Áp dụng border nếu có borderSize > 0
       border: borderStyle ?? InputBorder.none,
       enabledBorder: borderStyle ?? InputBorder.none,
       focusedBorder: borderStyle ?? InputBorder.none,
