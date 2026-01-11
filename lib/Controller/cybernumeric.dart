@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:cyberframework/cyberframework.dart';
 
 /// CyberNumeric - Widget nhập liệu số với binding hỗ trợ
@@ -6,6 +7,12 @@ import 'package:cyberframework/cyberframework.dart';
 /// - Internal Controller tự động (không cần khai báo)
 /// - Hỗ trợ binding: text: dr.bind("field_name")
 /// - Two-way binding tự động
+///
+/// ✅ FIXED ISSUES:
+/// - Cursor jump bug khi gõ số
+/// - Double/triple listeners
+/// - Nested ListenableBuilder
+/// - Format optimization
 ///
 /// Ví dụ sử dụng:
 /// ```dart
@@ -130,9 +137,16 @@ class _CyberNumericState extends State<CyberNumeric> {
   CyberNumericController get _effectiveController =>
       widget.controller ?? _internalController!;
 
+  // ✅ Cache format configuration để tối ưu performance
+  late String _thousandsSeparator;
+  late int _decimalPlaces;
+
   @override
   void initState() {
     super.initState();
+
+    // ✅ Parse format config
+    _parseFormatConfig();
 
     // ✅ Tạo internal controller nếu không có external controller
     if (widget.controller == null) {
@@ -153,8 +167,8 @@ class _CyberNumericState extends State<CyberNumeric> {
     _parseVisibilityBinding();
     _updateControllerValue();
 
-    // Đăng ký listeners
-    _registerBindingListeners();
+    // ✅ CHỈ listen controller - KHÔNG listen binding trực tiếp
+    // Controller sẽ sync với binding thông qua _onTextChanged
     _effectiveController.addListener(_onControllerChanged);
 
     _focusNode.addListener(() {
@@ -169,9 +183,12 @@ class _CyberNumericState extends State<CyberNumeric> {
   void didUpdateWidget(CyberNumeric oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    bool bindingChanged = false;
-    bool visibilityBindingChanged = false;
     bool controllerChanged = widget.controller != oldWidget.controller;
+
+    // ✅ Update format config nếu format thay đổi
+    if (widget.format != oldWidget.format) {
+      _parseFormatConfig();
+    }
 
     // ✅ Xử lý controller thay đổi
     if (controllerChanged) {
@@ -195,31 +212,21 @@ class _CyberNumericState extends State<CyberNumeric> {
       _updateControllerValue();
     }
 
-    // ✅ Kiểm tra text binding đã thay đổi
+    // ✅ Kiểm tra binding đã thay đổi
     if (widget.text != oldWidget.text) {
-      _unregisterBindingListeners();
       _parseBinding();
-      bindingChanged = true;
-    }
-
-    // ✅ Kiểm tra visibility binding đã thay đổi
-    if (widget.isVisible != oldWidget.isVisible) {
-      if (!bindingChanged) {
-        _unregisterBindingListeners();
-      }
-      _parseVisibilityBinding();
-      visibilityBindingChanged = true;
-    }
-
-    // ✅ Đăng ký lại listeners nếu có thay đổi
-    if (bindingChanged || visibilityBindingChanged) {
-      _registerBindingListeners();
       if (!controllerChanged) {
         _updateControllerValue();
       }
     }
+
+    // ✅ Kiểm tra visibility binding đã thay đổi
+    if (widget.isVisible != oldWidget.isVisible) {
+      _parseVisibilityBinding();
+    }
+
     // ✅ Cập nhật giá trị nếu format thay đổi
-    else if (widget.format != oldWidget.format && !controllerChanged) {
+    if (widget.format != oldWidget.format && !controllerChanged) {
       _updateControllerValue();
     }
 
@@ -233,7 +240,6 @@ class _CyberNumericState extends State<CyberNumeric> {
 
   @override
   void dispose() {
-    _unregisterBindingListeners();
     _effectiveController.removeListener(_onControllerChanged);
     _internalController?.dispose();
     _textController.dispose();
@@ -242,28 +248,25 @@ class _CyberNumericState extends State<CyberNumeric> {
   }
 
   // ============================================================================
-  // BINDING MANAGEMENT
+  // FORMAT CONFIG
   // ============================================================================
 
-  /// ✅ Đăng ký listeners cho binding
-  void _registerBindingListeners() {
-    if (_boundRow != null) {
-      _boundRow!.addListener(_onBindingChanged);
-    }
-    if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
-      _visibilityBoundRow!.addListener(_onBindingChanged);
+  /// ✅ Parse và cache format configuration
+  void _parseFormatConfig() {
+    _thousandsSeparator = widget.format!.contains(' ') ? ' ' : ',';
+
+    _decimalPlaces = 0;
+    if (widget.format!.contains('.')) {
+      var parts = widget.format!.split('.');
+      if (parts.length > 1) {
+        _decimalPlaces = parts[1].length;
+      }
     }
   }
 
-  /// ✅ Hủy đăng ký listeners
-  void _unregisterBindingListeners() {
-    if (_boundRow != null) {
-      _boundRow!.removeListener(_onBindingChanged);
-    }
-    if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
-      _visibilityBoundRow!.removeListener(_onBindingChanged);
-    }
-  }
+  // ============================================================================
+  // BINDING MANAGEMENT
+  // ============================================================================
 
   /// ✅ Parse text binding
   void _parseBinding() {
@@ -351,18 +354,6 @@ class _CyberNumericState extends State<CyberNumeric> {
     _textController.text = displayValue;
   }
 
-  /// ✅ Callback khi binding changed
-  void _onBindingChanged() {
-    if (_isUpdating || _boundRow == null || _boundField == null) return;
-
-    final value = _getCurrentValue();
-    final displayValue = _formatValue(value);
-
-    if (_textController.text != displayValue) {
-      _textController.text = displayValue;
-    }
-  }
-
   /// ✅ Callback khi controller changed
   void _onControllerChanged() {
     if (_isUpdating) return;
@@ -391,42 +382,21 @@ class _CyberNumericState extends State<CyberNumeric> {
   // FORMATTING & VALIDATION
   // ============================================================================
 
-  /// ✅ Format num? về String để hiển thị
+  /// ✅ Format num? về String để hiển thị (FULL format - dùng khi blur)
   String _formatValue(num? value) {
     if (value == null) return '';
 
-    // Parse pattern to get decimal places
-    int decimalPlaces = 0;
-    if (widget.format!.contains('.')) {
-      var parts = widget.format!.split('.');
-      if (parts.length > 1) {
-        decimalPlaces = parts[1].replaceAll('#', '').replaceAll('0', '').isEmpty
-            ? parts[1].length
-            : 2;
-      }
-    }
-
-    // ✅ Convert num sang double để format
+    // ✅ Dùng cached config
     double doubleValue = value.toDouble();
 
     // Format number with decimal places
-    String numStr = doubleValue.toStringAsFixed(decimalPlaces);
+    String numStr = doubleValue.toStringAsFixed(_decimalPlaces);
     var parts = numStr.split('.');
     String intPart = parts[0];
     String decPart = parts.length > 1 ? parts[1] : '';
 
     // Add thousands separator
-    String separator = widget.format!.contains(' ') ? ' ' : ',';
-    String formatted = '';
-    int count = 0;
-
-    for (int i = intPart.length - 1; i >= 0; i--) {
-      if (count > 0 && count % 3 == 0) {
-        formatted = separator + formatted;
-      }
-      formatted = intPart[i] + formatted;
-      count++;
-    }
+    String formatted = _formatIntegerPart(intPart);
 
     if (decPart.isNotEmpty) {
       formatted += '.$decPart';
@@ -435,19 +405,57 @@ class _CyberNumericState extends State<CyberNumeric> {
     return formatted;
   }
 
+  /// ✅ FIX CURSOR JUMP: Format PARTIAL - chỉ format thousands, giữ nguyên decimal input
+  /// Dùng trong khi typing để tránh cursor jump
+  String _formatValuePartial(String cleanValue) {
+    if (cleanValue.isEmpty) return '';
+
+    // Split integer và decimal parts
+    final parts = cleanValue.split('.');
+    String intPart = parts[0];
+    String decPart = parts.length > 1 ? parts[1] : '';
+
+    // Format chỉ phần integer với thousands separator
+    String formatted = _formatIntegerPart(intPart);
+
+    // ✅ GIỮ NGUYÊN decimal part từ user input
+    // KHÔNG tự động thêm .00
+    if (decPart.isNotEmpty) {
+      formatted += '.$decPart';
+    } else if (cleanValue.endsWith('.')) {
+      // User vừa gõ dấu chấm → giữ lại
+      formatted += '.';
+    }
+
+    return formatted;
+  }
+
+  /// ✅ Format phần integer với thousands separator (optimized với StringBuffer)
+  String _formatIntegerPart(String intPart) {
+    if (intPart.isEmpty) return '';
+    if (intPart.length <= 3) return intPart;
+
+    final buffer = StringBuffer();
+    int count = 0;
+
+    for (int i = intPart.length - 1; i >= 0; i--) {
+      if (count > 0 && count % 3 == 0) {
+        buffer.write(_thousandsSeparator);
+      }
+      buffer.write(intPart[i]);
+      count++;
+    }
+
+    // Reverse string
+    return buffer.toString().split('').reversed.join('');
+  }
+
   /// ✅ Parse input String về num?
   num? _parseInput(String input) {
     if (input.isEmpty) return null;
 
-    // Remove prefix/suffix
-    String cleaned = input;
-    String thousandsSep = ',';
-    if (widget.format!.contains(RegExp(r'[\u00A0 ]'))) {
-      thousandsSep = ' ';
-    }
-
     // Remove thousands separator
-    cleaned = cleaned.replaceAll(thousandsSep, '');
+    String cleaned = input.replaceAll(_thousandsSeparator, '');
 
     // Remove whitespace
     cleaned = cleaned.trim();
@@ -499,7 +507,7 @@ class _CyberNumericState extends State<CyberNumeric> {
   // TEXT INPUT HANDLING
   // ============================================================================
 
-  /// ✅ Callback khi text changed (real-time formatting)
+  /// ✅ FIX CURSOR JUMP: Callback khi text changed (real-time formatting)
   void _onTextChanged(String value) {
     if (_isUpdating) return;
 
@@ -507,42 +515,26 @@ class _CyberNumericState extends State<CyberNumeric> {
     final oldSelection = _textController.selection;
     final oldText = _textController.text;
 
-    // Remove comma để parse
-    String cleanValue = value.replaceAll(',', '').replaceAll(' ', '');
+    // Remove thousands separator để parse
+    String cleanValue = value.replaceAll(_thousandsSeparator, '');
+
+    // ✅ Ngăn chặn nhiều dấu chấm
+    if (cleanValue.split(".").length > 2) {
+      // Có nhiều hơn 1 dấu chấm → bỏ qua thay đổi
+      return;
+    }
 
     _isUpdating = true;
-
-    // Xử lý trường hợp nhiều dấu chấm
-    if (cleanValue.split(".").length > 2) {
-      cleanValue = oldText.replaceAll(',', '').replaceAll(' ', '');
-      final dotIndex = cleanValue.indexOf('.');
-      _textController.selection = TextSelection.collapsed(offset: dotIndex + 2);
-    } else {
-      var valueNew = _normalizeDecimalOverwrite(
-        oldText.replaceAll(',', '').replaceAll(' ', ''),
-        cleanValue,
-        widget.format ?? "### ### ### ###.##",
-      );
-      cleanValue = valueNew.$2;
-
-      if (valueNew.$1) {
-        final pos = oldSelection.baseOffset;
-        final len = _textController.text.length;
-
-        if (pos < len - 1) {
-          _textController.selection = TextSelection.collapsed(offset: pos + 1);
-        }
-      }
-    }
 
     // ✅ Parse input về num?
     num? numericValue = _parseInput(cleanValue);
 
-    // ✅ Update internal controller và binding
+    // ✅ Update internal controller
     if (widget.controller == null) {
       _internalController?.setValue(numericValue);
     }
 
+    // ✅ Update binding
     if (_boundRow != null && _boundField != null) {
       _boundRow![_boundField!] = numericValue;
     }
@@ -550,18 +542,16 @@ class _CyberNumericState extends State<CyberNumeric> {
     // ✅ Callback
     widget.onChanged?.call(numericValue);
 
-    // ✅ Real-time formatting với cursor management
-    final formattedValue = _formatValue(numericValue);
+    // ✅ FIX CURSOR JUMP: Dùng partial format trong khi typing
+    // CHỈ format thousands, KHÔNG thêm decimal tự động
+    final formattedValue = _formatValuePartial(cleanValue);
 
     if (_textController.text != formattedValue) {
-      // Calculate new cursor position
-      final oldLength = oldText.length;
-      final newLength = formattedValue.length;
-      final lengthDiff = newLength - oldLength;
-
-      final newCursorPos = (oldSelection.baseOffset + lengthDiff).clamp(
-        0,
-        formattedValue.length,
+      // ✅ Calculate cursor position based on separator changes
+      final newCursorPos = _calculateCursorPosition(
+        oldText,
+        formattedValue,
+        oldSelection.baseOffset,
       );
 
       _textController.value = TextEditingValue(
@@ -573,55 +563,32 @@ class _CyberNumericState extends State<CyberNumeric> {
     _isUpdating = false;
   }
 
-  /// ✅ Normalize decimal overwrite behavior
-  (bool, String) _normalizeDecimalOverwrite(
-    String oldStr,
-    String newStr,
-    String strFormat,
-  ) {
-    // Không có decimal → bỏ qua
-    if (!oldStr.contains('.') || !newStr.contains('.')) {
-      return (false, newStr);
-    }
+  /// ✅ Calculate cursor position sau khi format (handle separator changes)
+  int _calculateCursorPosition(String oldText, String newText, int oldPos) {
+    // Count số separator trước cursor position
+    int oldSepCountBefore = 0;
+    int newSepCountBefore = 0;
 
-    // Xác định số chữ số thập phân từ format
-    int decimalCount = 0;
-    if (strFormat.contains('.')) {
-      decimalCount = strFormat.split('.').last.length;
-    }
-
-    int oldDot = oldStr.indexOf('.');
-    int newDot = newStr.indexOf('.');
-
-    // Khác phần nguyên → không xử lý
-    if (oldDot != newDot) return (false, newStr);
-
-    // Chuẩn hoá old decimal theo format
-    String oldDec = oldStr.substring(oldDot + 1).padRight(decimalCount, '0');
-
-    // Lấy decimal mới (có thể dài hơn format)
-    String newDec = newStr.substring(newDot + 1);
-
-    // Nếu new không dài hơn old → không cần overwrite
-    if (newDec.length <= oldDec.length) {
-      return (
-        true,
-        oldStr.substring(0, oldDot + 1) +
-            newDec.padRight(decimalCount, '0').substring(0, decimalCount),
-      );
-    }
-
-    List<String> resultDec = oldDec.split('');
-
-    // Tìm vị trí overwrite đầu tiên
-    for (int i = 0; i < decimalCount; i++) {
-      if (i >= newDec.length) break;
-      if (newDec[i] != oldDec[i]) {
-        resultDec[i] = newDec[i];
-        break;
+    // Count separators in old text before cursor
+    for (int i = 0; i < min(oldPos, oldText.length); i++) {
+      if (oldText[i] == _thousandsSeparator) {
+        oldSepCountBefore++;
       }
     }
-    return (true, oldStr.substring(0, oldDot + 1) + resultDec.join());
+
+    // Count separators in new text before equivalent position
+    final rawOldPos = oldPos - oldSepCountBefore;
+    int rawNewPos = 0;
+    for (int i = 0; i < newText.length; i++) {
+      if (newText[i] != _thousandsSeparator) {
+        if (rawNewPos >= rawOldPos) {
+          return i;
+        }
+        rawNewPos++;
+      }
+    }
+
+    return newText.length;
   }
 
   // ============================================================================
@@ -662,9 +629,13 @@ class _CyberNumericState extends State<CyberNumeric> {
       return const SizedBox.shrink();
     }
 
-    // ✅ Lắng nghe controller changes
+    // ✅ FIX DOUBLE REBUILD: Dùng Listenable.merge thay vì nested ListenableBuilder
+    final listenable = _boundRow != null
+        ? Listenable.merge([_effectiveController, _boundRow!])
+        : _effectiveController;
+
     return ListenableBuilder(
-      listenable: _effectiveController,
+      listenable: listenable,
       builder: (context, _) {
         final isEnabled = widget.enabled && _effectiveController.enabled;
 
@@ -685,11 +656,10 @@ class _CyberNumericState extends State<CyberNumeric> {
           decoration: widget.decoration ?? _buildDecoration(isEnabled),
         );
 
-        Widget finalWidget;
         if (widget.isShowLabel &&
             widget.label != null &&
             widget.decoration == null) {
-          finalWidget = Column(
+          return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -722,19 +692,9 @@ class _CyberNumericState extends State<CyberNumeric> {
               textField,
             ],
           );
-        } else {
-          finalWidget = textField;
         }
 
-        // ✅ Wrap với binding listener nếu có
-        if (_boundRow != null) {
-          return ListenableBuilder(
-            listenable: _boundRow!,
-            builder: (context, child) => finalWidget,
-          );
-        }
-
-        return finalWidget;
+        return textField;
       },
     );
   }
