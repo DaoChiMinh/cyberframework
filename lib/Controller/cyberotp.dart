@@ -1,5 +1,17 @@
 import 'package:cyberframework/cyberframework.dart';
 
+/// CyberOTP - OTP input widget với binding support
+///
+/// ✅ FIXED ISSUES:
+/// - Memory leak (internal controller)
+/// - Double listener vào binding
+/// - Unnecessary setState
+///
+/// ✅ FEATURES:
+/// - Auto-focus next field
+/// - Paste handling (123456 → tách 6 ô)
+/// - Backspace navigation
+/// - Binding support
 class CyberOTP extends StatefulWidget {
   // === BINDING / STATIC MODE ===
   final dynamic text;
@@ -79,8 +91,6 @@ class _CyberOTPState extends State<CyberOTP> {
   CyberOTPController get _activeController =>
       widget.controller ?? _internalController;
 
-  CyberBindingExpression? _currentBinding;
-
   // === FLAG CHỐNG LOOP ===
   bool _isInternalUpdate = false;
 
@@ -88,8 +98,15 @@ class _CyberOTPState extends State<CyberOTP> {
   void initState() {
     super.initState();
 
-    _internalController = _createInternalController();
+    // ✅ FIX: CHỈ tạo internal controller khi cần
+    if (widget.controller == null) {
+      _internalController = _createInternalController();
+      _internalController.addListener(_onControllerChanged);
+    } else {
+      widget.controller!.addListener(_onControllerChanged);
+    }
 
+    // Tạo controllers & focus nodes
     _textControllers = List.generate(
       widget.length,
       (index) => TextEditingController(),
@@ -100,16 +117,14 @@ class _CyberOTPState extends State<CyberOTP> {
     // ✅ SYNC CONTROLLER → UI
     _syncControllerToUI();
 
-    // === LẮNG NGHE CONTROLLER ===
-    _activeController.addListener(_onControllerChanged);
-
     // === LẮNG NGHE TEXT INPUT ===
     for (int i = 0; i < widget.length; i++) {
       _textControllers[i].addListener(() => _onTextChanged(i));
       _focusNodes[i].addListener(() => _onFocusChanged(i));
     }
 
-    _setupBindingListener();
+    // ✅ FIX: BỎ _setupBindingListener()
+    // Controller withBinding đã handle binding
   }
 
   @override
@@ -137,8 +152,7 @@ class _CyberOTPState extends State<CyberOTP> {
     }
 
     if (widget.text != oldWidget.text) {
-      _cleanupBindingListener();
-      _setupBindingListener();
+      // ✅ FIX: BỎ cleanup/setup binding listener
 
       if (widget.controller == null) {
         _internalController.removeListener(_onControllerChanged);
@@ -169,11 +183,10 @@ class _CyberOTPState extends State<CyberOTP> {
       focusNode.dispose();
     }
 
-    _cleanupBindingListener();
+    // ✅ FIX: BỎ _cleanupBindingListener()
 
-    if (widget.controller == null) {
-      _internalController.dispose();
-    }
+    // ✅ FIX: LUÔN dispose internal controller
+    _internalController.dispose();
 
     super.dispose();
   }
@@ -198,9 +211,9 @@ class _CyberOTPState extends State<CyberOTP> {
 
     _isInternalUpdate = false;
 
-    if (mounted) {
-      setState(() {});
-    }
+    // ✅ FIX: BỎ setState()
+    // TextEditingController tự update TextField
+    // Không cần rebuild widget vì không có UI state khác cần sync
   }
 
   /// ✅ SYNC: UI (TextControllers) → Controller
@@ -306,31 +319,8 @@ class _CyberOTPState extends State<CyberOTP> {
     );
   }
 
-  void _setupBindingListener() {
-    if (_isBindingExpressionMode()) {
-      _currentBinding = widget.text as CyberBindingExpression;
-      _currentBinding!.row.addListener(_onBindingChanged);
-    }
-  }
-
-  void _cleanupBindingListener() {
-    if (_currentBinding != null) {
-      _currentBinding!.row.removeListener(_onBindingChanged);
-      _currentBinding = null;
-    }
-  }
-
-  void _onBindingChanged() {
-    if (!mounted || _isInternalUpdate) return;
-
-    final newValue = _currentBinding!.value?.toString() ?? '';
-
-    if (_activeController.value != newValue) {
-      _isInternalUpdate = true;
-      _activeController.setValue(newValue);
-      _isInternalUpdate = false;
-    }
-  }
+  // ✅ FIX: XÓA _setupBindingListener(), _cleanupBindingListener(), _onBindingChanged()
+  // Controller withBinding đã handle binding
 
   bool _isBindingExpressionMode() => widget.text is CyberBindingExpression;
   bool _isStaticTextMode() => widget.text is String;
