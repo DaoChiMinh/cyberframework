@@ -14,7 +14,7 @@ abstract class CyberFormchklist extends CyberForm {
   @override
   Future<void> onLoadData() async {
     _ma_tag = "";
-    _dtList = await v_loadData(1, 20, "");
+    dtList = await v_loadData(1, 20, "");
     this.title = _dtMaster![0]["title"] ?? this.title;
     return super.onLoadData();
   }
@@ -52,7 +52,7 @@ abstract class CyberFormchklist extends CyberForm {
 
   @override
   Widget buildBody(BuildContext context) {
-    if (_dtList == null) {
+    if (dtList == null) {
       return SizedBox.shrink();
     }
 
@@ -110,7 +110,7 @@ abstract class CyberFormchklist extends CyberForm {
             }
             rebuild();
           },
-          dataSource: _dtList,
+          dataSource: dtList,
           showSearchBox: showSearchBox,
           cyberActionType: CyberActionType.autoShow,
           cyberActionDirection: CyberActionDirection.vertical,
@@ -126,7 +126,7 @@ abstract class CyberFormchklist extends CyberForm {
               backgroundColor: TextColorGray,
               onclick: () {
                 selectedIndices = List.generate(
-                  _dtList!.rowCount,
+                  dtList!.rowCount,
                   (index) => index,
                 );
                 rebuild();
@@ -163,7 +163,7 @@ abstract class CyberFormchklist extends CyberForm {
   // ignore: override_on_non_overriding_member
   Future<void> SaveData() async {
     var selectedRows = selectedIndices
-        .map((index) => _dtList!.rows[index])
+        .map((index) => dtList!.rows[index])
         .toList();
     close(result: selectedRows);
   }
