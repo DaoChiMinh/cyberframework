@@ -1766,6 +1766,11 @@ class _MenuBottomSheet extends StatelessWidget {
       if (isMenuClickToScreen) {
         final pageName = menuRow['pagename'] as String?;
         if (pageName != null && pageName.isNotEmpty) {
+          CyberDataRow _menuRow = menuRow.copy();
+          String _para = _menuRow['strparameter'] as String? ?? '';
+          _menuRow['strparameter'] = _menuRow.updatedatatostring(_para);
+          print(_menuRow['strparameter']);
+
           menuRow.V_Call(context);
         }
       }

@@ -124,7 +124,125 @@ class CyberDataRow extends ChangeNotifier implements ICyberIdentifiable {
 
   /// Get internal UUID (even if custom identity is set)
   String get internalId => _internalId;
+  // ============================================================================
+  // UPDATE DATA TO STRING - Replace placeholders with row values
+  // ============================================================================
 
+  /// Replace placeholders [columnName] in template string with actual row values
+  ///
+  /// Syntax: [columnName] or [ColumnName] (case-insensitive)
+  ///
+  /// Examples:
+  /// ```dart
+  /// row['name'] = 'John';
+  /// row['age'] = 25;
+  /// row['email'] = 'john@example.com';
+  ///
+  /// String result = row.updatedatatostring('Xin chào [name], bạn [age] tuổi');
+  /// // Output: "Xin chào John, bạn 25 tuổi"
+  ///
+  /// String result2 = row.updatedatatostring('Email: [email]##Phone: [phone]');
+  /// // Output: "Email: john@example.com##Phone: " (phone is null/empty)
+  /// ```
+  ///
+  /// Features:
+  /// - Case-insensitive column matching
+  /// - Handles null values (returns empty string)
+  /// - Supports any delimiter (#, ##, etc.)
+  /// - Fast regex-based replacement
+  String updatedatatostring(String template) {
+    if (template.isEmpty) return template;
+
+    try {
+      // Regex pattern to find all [columnName] placeholders
+      final pattern = RegExp(r'\[([^\]]+)\]');
+
+      String result = template;
+
+      // Find all matches
+      final matches = pattern.allMatches(template);
+
+      // Replace each match with actual value
+      for (var match in matches) {
+        final placeholder = match.group(0)!; // Full match: [columnName]
+        final columnName = match.group(1)!; // Column name only
+
+        // Get value with case-insensitive lookup
+        final value = this[columnName];
+
+        // Convert to string (empty if null)
+        final valueStr = value?.toString() ?? '';
+
+        // Replace in result string
+        result = result.replaceAll(placeholder, valueStr);
+      }
+
+      return result;
+    } catch (e) {
+      debugPrint('❌ updatedatatostring error: $e');
+      return template;
+    }
+  }
+
+  /// Alias: Format string with row data
+  /// Same as updatedatatostring but shorter name
+  String formatString(String template) {
+    return updatedatatostring(template);
+  }
+
+  /// Advanced version with custom formatter per column
+  ///
+  /// Example:
+  /// ```dart
+  /// String result = row.updatedataTostringWithFormat(
+  ///   'Date: [created_date], Amount: [amount]',
+  ///   formatters: {
+  ///     'created_date': (value) => (value as DateTime).toString2('dd/MM/yyyy'),
+  ///     'amount': (value) => (value as num).toString2('N2'),
+  ///   }
+  /// );
+  /// ```
+  String updatedataTostringWithFormat(
+    String template, {
+    Map<String, String Function(dynamic)>? formatters,
+  }) {
+    if (template.isEmpty) return template;
+
+    try {
+      final pattern = RegExp(r'\[([^\]]+)\]');
+      String result = template;
+      final matches = pattern.allMatches(template);
+
+      for (var match in matches) {
+        final placeholder = match.group(0)!;
+        final columnName = match.group(1)!;
+        final lowerColumnName = _getCachedFieldName(columnName);
+
+        // Get value
+        final value = this[columnName];
+
+        // Apply custom formatter if available
+        String valueStr;
+        if (formatters != null && formatters.containsKey(lowerColumnName)) {
+          try {
+            valueStr = formatters[lowerColumnName]!(value) ?? '';
+          } catch (e) {
+            debugPrint('❌ Formatter error for $columnName: $e');
+            valueStr = value?.toString() ?? '';
+          }
+        } else {
+          valueStr = value?.toString() ?? '';
+        }
+
+        result = result.replaceAll(placeholder, valueStr);
+      }
+
+      return result;
+    } catch (e) {
+      debugPrint('❌ updatedataTostringWithFormat error: $e');
+      return template;
+    }
+  }
   // ============================================================================
   // ✅ NEW: UPDATE ROW TO ROW
   // ============================================================================
