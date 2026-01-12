@@ -290,7 +290,7 @@ Future<ReturnFormData> V_callform(
     case "call":
       // Gọi điện thoại với dialog xác nhận
       String phoneNumber = strparameter;
-      if (phoneNumber != "") {
+      if (phoneNumber == "") {
         phoneNumber = strfrm;
       }
 
