@@ -261,6 +261,9 @@ class _CyberNumericState extends State<CyberNumeric> {
         .replaceAll(_thousandsSeparator, '')
         .replaceAll(' ', '');
 
+    // ✅ DETECT: User vừa xóa ký tự (backspace/delete)
+    final isDeleting = value.length < _previousText.length;
+
     // ✅ DETECT: User vừa gõ dấu chấm khi đã có dấu chấm
     bool shouldRestoreAndMoveCursor = false;
     if (_hasDecimal && clean.contains('.')) {
@@ -284,7 +287,31 @@ class _CyberNumericState extends State<CyberNumeric> {
       return;
     }
 
-    // ✅ INSERT MODE cho số thập phân
+    // ✅ DETECT: User vừa nhập dấu trừ khi đã có dấu trừ
+    final previousClean = _previousText
+        .replaceAll(_thousandsSeparator, '')
+        .replaceAll(' ', '');
+    final hadMinus = previousClean.contains('-');
+    final hasMinus = clean.contains('-');
+    final minusCount = clean.split('-').length - 1;
+
+    if (hadMinus && hasMinus && minusCount > 1) {
+      // Đã có dấu trừ rồi, user lại nhập thêm → Restore và giữ nguyên vị trí
+      _isUpdating = true;
+      _textController.value = TextEditingValue(
+        text: _previousText,
+        selection: TextSelection.collapsed(offset: cursorPos - 1),
+      );
+      _isUpdating = false;
+      return;
+    }
+
+    // ✅ DETECT: User vừa nhập dấu trừ
+    // final isTypingMinus =
+    //     clean.replaceAll('-', '').length >=
+    //     previousClean.replaceAll('-', '').length;
+
+    // ✅ INSERT MODE cho số thập phân (BỎ QUA nếu đang nhập dấu trừ hoặc đang xóa)
     if (_hasDecimal && clean.contains('.')) {
       final dotIndex = clean.indexOf('.');
       final decimalPart = clean.substring(dotIndex + 1);
@@ -298,7 +325,9 @@ class _CyberNumericState extends State<CyberNumeric> {
       }
 
       // Kiểm tra nếu con trỏ đang ở sau dấu chấm
-      if (cleanCursorPos > dotIndex && decimalPart.length > _decimalPlaces) {
+      if (cleanCursorPos > dotIndex &&
+          decimalPart.length > _decimalPlaces &&
+          minusCount > 1) {
         // Xóa ký tự ngay đằng sau vị trí con trỏ
         final beforeCursor = clean.substring(0, cleanCursorPos);
         final afterCursor = clean.substring(cleanCursorPos + 1);
@@ -354,8 +383,8 @@ class _CyberNumericState extends State<CyberNumeric> {
         cursorPos,
       );
 
-      // ✅ Nếu con trỏ ở cuối cùng → di chuyển về trước số cuối
-      if (_hasDecimal && formatted.contains('.')) {
+      // ✅ Nếu con trỏ ở cuối cùng → di chuyển về trước số cuối (CHỈ KHI KHÔNG XÓA)
+      if (_hasDecimal && formatted.contains('.') && !isDeleting) {
         final dotIndex = formatted.indexOf('.');
         if (newCursorPos == formatted.length &&
             formatted.length > dotIndex + 1) {
