@@ -78,6 +78,9 @@ class _CyberNumericState extends State<CyberNumeric> {
   int _decimalPlaces = 0;
   bool _hasDecimal = false;
 
+  // Lưu text trước đó để restore khi gõ dấu chấm thừa
+  String _previousText = '';
+
   @override
   void initState() {
     super.initState();
@@ -181,6 +184,7 @@ class _CyberNumericState extends State<CyberNumeric> {
     if (_isUpdating) return;
     final value = _getSourceValue();
     _textController.text = _format(value);
+    _previousText = _textController.text; // Lưu lại text sau khi sync
   }
 
   void _onControllerChanged() {
@@ -212,6 +216,7 @@ class _CyberNumericState extends State<CyberNumeric> {
 
       widget.onLeaver?.call(value);
       _textController.text = _format(value);
+      _previousText = _textController.text; // Lưu lại text sau khi blur
     }
   }
 
@@ -253,6 +258,29 @@ class _CyberNumericState extends State<CyberNumeric> {
         .replaceAll(_thousandsSeparator, '')
         .replaceAll(' ', '');
 
+    // ✅ DETECT: User vừa gõ dấu chấm khi đã có dấu chấm
+    bool shouldRestoreAndMoveCursor = false;
+    if (_hasDecimal && clean.contains('.')) {
+      final dotCount = clean.split('.').length - 1;
+      if (dotCount > 1) {
+        shouldRestoreAndMoveCursor = true;
+      }
+    }
+
+    // Nếu phát hiện nhiều dấu chấm → Restore text cũ và di chuyển cursor
+    if (shouldRestoreAndMoveCursor) {
+      final dotIndex = _previousText.indexOf('.');
+      final newCursorPos = dotIndex >= 0 ? dotIndex + 1 : _previousText.length;
+
+      _isUpdating = true;
+      _textController.value = TextEditingValue(
+        text: _previousText,
+        selection: TextSelection.collapsed(offset: newCursorPos),
+      );
+      _isUpdating = false;
+      return; // STOP ở đây, không xử lý gì thêm
+    }
+
     // ✅ Rule 1: Dấu trừ phải ở đầu
     if (clean.contains('-')) {
       final parts = clean.split('-');
@@ -270,18 +298,8 @@ class _CyberNumericState extends State<CyberNumeric> {
       clean = clean.replaceAll('.', '');
     }
 
-    // ✅ Rule 3: Chỉ cho phép 1 dấu chấm
+    // ✅ Rule 3: Giới hạn decimal places
     if (_hasDecimal && clean.contains('.')) {
-      final dotCount = clean.split('.').length - 1;
-      if (dotCount > 1) {
-        // Nhiều dấu chấm: giữ dấu đầu tiên
-        final firstDot = clean.indexOf('.');
-        clean =
-            clean.substring(0, firstDot + 1) +
-            clean.substring(firstDot + 1).replaceAll('.', '');
-      }
-
-      // Giới hạn decimal places
       final parts = clean.split('.');
       if (parts.length == 2 && parts[1].length > _decimalPlaces) {
         clean = '${parts[0]}.${parts[1].substring(0, _decimalPlaces)}';
@@ -321,6 +339,9 @@ class _CyberNumericState extends State<CyberNumeric> {
       );
       _isUpdating = false;
     }
+
+    // Lưu lại text hiện tại để dùng cho lần sau
+    _previousText = _textController.text;
   }
 
   String _formatPartial(String clean) {
