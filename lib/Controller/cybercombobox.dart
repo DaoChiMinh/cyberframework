@@ -5,7 +5,7 @@ import 'package:flutter/cupertino.dart';
 ///
 /// Triết lý:
 /// - Internal Controller: Widget tự quản lý state, không cần khai báo controller bên ngoài
-/// - Binding Support: Hỗ trợ binding trực tiếp qua thuộc tính `text`
+/// - Binding Support: Hỗ trợ binding trực tiếp qua thuộc tính `text` và `display`
 /// - External Controller: Optional, khi cần control từ code
 ///
 /// Usage:
@@ -18,9 +18,10 @@ import 'package:flutter/cupertino.dart';
 ///   displayMember: "ten_kh",
 /// )
 ///
-/// // 2. Binding usage (ERP style)
+/// // 2. Binding usage (ERP style) - UPDATE CẢ VALUE VÀ DISPLAY
 /// CyberComboBox(
-///   text: drEdit.bind("ma_kh"),
+///   text: drEdit.bind("ma_kh"),           // Binding value field
+///   display: drEdit.bind("ten_kh"),       // Binding display field
 ///   dataSource: dtKhachHang,
 ///   valueMember: "ma_kh",
 ///   displayMember: "ten_kh",
@@ -39,6 +40,11 @@ class CyberComboBox extends StatefulWidget {
   /// Binding đến field chứa giá trị được chọn (value binding)
   /// Có thể là: null, value trực tiếp, hoặc CyberBindingExpression
   final dynamic text;
+
+  /// Binding đến field chứa display value (display text binding)
+  /// Có thể là: null, value trực tiếp, hoặc CyberBindingExpression
+  /// VD: drEdit.bind("ten_kh") để lưu tên khách hàng
+  final dynamic display;
 
   /// Controller để quản lý state từ bên ngoài (optional)
   /// Nếu không cung cấp, widget tự tạo internal controller
@@ -100,6 +106,7 @@ class CyberComboBox extends StatefulWidget {
   const CyberComboBox({
     super.key,
     this.text,
+    this.display,
     this.controller,
     this.displayMember,
     this.valueMember,
@@ -133,6 +140,8 @@ class _CyberComboBoxState extends State<CyberComboBox> {
 
   CyberDataRow? _boundRow;
   String? _boundField;
+  CyberDataRow? _displayBoundRow;
+  String? _displayBoundField;
   CyberDataRow? _visibilityBoundRow;
   String? _visibilityBoundField;
   bool _isUpdating = false;
@@ -159,6 +168,7 @@ class _CyberComboBoxState extends State<CyberComboBox> {
     // ✅ Luôn tạo internal controller
     _internalController = CyberComboBoxController(
       value: _getInitialValue(),
+      displayValue: _getInitialDisplayValue(),
       enabled: widget.enabled,
       dataSource: widget.dataSource,
       displayMember: _getDisplayMember(),
@@ -167,6 +177,7 @@ class _CyberComboBoxState extends State<CyberComboBox> {
 
     // Parse binding
     _parseBinding();
+    _parseDisplayBinding();
     _parseVisibilityBinding();
 
     // Đăng ký listeners
@@ -177,7 +188,7 @@ class _CyberComboBoxState extends State<CyberComboBox> {
   void didUpdateWidget(CyberComboBox oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    // ✅ Kiểm tra binding changes
+    // ✅ Kiểm tra text binding changes
     if (widget.text != oldWidget.text) {
       _unregisterListeners();
       _parseBinding();
@@ -186,6 +197,18 @@ class _CyberComboBoxState extends State<CyberComboBox> {
       // Sync initial value từ binding mới
       if (!_isUpdating) {
         _syncFromBinding();
+      }
+    }
+
+    // ✅ Kiểm tra display binding changes
+    if (widget.display != oldWidget.display) {
+      _unregisterDisplayListeners();
+      _parseDisplayBinding();
+      _registerDisplayListeners();
+
+      // Sync initial display value từ binding mới
+      if (!_isUpdating) {
+        _syncFromDisplayBinding();
       }
     }
 
@@ -214,6 +237,7 @@ class _CyberComboBoxState extends State<CyberComboBox> {
   @override
   void dispose() {
     _unregisterListeners();
+    _unregisterDisplayListeners();
     _internalController.dispose();
     super.dispose();
   }
@@ -233,6 +257,17 @@ class _CyberComboBoxState extends State<CyberComboBox> {
     }
   }
 
+  void _parseDisplayBinding() {
+    if (widget.display is CyberBindingExpression) {
+      final expr = widget.display as CyberBindingExpression;
+      _displayBoundRow = expr.row;
+      _displayBoundField = expr.fieldName;
+    } else {
+      _displayBoundRow = null;
+      _displayBoundField = null;
+    }
+  }
+
   void _parseVisibilityBinding() {
     if (widget.isVisible is CyberBindingExpression) {
       final expr = widget.isVisible as CyberBindingExpression;
@@ -245,7 +280,7 @@ class _CyberComboBoxState extends State<CyberComboBox> {
   }
 
   void _registerListeners() {
-    // Binding listener
+    // Text binding listener
     _boundRow?.addListener(_onBindingChanged);
 
     // Visibility binding listener
@@ -255,6 +290,13 @@ class _CyberComboBoxState extends State<CyberComboBox> {
 
     // Controller listener
     _controller.addListener(_onControllerChanged);
+  }
+
+  void _registerDisplayListeners() {
+    // Display binding listener (chỉ register nếu khác text binding)
+    if (_displayBoundRow != null && _displayBoundRow != _boundRow) {
+      _displayBoundRow!.addListener(_onDisplayBindingChanged);
+    }
   }
 
   void _unregisterListeners() {
@@ -267,6 +309,12 @@ class _CyberComboBoxState extends State<CyberComboBox> {
     _controller.removeListener(_onControllerChanged);
   }
 
+  void _unregisterDisplayListeners() {
+    if (_displayBoundRow != null && _displayBoundRow != _boundRow) {
+      _displayBoundRow!.removeListener(_onDisplayBindingChanged);
+    }
+  }
+
   // ============================================================================
   // LISTENERS
   // ============================================================================
@@ -274,6 +322,11 @@ class _CyberComboBoxState extends State<CyberComboBox> {
   void _onBindingChanged() {
     if (_isUpdating) return;
     _syncFromBinding();
+  }
+
+  void _onDisplayBindingChanged() {
+    if (_isUpdating) return;
+    _syncFromDisplayBinding();
   }
 
   void _onVisibilityChanged() {
@@ -290,7 +343,7 @@ class _CyberComboBoxState extends State<CyberComboBox> {
   // SYNC LOGIC
   // ============================================================================
 
-  /// Sync giá trị từ binding vào controller
+  /// Sync giá trị từ text binding vào controller
   void _syncFromBinding() {
     if (_boundRow == null || _boundField == null) return;
 
@@ -308,25 +361,71 @@ class _CyberComboBoxState extends State<CyberComboBox> {
     }
   }
 
-  /// Sync giá trị từ controller vào binding
-  void _syncToBinding() {
-    if (_boundRow == null || _boundField == null) return;
+  /// Sync giá trị từ display binding vào controller
+  void _syncFromDisplayBinding() {
+    if (_displayBoundRow == null || _displayBoundField == null) return;
 
     _isUpdating = true;
     try {
-      final controllerValue = _controller.value;
-      final bindingValue = _boundRow![_boundField!];
+      final bindingValue =
+          _displayBoundRow![_displayBoundField!]?.toString() ?? '';
+      if (_controller.displayValue != bindingValue) {
+        if (widget.controller == null) {
+          _internalController.setDisplayValue(bindingValue);
+        }
+        setState(() {});
+      }
+    } finally {
+      _isUpdating = false;
+    }
+  }
 
-      if (bindingValue != controllerValue) {
-        // Preserve original type
-        if (bindingValue is String && controllerValue != null) {
-          _boundRow![_boundField!] = controllerValue.toString();
-        } else if (bindingValue is int && controllerValue is int) {
-          _boundRow![_boundField!] = controllerValue;
-        } else if (bindingValue is double && controllerValue is num) {
-          _boundRow![_boundField!] = controllerValue.toDouble();
-        } else {
-          _boundRow![_boundField!] = controllerValue;
+  /// Sync giá trị từ controller vào bindings
+  void _syncToBinding() {
+    _isUpdating = true;
+    try {
+      final controllerValue = _controller.value;
+      final controllerDisplayValue = _controller.displayValue;
+
+      // Sync text binding
+      if (_boundRow != null && _boundField != null) {
+        final bindingValue = _boundRow![_boundField!];
+
+        if (bindingValue != controllerValue) {
+          // Preserve original type
+          if (bindingValue is String && controllerValue != null) {
+            _boundRow![_boundField!] = controllerValue.toString();
+          } else if (bindingValue is int && controllerValue is int) {
+            _boundRow![_boundField!] = controllerValue;
+          } else if (bindingValue is double && controllerValue is num) {
+            _boundRow![_boundField!] = controllerValue.toDouble();
+          } else {
+            _boundRow![_boundField!] = controllerValue;
+          }
+        }
+      }
+
+      // Sync display binding
+      if (_displayBoundRow != null && _displayBoundField != null) {
+        final displayBindingValue = _displayBoundRow![_displayBoundField!];
+
+        if (displayBindingValue?.toString() != controllerDisplayValue) {
+          // Preserve original type
+          if (displayBindingValue is String) {
+            _displayBoundRow![_displayBoundField!] = controllerDisplayValue;
+          } else if (displayBindingValue is int &&
+              controllerDisplayValue.isNotEmpty) {
+            _displayBoundRow![_displayBoundField!] = int.tryParse(
+              controllerDisplayValue,
+            );
+          } else if (displayBindingValue is double &&
+              controllerDisplayValue.isNotEmpty) {
+            _displayBoundRow![_displayBoundField!] = double.tryParse(
+              controllerDisplayValue,
+            );
+          } else {
+            _displayBoundRow![_displayBoundField!] = controllerDisplayValue;
+          }
         }
       }
 
@@ -340,7 +439,7 @@ class _CyberComboBoxState extends State<CyberComboBox> {
   // VALUE GETTERS
   // ============================================================================
 
-  /// Get giá trị khởi tạo ban đầu
+  /// Get giá trị khởi tạo ban đầu cho text value
   dynamic _getInitialValue() {
     // Priority 1: Binding
     if (widget.text is CyberBindingExpression) {
@@ -358,6 +457,26 @@ class _CyberComboBoxState extends State<CyberComboBox> {
     }
 
     return null;
+  }
+
+  /// Get giá trị khởi tạo ban đầu cho display value
+  String _getInitialDisplayValue() {
+    // Priority 1: Binding
+    if (widget.display is CyberBindingExpression) {
+      final expr = widget.display as CyberBindingExpression;
+      try {
+        return expr.row[expr.fieldName]?.toString() ?? '';
+      } catch (e) {
+        return '';
+      }
+    }
+
+    // Priority 2: Direct value
+    if (widget.display != null && widget.display is! CyberBindingExpression) {
+      return widget.display.toString();
+    }
+
+    return '';
   }
 
   /// Get current value (ưu tiên binding > controller)
@@ -463,21 +582,48 @@ class _CyberComboBoxState extends State<CyberComboBox> {
   // UPDATE VALUE
   // ============================================================================
 
-  /// Cập nhật giá trị mới
+  /// Cập nhật giá trị mới (update cả value và display)
   void _updateValue(dynamic newValue) {
     final isEnabled = widget.enabled && _controller.enabled;
     if (!isEnabled) return;
 
     _isUpdating = true;
     try {
+      final dataSource = widget.dataSource ?? _controller.dataSource;
+      final valueMember = _getValueMember();
+      final displayMember = _getDisplayMember();
+
+      // Tìm display text tương ứng với value
+      String newDisplayText = '';
+      if (newValue != null &&
+          dataSource != null &&
+          valueMember.isNotEmpty &&
+          displayMember.isNotEmpty) {
+        try {
+          final length = dataSource.rowCount;
+          for (int i = 0; i < length; i++) {
+            final row = dataSource[i];
+            final rowValue = row[valueMember];
+            if (rowValue?.toString() == newValue?.toString()) {
+              newDisplayText = row[displayMember]?.toString() ?? '';
+              break;
+            }
+          }
+        } catch (e) {
+          // Ignore errors
+        }
+      }
+
       // ✅ Update controller
       if (widget.controller == null) {
         _internalController.setValue(newValue);
+        _internalController.setDisplayValue(newDisplayText);
       } else {
         widget.controller!.setValue(newValue);
+        widget.controller!.setDisplayValue(newDisplayText);
       }
 
-      // ✅ Update binding
+      // ✅ Update text binding
       if (_boundRow != null && _boundField != null) {
         final originalValue = _boundRow![_boundField!];
 
@@ -490,6 +636,25 @@ class _CyberComboBoxState extends State<CyberComboBox> {
           _boundRow![_boundField!] = newValue.toDouble();
         } else {
           _boundRow![_boundField!] = newValue;
+        }
+      }
+
+      // ✅ Update display binding
+      if (_displayBoundRow != null && _displayBoundField != null) {
+        final originalDisplayValue = _displayBoundRow![_displayBoundField!];
+
+        // Preserve original type
+        if (originalDisplayValue is String) {
+          _displayBoundRow![_displayBoundField!] = newDisplayText;
+        } else if (originalDisplayValue is int && newDisplayText.isNotEmpty) {
+          _displayBoundRow![_displayBoundField!] = int.tryParse(newDisplayText);
+        } else if (originalDisplayValue is double &&
+            newDisplayText.isNotEmpty) {
+          _displayBoundRow![_displayBoundField!] = double.tryParse(
+            newDisplayText,
+          );
+        } else {
+          _displayBoundRow![_displayBoundField!] = newDisplayText;
         }
       }
 
@@ -555,7 +720,11 @@ class _CyberComboBoxState extends State<CyberComboBox> {
         _controller,
         if (dataSource != null) dataSource,
         if (_boundRow != null) _boundRow!,
-        if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow)
+        if (_displayBoundRow != null && _displayBoundRow != _boundRow)
+          _displayBoundRow!,
+        if (_visibilityBoundRow != null &&
+            _visibilityBoundRow != _boundRow &&
+            _visibilityBoundRow != _displayBoundRow)
           _visibilityBoundRow!,
       ]),
       builder: (context, _) {

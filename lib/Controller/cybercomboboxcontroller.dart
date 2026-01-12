@@ -3,7 +3,8 @@ import 'package:cyberframework/cyberframework.dart';
 /// Controller cho CyberComboBox widget
 ///
 /// Quản lý:
-/// - Selected value
+/// - Selected value (text value)
+/// - Display value (display text)
 /// - DataSource
 /// - DisplayMember/ValueMember
 /// - Enabled state
@@ -12,6 +13,7 @@ import 'package:cyberframework/cyberframework.dart';
 /// NOTE: Binding logic được xử lý ở widget level, không cần ở controller
 class CyberComboBoxController extends ChangeNotifier {
   dynamic _value;
+  String _displayValue = '';
   bool _enabled = true;
   CyberDataTable? _dataSource;
   String? _displayMember;
@@ -19,15 +21,17 @@ class CyberComboBoxController extends ChangeNotifier {
 
   CyberComboBoxController({
     dynamic value,
+    String? displayValue,
     bool enabled = true,
     CyberDataTable? dataSource,
     String? displayMember,
     String? valueMember,
-  })  : _value = value,
-        _enabled = enabled,
-        _dataSource = dataSource,
-        _displayMember = displayMember,
-        _valueMember = valueMember {
+  }) : _value = value,
+       _displayValue = displayValue ?? '',
+       _enabled = enabled,
+       _dataSource = dataSource,
+       _displayMember = displayMember,
+       _valueMember = valueMember {
     // Listen to dataSource changes
     _dataSource?.addListener(_onDataSourceChanged);
   }
@@ -36,8 +40,11 @@ class CyberComboBoxController extends ChangeNotifier {
   // GETTERS
   // ============================================================================
 
-  /// Giá trị được chọn hiện tại
+  /// Giá trị được chọn hiện tại (value)
   dynamic get value => _value;
+
+  /// Display value (text hiển thị)
+  String get displayValue => _displayValue;
 
   /// Trạng thái enabled
   bool get enabled => _enabled;
@@ -51,14 +58,32 @@ class CyberComboBoxController extends ChangeNotifier {
   /// ValueMember field name
   String? get valueMember => _valueMember;
 
+  /// Check if has value
+  bool get hasValue => _displayValue.isNotEmpty;
+
   // ============================================================================
   // SETTERS
   // ============================================================================
 
-  /// Set giá trị được chọn
+  /// Set giá trị được chọn (value)
   void setValue(dynamic v) {
     if (_value == v) return;
     _value = v;
+    notifyListeners();
+  }
+
+  /// Set display value
+  void setDisplayValue(String displayText) {
+    if (_displayValue == displayText) return;
+    _displayValue = displayText;
+    notifyListeners();
+  }
+
+  /// Set cả value và display value cùng lúc
+  void setValues({required dynamic value, required String displayValue}) {
+    if (_value == value && _displayValue == displayValue) return;
+    _value = value;
+    _displayValue = displayValue;
     notifyListeners();
   }
 
@@ -103,12 +128,21 @@ class CyberComboBoxController extends ChangeNotifier {
   // ============================================================================
 
   /// Clear về null
-  void clear() => setValue(null);
+  void clear() {
+    _value = null;
+    _displayValue = '';
+    notifyListeners();
+  }
 
   /// Reset về giá trị ban đầu
-  void reset(dynamic initialValue) => setValue(initialValue);
+  void reset({dynamic initialValue, String? initialDisplayValue}) {
+    _value = initialValue;
+    _displayValue = initialDisplayValue ?? '';
+    notifyListeners();
+  }
 
-  /// Get display text cho value hiện tại
+  /// Get display text cho value hiện tại từ dataSource
+  /// (Tự động tìm trong dataSource nếu có)
   String? getDisplayText() {
     if (_value == null || _dataSource == null) return null;
     if (_displayMember == null || _valueMember == null) return null;
@@ -171,6 +205,16 @@ class CyberComboBoxController extends ChangeNotifier {
     return null;
   }
 
+  /// Sync display value từ dataSource
+  /// Tự động tìm display text tương ứng với value hiện tại
+  void syncDisplayValueFromDataSource() {
+    final displayText = getDisplayText();
+    if (displayText != null && displayText != _displayValue) {
+      _displayValue = displayText;
+      notifyListeners();
+    }
+  }
+
   // ============================================================================
   // PRIVATE METHODS
   // ============================================================================
@@ -193,6 +237,7 @@ class CyberComboBoxController extends ChangeNotifier {
   String toString() {
     return 'CyberComboBoxController('
         'value: $_value, '
+        'displayValue: $_displayValue, '
         'enabled: $_enabled, '
         'displayMember: $_displayMember, '
         'valueMember: $_valueMember, '
