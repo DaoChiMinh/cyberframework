@@ -6,7 +6,7 @@ abstract class CyberFormchklist extends CyberForm {
   bool get showSearchBox => false;
   int get initialTabIndex => 0;
 
-  CyberDataTable? _dtList;
+  CyberDataTable? dtList;
   CyberDataTable? _dtMaster;
   CyberDataTable? _dttag;
   String? _ma_tag;
