@@ -15,7 +15,7 @@ abstract class CyberFormchklist extends CyberForm {
   Future<void> onLoadData() async {
     _ma_tag = "";
     _dtList = await v_loadData(1, 20, "");
-
+    this.title = _dtMaster![0]["title"] ?? this.title;
     return super.onLoadData();
   }
 
@@ -25,7 +25,7 @@ abstract class CyberFormchklist extends CyberForm {
     String strSearch,
   ) async {
     String m_load = "1";
-    if (pageIndex > 0) m_load = "0";
+    if (pageIndex > 1) m_load = "0";
     List<String> _paras = strparameter.split("#");
     _paras[0] = m_load;
     _paras[1] = pageIndex.toString();
@@ -42,7 +42,6 @@ abstract class CyberFormchklist extends CyberForm {
       if (m_load == "1") {
         selectedIndices.clear();
         _dtMaster = ds1![1];
-        this.title = _dtMaster![0]["title"] ?? this.title;
       }
       _dttag = ds1![ds1!.tableCount - 1];
       return ds1![0]!;
@@ -97,6 +96,10 @@ abstract class CyberFormchklist extends CyberForm {
               ),
             );
           },
+          separator: SizedBox(height: 8),
+          itemBackgroundColor: TextColorGray,
+          itemBorderRadius: BorderRadius.circular(8),
+          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           onLoadData: v_loadData,
           onItemTap: (row, index) {
             print('Tapped item at index $index');
@@ -109,6 +112,36 @@ abstract class CyberFormchklist extends CyberForm {
           },
           dataSource: _dtList,
           showSearchBox: showSearchBox,
+          cyberActionType: CyberActionType.autoShow,
+          cyberActionDirection: CyberActionDirection.vertical,
+          cyberActionBackgroundColor: Colors.white,
+          cyberActionPadding: EdgeInsets.symmetric(horizontal: 26, vertical: 8),
+          //cyberActionCenterHor: true,
+          cyberActionBottom: 16,
+          cyberActionRight: 0,
+          cyberActions: [
+            CyberButtonAction(
+              label: setText("Chọn tất", "Select All"),
+              icon: "e6b1",
+              backgroundColor: TextColorGray,
+              onclick: () {
+                selectedIndices = List.generate(
+                  _dtList!.rowCount,
+                  (index) => index,
+                );
+                rebuild();
+              },
+            ),
+            CyberButtonAction(
+              label: setText("Bỏ chọn tất", "UnSelect All"),
+              icon: "e9d3",
+              backgroundColor: TextColorGray,
+              onclick: () {
+                selectedIndices.clear();
+                rebuild();
+              },
+            ),
+          ],
         ),
       ),
     );
