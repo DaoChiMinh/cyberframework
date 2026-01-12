@@ -289,8 +289,13 @@ Future<ReturnFormData> V_callform(
     case "callconfirm":
     case "call":
       // Gọi điện thoại với dialog xác nhận
+      String phoneNumber = strparameter;
+      if (phoneNumber != "") {
+        phoneNumber = strfrm;
+      }
+
       await PhoneHandler.makePhoneCall(
-        strfrm,
+        phoneNumber,
         context: context,
         showConfirmation: true,
       );

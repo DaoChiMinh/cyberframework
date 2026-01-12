@@ -1768,10 +1768,10 @@ class _MenuBottomSheet extends StatelessWidget {
         if (pageName != null && pageName.isNotEmpty) {
           CyberDataRow _menuRow = menuRow.copy();
           String _para = _menuRow['strparameter'] as String? ?? '';
-          _menuRow['strparameter'] = _menuRow.updatedatatostring(_para);
+          _menuRow['strparameter'] = sourceRow.updatedatatostring(_para);
           print(_menuRow['strparameter']);
 
-          menuRow.V_Call(context);
+          _menuRow.V_Call(context);
         }
       }
       onMenuItemTap?.call(menuRow, sourceRow, sourceIndex);
