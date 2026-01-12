@@ -9,8 +9,11 @@ abstract class Formchklist extends CyberForm {
   CyberDataTable? _dtList;
   CyberDataTable? _dtMaster;
   CyberDataTable? _dttag;
+  String? _ma_tag;
+
   @override
   Future<void> onLoadData() async {
+    _ma_tag = "";
     var (ds1, isOk) = await context.callApiAndCheck(
       functionName: cp_name,
       parameter: strparameter,
@@ -19,6 +22,8 @@ abstract class Formchklist extends CyberForm {
       _dtList = ds1![0];
       _dtMaster = ds1![1];
       _dttag = ds1![2];
+
+      this.title = _dtMaster![0]["title"] ?? this.title;
     }
 
     return super.onLoadData();
@@ -31,6 +36,24 @@ abstract class Formchklist extends CyberForm {
     }
 
     List<Widget> children = [];
+    if (_dttag!.rowCount > 1) {
+      children.add(
+        CyberSwitchButton(
+          options: List.generate(_dttag!.rowCount, (index) {
+            var row = _dttag![_dttag!.rowCount - index - 1];
+            return CyberSwitchOption(
+              label: row['ten_tag'] ?? '',
+              value: row['ma_tag'] ?? '',
+            );
+          }),
+          initialIndex: initialTabIndex,
+          onChanged: (index, value, option) {
+            print('Selected: ${option.label}');
+            _ma_tag = option.value;
+          },
+        ),
+      );
+    }
 
     children.add(buildHeader());
     children.add(
@@ -57,16 +80,19 @@ abstract class Formchklist extends CyberForm {
   }
 
   @override
+  // ignore: override_on_non_overriding_member
   Future<void> SaveData() async {
     close();
   }
 
   @override
+  // ignore: override_on_non_overriding_member
   Widget buildHeader() {
     return SizedBox.shrink();
   }
 
   @override
+  // ignore: override_on_non_overriding_member
   Widget buildFooter() {
     return SizedBox.shrink();
   }
