@@ -192,7 +192,9 @@ class _CyberNumericState extends State<CyberNumeric> {
       // Blur: validate và format đầy đủ
       final text = _textController.text.replaceAll(_thousandsSeparator, '');
       num? value = num.tryParse(text);
-
+      if (value == null) {
+        value = 0;
+      }
       // Validate min/max
       if (value != null) {
         if (widget.min != null && value < widget.min!) value = widget.min;
