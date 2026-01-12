@@ -297,10 +297,11 @@ class _CyberNumericState extends State<CyberNumeric> {
 
     if (hadMinus && hasMinus && minusCount > 1) {
       // Đã có dấu trừ rồi, user lại nhập thêm → Restore và giữ nguyên vị trí
+
       _isUpdating = true;
       _textController.value = TextEditingValue(
         text: _previousText,
-        selection: TextSelection.collapsed(offset: cursorPos - 1),
+        selection: TextSelection.collapsed(offset: cursorPos),
       );
       _isUpdating = false;
       return;
@@ -327,7 +328,7 @@ class _CyberNumericState extends State<CyberNumeric> {
       // Kiểm tra nếu con trỏ đang ở sau dấu chấm
       if (cleanCursorPos > dotIndex &&
           decimalPart.length > _decimalPlaces &&
-          minusCount > 1) {
+          !(!hadMinus && hasMinus)) {
         // Xóa ký tự ngay đằng sau vị trí con trỏ
         final beforeCursor = clean.substring(0, cleanCursorPos);
         final afterCursor = clean.substring(cleanCursorPos + 1);
