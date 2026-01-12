@@ -995,19 +995,19 @@ class _CyberListViewState extends State<CyberListView> {
         children: [
           Expanded(
             child: Container(
-              height: 36,
+              height: 42,
               decoration: BoxDecoration(
                 color: CupertinoColors.systemFill.resolveFrom(context),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: TextField(
                 controller: _searchController,
-                style: const TextStyle(fontSize: 16),
+                //style: const TextStyle(fontSize: 16),
                 decoration: InputDecoration(
                   hintText: setText('Tìm kiếm', "Search"),
                   hintStyle: TextStyle(
                     color: CupertinoColors.systemGrey.resolveFrom(context),
-                    fontSize: 16,
+                    //fontSize: 16,
                   ),
                   prefixIcon: Padding(
                     padding: const EdgeInsets.only(left: 8, right: 4),
