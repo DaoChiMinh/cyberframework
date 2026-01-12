@@ -254,6 +254,9 @@ class _CyberNumericState extends State<CyberNumeric> {
   void _onTextChanged(String value) {
     if (_isUpdating) return;
 
+    // Lấy vị trí con trỏ hiện tại
+    final cursorPos = _textController.selection.baseOffset;
+
     String clean = value
         .replaceAll(_thousandsSeparator, '')
         .replaceAll(' ', '');
@@ -278,17 +281,37 @@ class _CyberNumericState extends State<CyberNumeric> {
         selection: TextSelection.collapsed(offset: newCursorPos),
       );
       _isUpdating = false;
-      return; // STOP ở đây, không xử lý gì thêm
+      return;
+    }
+
+    // ✅ INSERT MODE cho số thập phân
+    if (_hasDecimal && clean.contains('.')) {
+      final dotIndex = clean.indexOf('.');
+      final decimalPart = clean.substring(dotIndex + 1);
+
+      // Tính vị trí con trỏ trong clean text (không có thousands separator)
+      int cleanCursorPos = 0;
+      for (int i = 0; i < min(cursorPos, value.length); i++) {
+        if (value[i] != _thousandsSeparator && value[i] != ' ') {
+          cleanCursorPos++;
+        }
+      }
+
+      // Kiểm tra nếu con trỏ đang ở sau dấu chấm
+      if (cleanCursorPos > dotIndex && decimalPart.length > _decimalPlaces) {
+        // Xóa ký tự ngay đằng sau vị trí con trỏ
+        final beforeCursor = clean.substring(0, cleanCursorPos);
+        final afterCursor = clean.substring(cleanCursorPos + 1);
+        clean = beforeCursor + afterCursor;
+      }
     }
 
     // ✅ Rule 1: Dấu trừ phải ở đầu
     if (clean.contains('-')) {
       final parts = clean.split('-');
       if (parts.length > 2) {
-        // Nhiều dấu trừ: chỉ giữ 1 ở đầu
         clean = '-${parts.where((p) => p.isNotEmpty).join('')}';
       } else if (!clean.startsWith('-')) {
-        // Dấu trừ không ở đầu: di chuyển lên đầu
         clean = '-${clean.replaceAll('-', '')}';
       }
     }
@@ -325,12 +348,20 @@ class _CyberNumericState extends State<CyberNumeric> {
 
     // Update TextField
     if (_textController.text != formatted) {
-      final cursorPos = _textController.selection.baseOffset;
       int newCursorPos = _calculateCursorPosition(
         _textController.text,
         formatted,
         cursorPos,
       );
+
+      // ✅ Nếu con trỏ ở cuối cùng → di chuyển về trước số cuối
+      if (_hasDecimal && formatted.contains('.')) {
+        final dotIndex = formatted.indexOf('.');
+        if (newCursorPos == formatted.length &&
+            formatted.length > dotIndex + 1) {
+          newCursorPos = formatted.length - 1;
+        }
+      }
 
       _isUpdating = true;
       _textController.value = TextEditingValue(
