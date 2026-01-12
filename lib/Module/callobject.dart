@@ -70,7 +70,7 @@ void V_MainScreen(
 }
 
 // ignore: non_constant_identifier_names
-Future<bool> V_callform(
+Future<ReturnFormData> V_callform(
   BuildContext context,
   String strfrm,
   String title,
@@ -88,7 +88,7 @@ Future<bool> V_callform(
         showError: true,
         showLoading: true,
       );
-      if (!retData.isValid()) return false;
+      if (!retData.isValid()) return ReturnFormData(isOk: false);
       break;
     case 'aq':
       var isQuerySuccess = await strfrm.V_MsgBox(
@@ -97,8 +97,8 @@ Future<bool> V_callform(
         confirmText: "Đồng ý",
         cancelText: "Huỷ bỏ",
       );
-      if (!isQuerySuccess) return false;
-      if (cpName == "") return false;
+      if (!isQuerySuccess) return ReturnFormData(isOk: false);
+      if (cpName == "") return ReturnFormData(isOk: false);
       // ignore: use_build_context_synchronously
       ReturnData? retData = await context.callApi(
         functionName: cpName,
@@ -106,7 +106,7 @@ Future<bool> V_callform(
         showError: true,
         showLoading: true,
       );
-      if (!retData.isValid()) return false;
+      if (!retData.isValid()) return ReturnFormData(isOk: false);
       break;
     case "a":
       await strfrm.V_MsgBox(
@@ -295,7 +295,6 @@ Future<bool> V_callform(
         showConfirmation: true,
       );
       break;
-
     case "sms":
     case "message":
       // Gửi SMS
@@ -307,7 +306,6 @@ Future<bool> V_callform(
         context: context,
       );
       break;
-
     case "whatsapp":
     case "wa":
       // Mở WhatsApp chat
@@ -319,13 +317,11 @@ Future<bool> V_callform(
         context: context,
       );
       break;
-
     case "telegram":
     case "tg":
       // Mở Telegram chat
       await PhoneHandler.openTelegram(strfrm, context: context);
       break;
-
     case "viber":
       // Mở Viber chat
       await PhoneHandler.openViber(strfrm, context: context);
@@ -428,21 +424,25 @@ Future<bool> V_callform(
       final screen = V_getScreen(strfrm, title, cpName, strparameter);
       if (screen == null) {
         debugPrint('⚠️ Không tìm thấy màn hình: $strfrm');
-        return false;
+        return ReturnFormData(isOk: false);
       }
+      dynamic result;
       if (clearAllStack) {
-        Navigator.of(context).pushAndRemoveUntil(
+        result = await Navigator.of(context).pushAndRemoveUntil(
           _buildPageRoute(screen, useHeroAnimation),
           (route) => false,
         );
       } else {
         // Navigate bình thường
-        Navigator.push(context, _buildPageRoute(screen, useHeroAnimation));
+        result = await Navigator.push(
+          context,
+          _buildPageRoute(screen, useHeroAnimation),
+        );
       }
-
-      break;
+      if (result == null) return ReturnFormData(isOk: false);
+      return ReturnFormData(isOk: true, objectData: result);
   }
-  return true;
+  return ReturnFormData(isOk: true);
 }
 
 PageRoute _buildPageRoute(Widget screen, bool useHeroAnimation) {
@@ -616,4 +616,11 @@ Future<T?> V_callViewDialog<T>(
     borderRadius: borderRadius,
     backgroundColor: backgroundColor,
   );
+}
+
+class ReturnFormData {
+  bool? isOk;
+  dynamic objectData;
+
+  ReturnFormData({required this.isOk, this.objectData});
 }
