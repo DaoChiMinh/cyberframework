@@ -2,6 +2,15 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:audioplayers/audioplayers.dart';
+
+/// Loại nguồn âm thanh
+enum SoundSourceType {
+  system, // System sound (không cần file/url)
+  asset, // File trong assets/
+  url, // URL từ server
+  file, // File path local
+}
 
 class Cyberscanbarcode extends StatefulWidget {
   final Function(String)? onCapture;
@@ -28,6 +37,30 @@ class Cyberscanbarcode extends StatefulWidget {
   final bool playBeepSound;
   final double beepVolume;
 
+  /// Loại nguồn âm thanh success
+  final SoundSourceType successSoundType;
+
+  /// Đường dẫn/URL âm thanh success
+  /// - SoundSourceType.asset: 'sounds/success.mp3'
+  /// - SoundSourceType.url: 'https://example.com/success.mp3'
+  /// - SoundSourceType.file: '/path/to/success.mp3'
+  final String? successSoundPath;
+
+  /// Loại nguồn âm thanh error
+  final SoundSourceType errorSoundType;
+
+  /// Đường dẫn/URL âm thanh error
+  final String? errorSoundPath;
+
+  /// Loại nguồn âm thanh default
+  final SoundSourceType defaultSoundType;
+
+  /// Đường dẫn/URL âm thanh default
+  final String? defaultSoundPath;
+
+  /// Chế độ âm thanh hiện tại: 'success', 'error', 'default'
+  final String currentSoundMode;
+
   const Cyberscanbarcode({
     super.key,
     this.onCapture,
@@ -53,6 +86,14 @@ class Cyberscanbarcode extends StatefulWidget {
     this.messageDuration = 2000,
     this.playBeepSound = true,
     this.beepVolume = 0.5,
+    // Sound configuration
+    this.successSoundType = SoundSourceType.system,
+    this.successSoundPath,
+    this.errorSoundType = SoundSourceType.system,
+    this.errorSoundPath,
+    this.defaultSoundType = SoundSourceType.system,
+    this.defaultSoundPath,
+    this.currentSoundMode = 'default',
   });
 
   @override
@@ -72,6 +113,8 @@ class _CyberCameraScreenState extends State<Cyberscanbarcode>
   Timer? _messageDurationTimer;
   bool _showTemporaryMessage = false;
 
+  final AudioPlayer _audioPlayer = AudioPlayer();
+
   @override
   void initState() {
     super.initState();
@@ -89,6 +132,7 @@ class _CyberCameraScreenState extends State<Cyberscanbarcode>
     if (widget.messageGetter != null) {
       _startMessageUpdateTimer();
     }
+    _audioPlayer.setVolume(widget.beepVolume);
   }
 
   void _updateMessage() {
@@ -142,14 +186,71 @@ class _CyberCameraScreenState extends State<Cyberscanbarcode>
     );
   }
 
-  void _playBeep() {
+  Future<void> _playBeep() async {
     if (!widget.playBeepSound) return;
+
     try {
-      SystemSound.play(SystemSoundType.click);
-      HapticFeedback.mediumImpact();
+      // Chọn sound source dựa vào currentSoundMode
+      SoundSourceType sourceType;
+      String? soundPath;
+
+      switch (widget.currentSoundMode) {
+        case 'success':
+          sourceType = widget.successSoundType;
+          soundPath = widget.successSoundPath;
+          break;
+        case 'error':
+          sourceType = widget.errorSoundType;
+          soundPath = widget.errorSoundPath;
+          break;
+        default:
+          sourceType = widget.defaultSoundType;
+          soundPath = widget.defaultSoundPath;
+      }
+
+      // Play sound dựa vào source type
+      switch (sourceType) {
+        case SoundSourceType.system:
+          SystemSound.play(SystemSoundType.click);
+          HapticFeedback.mediumImpact();
+          break;
+
+        case SoundSourceType.asset:
+          if (soundPath != null) {
+            await _audioPlayer.play(AssetSource(soundPath));
+            HapticFeedback.mediumImpact();
+          } else {
+            _playSystemSound();
+          }
+          break;
+
+        case SoundSourceType.url:
+          if (soundPath != null) {
+            await _audioPlayer.play(UrlSource(soundPath));
+            HapticFeedback.mediumImpact();
+          } else {
+            _playSystemSound();
+          }
+          break;
+
+        case SoundSourceType.file:
+          if (soundPath != null) {
+            await _audioPlayer.play(DeviceFileSource(soundPath));
+            HapticFeedback.mediumImpact();
+          } else {
+            _playSystemSound();
+          }
+          break;
+      }
     } catch (e) {
       debugPrint('Error playing beep: $e');
+      _playSystemSound();
     }
+  }
+
+  void _playSystemSound() {
+    SystemSound.play(SystemSoundType.click);
+    HapticFeedback.mediumImpact();
   }
 
   @override
@@ -164,6 +265,10 @@ class _CyberCameraScreenState extends State<Cyberscanbarcode>
           _startMessageUpdateTimer();
         }
       }
+    }
+
+    if (widget.beepVolume != oldWidget.beepVolume) {
+      _audioPlayer.setVolume(widget.beepVolume);
     }
   }
 
@@ -298,6 +403,7 @@ class _CyberCameraScreenState extends State<Cyberscanbarcode>
     _messageUpdateTimer = null;
     _messageDurationTimer?.cancel();
     _messageDurationTimer = null;
+    _audioPlayer.dispose();
     WidgetsBinding.instance.removeObserver(this);
     controller.dispose();
     super.dispose();
