@@ -20,8 +20,6 @@ class Cyberscanbarcode extends StatefulWidget {
   final bool clickScan;
 
   /// Quét liên tục hay dừng sau lần quét đầu tiên
-  /// - true: Quét liên tục (mặc định)
-  /// - false: Dừng sau lần quét đầu, phải click để quét lại
   final bool continuousScan;
 
   /// Hiển thị trạng thái quét
@@ -32,6 +30,36 @@ class Cyberscanbarcode extends StatefulWidget {
 
   /// Màu nền của trạng thái
   final Color statusBackgroundColor;
+
+  /// Message runtime - text tĩnh
+  /// Ví dụ: "Quét mã sản phẩm"
+  final String? message;
+
+  /// Message runtime - getter động (binding từ CyberDataRow)
+  /// Ví dụ: () => dataRow["ProductName"]?.toString() ?? ""
+  final String Function()? messageGetter;
+
+  /// Hiển thị message
+  final bool showMessage;
+
+  /// Màu text của message
+  final Color messageTextColor;
+
+  /// Màu nền của message
+  final Color messageBackgroundColor;
+
+  /// Vị trí message: 'top', 'center', 'bottom'
+  final String messagePosition;
+
+  /// Font size của message
+  final double messageFontSize;
+
+  /// Icon cho message (optional)
+  final IconData? messageIcon;
+
+  /// Interval để update message từ getter (ms)
+  /// Chỉ áp dụng khi dùng messageGetter
+  final int messageUpdateInterval;
 
   const Cyberscanbarcode({
     super.key,
@@ -46,6 +74,16 @@ class Cyberscanbarcode extends StatefulWidget {
     this.showStatus = true,
     this.statusTextColor = Colors.white,
     this.statusBackgroundColor = Colors.black54,
+    // Message properties
+    this.message,
+    this.messageGetter,
+    this.showMessage = true,
+    this.messageTextColor = Colors.white,
+    this.messageBackgroundColor = const Color(0xFF2196F3), // Blue
+    this.messagePosition = 'bottom', // 'top', 'center', 'bottom'
+    this.messageFontSize = 16.0,
+    this.messageIcon,
+    this.messageUpdateInterval = 500, // Update message every 500ms
   });
 
   @override
@@ -62,15 +100,18 @@ class _CyberCameraScreenState extends State<Cyberscanbarcode>
 
   // Track state
   bool _isDisposed = false;
-  bool _isScanning = false; // Trạng thái đang quét hay không
+  bool _isScanning = false;
+
+  // Message runtime
+  String _currentMessage = '';
+  Timer? _messageUpdateTimer;
 
   @override
   void initState() {
     super.initState();
 
-    // Initialize controller với autoStart dựa vào continuousScan
     controller = MobileScannerController(
-      autoStart: true, // Luôn autoStart khi khởi tạo
+      autoStart: true,
       detectionSpeed: DetectionSpeed.normal,
       detectionTimeoutMs: 350,
       formats: [BarcodeFormat.all],
@@ -78,18 +119,71 @@ class _CyberCameraScreenState extends State<Cyberscanbarcode>
       autoZoom: widget.autoZoom,
     );
 
-    // Set initial scanning state
     _isScanning = true;
 
-    // Start listening to lifecycle changes
     WidgetsBinding.instance.addObserver(this);
+
+    // Initialize message
+    _updateMessage();
+
+    // Start periodic message update nếu có messageGetter
+    if (widget.messageGetter != null) {
+      _startMessageUpdateTimer();
+    }
+  }
+
+  void _updateMessage() {
+    if (widget.messageGetter != null) {
+      try {
+        final newMessage = widget.messageGetter!();
+        if (mounted && newMessage != _currentMessage) {
+          setState(() {
+            _currentMessage = newMessage;
+          });
+        }
+      } catch (e) {
+        debugPrint('Error updating message: $e');
+      }
+    } else if (widget.message != null) {
+      if (_currentMessage != widget.message) {
+        setState(() {
+          _currentMessage = widget.message!;
+        });
+      }
+    }
+  }
+
+  void _startMessageUpdateTimer() {
+    _messageUpdateTimer?.cancel();
+    _messageUpdateTimer = Timer.periodic(
+      Duration(milliseconds: widget.messageUpdateInterval),
+      (_) => _updateMessage(),
+    );
+  }
+
+  @override
+  void didUpdateWidget(Cyberscanbarcode oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // Update message nếu có thay đổi
+    if (widget.message != oldWidget.message ||
+        widget.messageGetter != oldWidget.messageGetter) {
+      _updateMessage();
+
+      // Restart timer nếu messageGetter thay đổi
+      if (widget.messageGetter != oldWidget.messageGetter) {
+        _messageUpdateTimer?.cancel();
+        if (widget.messageGetter != null) {
+          _startMessageUpdateTimer();
+        }
+      }
+    }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (_isDisposed) return;
 
-    // If the controller is not ready, do not try to start or stop it
     if (!controller.value.hasCameraPermission) {
       return;
     }
@@ -100,15 +194,12 @@ class _CyberCameraScreenState extends State<Cyberscanbarcode>
       case AppLifecycleState.paused:
         return;
       case AppLifecycleState.resumed:
-        // Restart camera khi app quay lại foreground
         _resumeScanning();
       case AppLifecycleState.inactive:
-        // Stop camera khi app inactive
         _pauseScanning();
     }
   }
 
-  /// Resume scanning (khi app resume)
   Future<void> _resumeScanning() async {
     if (_isDisposed) return;
 
@@ -124,7 +215,6 @@ class _CyberCameraScreenState extends State<Cyberscanbarcode>
     }
   }
 
-  /// Pause scanning (khi app pause)
   Future<void> _pauseScanning() async {
     if (_isDisposed) return;
 
@@ -140,20 +230,16 @@ class _CyberCameraScreenState extends State<Cyberscanbarcode>
     }
   }
 
-  /// Toggle scanning (bật/tắt quét khi click)
   Future<void> _toggleScanning() async {
     if (_isDisposed || !widget.clickScan) return;
 
     if (_isScanning) {
-      // Đang quét → Dừng
       await _stopScanning();
     } else {
-      // Đang dừng → Bật
       await _startScanning();
     }
   }
 
-  /// Start scanning
   Future<void> _startScanning() async {
     if (_isDisposed) return;
 
@@ -169,7 +255,6 @@ class _CyberCameraScreenState extends State<Cyberscanbarcode>
     }
   }
 
-  /// Stop scanning
   Future<void> _stopScanning() async {
     if (_isDisposed) return;
 
@@ -186,41 +271,30 @@ class _CyberCameraScreenState extends State<Cyberscanbarcode>
   }
 
   void _handleBarcodeDetection(String value) {
-    // Nếu không quét liên tục và đã quét được 1 lần, dừng quét
     if (!widget.continuousScan && _lastScannedValue != null) {
-      return; // Đã quét rồi, không quét nữa
+      return;
     }
 
-    // Kiểm tra debouncing
     if (_lastScannedValue == value && _debounceTimer?.isActive == true) {
-      return; // Bỏ qua nếu cùng giá trị và trong thời gian debounce
+      return;
     }
 
-    // Cancel timer cũ nếu có
     _debounceTimer?.cancel();
-
-    // Lưu giá trị mới
     _lastScannedValue = value;
 
-    // Gọi callback
     widget.onCapture?.call(value);
 
-    // Nếu không quét liên tục, dừng scanner sau khi quét xong
     if (!widget.continuousScan) {
       _stopScanning();
     }
 
-    // Set timer mới
     _debounceTimer = Timer(Duration(milliseconds: widget.debounceMs), () {
       if (widget.continuousScan) {
-        _lastScannedValue =
-            null; // Reset sau debounce time (chỉ khi quét liên tục)
+        _lastScannedValue = null;
       }
-      // Nếu không quét liên tục, giữ nguyên _lastScannedValue để block scan tiếp
     });
   }
 
-  /// Reset scanner để có thể quét lại (dùng khi continuousScan = false)
   void resetScanner() {
     _lastScannedValue = null;
     _debounceTimer?.cancel();
@@ -229,27 +303,102 @@ class _CyberCameraScreenState extends State<Cyberscanbarcode>
     }
   }
 
+  /// Public method để update message từ bên ngoài
+  void updateMessage(String message) {
+    if (mounted) {
+      setState(() {
+        _currentMessage = message;
+      });
+    }
+  }
+
   @override
   void dispose() {
     _isDisposed = true;
 
-    // Cancel debounce timer
     _debounceTimer?.cancel();
     _debounceTimer = null;
 
-    // Remove lifecycle observer
+    _messageUpdateTimer?.cancel();
+    _messageUpdateTimer = null;
+
     WidgetsBinding.instance.removeObserver(this);
 
-    // Dispose controller
     controller.dispose();
 
-    // Call super last
     super.dispose();
+  }
+
+  Widget _buildMessageWidget() {
+    if (!widget.showMessage || _currentMessage.isEmpty) {
+      return SizedBox.shrink();
+    }
+
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      margin: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: widget.messageBackgroundColor,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 2)),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (widget.messageIcon != null) ...[
+            Icon(
+              widget.messageIcon,
+              color: widget.messageTextColor,
+              size: widget.messageFontSize + 4,
+            ),
+            SizedBox(width: 12),
+          ],
+          Flexible(
+            child: Text(
+              _currentMessage,
+              style: TextStyle(
+                color: widget.messageTextColor,
+                fontSize: widget.messageFontSize,
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPositionedMessage() {
+    final messageWidget = _buildMessageWidget();
+
+    switch (widget.messagePosition.toLowerCase()) {
+      case 'top':
+        return Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: Center(child: messageWidget),
+        );
+      case 'center':
+        return Center(child: messageWidget);
+      case 'bottom':
+      default:
+        return Positioned(
+          bottom: 0,
+          left: 0,
+          right: 0,
+          child: Center(child: messageWidget),
+        );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Widget chính
     Widget scannerWidget = Container(
       height: widget.height,
       decoration: BoxDecoration(
@@ -264,7 +413,7 @@ class _CyberCameraScreenState extends State<Cyberscanbarcode>
             controller: controller,
             fit: BoxFit.cover,
             onDetect: (data) {
-              if (!_isScanning) return; // Không xử lý nếu đang dừng
+              if (!_isScanning) return;
 
               final barcode = data.barcodes.firstOrNull;
               if (barcode?.rawValue != null) {
@@ -286,7 +435,7 @@ class _CyberCameraScreenState extends State<Cyberscanbarcode>
               ),
             ),
 
-          // Hiển thị trạng thái
+          // Status (luôn ở top)
           if (widget.showStatus)
             Positioned(
               top: 16,
@@ -302,14 +451,12 @@ class _CyberCameraScreenState extends State<Cyberscanbarcode>
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Icon
                       Icon(
                         _isScanning ? Icons.qr_code_scanner : Icons.pause,
                         color: widget.statusTextColor,
                         size: 16,
                       ),
                       SizedBox(width: 8),
-                      // Text
                       Text(
                         _isScanning ? 'Đang quét...' : 'Dừng quét',
                         style: TextStyle(
@@ -324,7 +471,10 @@ class _CyberCameraScreenState extends State<Cyberscanbarcode>
               ),
             ),
 
-          // Hướng dẫn click (nếu bật clickScan)
+          // Runtime Message
+          _buildPositionedMessage(),
+
+          // Hướng dẫn click
           if (widget.clickScan && !_isScanning)
             Positioned(
               bottom: 16,
@@ -352,7 +502,6 @@ class _CyberCameraScreenState extends State<Cyberscanbarcode>
       ),
     );
 
-    // Wrap với GestureDetector nếu bật clickScan
     if (widget.clickScan) {
       return GestureDetector(onTap: _toggleScanning, child: scannerWidget);
     }
