@@ -37,7 +37,7 @@ class Cyberscanbarcode extends StatefulWidget {
     super.key,
     this.onCapture,
     this.height,
-    this.borderRadius = 12.0,
+    this.borderRadius = 0,
     this.debounceMs = 1000,
     this.torchEnabled = false,
     this.autoZoom = false,
