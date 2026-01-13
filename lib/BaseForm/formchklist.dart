@@ -19,6 +19,7 @@ abstract class CyberFormchklist extends CyberForm {
     return super.onLoadData();
   }
 
+  // ignore: non_constant_identifier_names
   Future<CyberDataTable> v_loadData(
     int pageIndex,
     int pageSize,
@@ -43,8 +44,8 @@ abstract class CyberFormchklist extends CyberForm {
         selectedIndices.clear();
         _dtMaster = ds1![1];
       }
-      _dttag = ds1![ds1!.tableCount - 1];
-      return ds1![0]!;
+      _dttag = ds1![ds1.tableCount - 1];
+      return ds1[0]!;
     } else {
       return CyberDataTable(tableName: "data");
     }

@@ -50,6 +50,7 @@ abstract class CyberBaseEdit extends CyberForm {
   }
 
   @override
+  // ignore: override_on_non_overriding_member
   Future<void> SaveData() async {
     close();
   }
