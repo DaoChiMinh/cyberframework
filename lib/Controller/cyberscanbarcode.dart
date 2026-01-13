@@ -142,7 +142,6 @@ class _CyberCameraScreenState extends State<Cyberscanbarcode>
 
   /// Toggle scanning (bật/tắt quét khi click)
   Future<void> _toggleScanning() async {
-    print("aaaaaaaaaaaaaaaaaaaaaaaa");
     if (_isDisposed || !widget.clickScan) return;
 
     if (_isScanning) {
