@@ -6,6 +6,7 @@ abstract class CyberBaseEdit extends CyberForm {
   String mode = "M";
   String get saveButtonLabel => setText("Lưu dữ liệu", "Save data");
   bool get showSaveButton => true;
+  final ReturnFormData _formData = ReturnFormData(isOk: false);
 
   /// Padding cho nút Save
   EdgeInsets get saveButtonPadding =>
@@ -52,7 +53,7 @@ abstract class CyberBaseEdit extends CyberForm {
   @override
   // ignore: override_on_non_overriding_member
   Future<void> SaveData() async {
-    close();
+    close(result: _formData);
   }
 
   String getXML(List<CyberDataTable> dts, List<String> names) {
@@ -63,6 +64,7 @@ abstract class CyberBaseEdit extends CyberForm {
     String Cp_Name = "",
     String StrParameter = "",
   }) async {
+    _formData.isOk = false;
     ReturnData returnData = await context.callApi(
       functionName: Cp_Name,
       parameter: StrParameter,
@@ -72,10 +74,23 @@ abstract class CyberBaseEdit extends CyberForm {
 
     CyberDataset? ds = returnData.toCyberDataset();
 
-    if (ds == null) return false;
+    if (ds == null) {
+      await "Data NULL".V_MsgBox(context, type: CyberMsgBoxType.error);
+      return false;
+    }
 
     if (!await ds.checkStatus(context)) return false;
-
+    if (ds.tableCount < 2) {
+      await "Không tồn tại bảng 2".V_MsgBox(
+        context,
+        type: CyberMsgBoxType.error,
+      );
+      return false;
+    }
+    if (ds[1]!.rowCount > 0) {
+      _formData.isOk = true;
+      _formData.objectData = ds[1]![0];
+    }
     return true;
   }
 }
