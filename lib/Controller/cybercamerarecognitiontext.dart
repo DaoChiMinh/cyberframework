@@ -212,6 +212,9 @@ class _CyberCameraRecognitionTextState extends State<CyberCameraRecognitionText>
   int _frameCount = 0;
   RecognizedTextResult? _lastResult;
 
+  // Lưu parsed data cuối cùng để kiểm tra duplicate
+  Map<String, dynamic>? _lastParsedData;
+
   // Auto-detected performance config
   late ResolutionPreset _effectiveResolution;
   late int _effectiveFrameSkip;
@@ -542,8 +545,20 @@ class _CyberCameraRecognitionTextState extends State<CyberCameraRecognitionText>
       if (widget.autoValidateTemplate) {
         if (_templateParser!.validate(parsedData)) {
           // ✅ Template match thành công
-          widget.onTextRecognizedWithTemplate!.call(result, parsedData);
-          shouldStopRecognition = true; // Cho phép dừng camera
+
+          // Kiểm tra xem parsed data có giống với lần trước không
+          if (_isParsedDataDifferent(parsedData, _lastParsedData)) {
+            // Đây là kết quả MỚI, callback và lưu lại
+            _lastParsedData = Map<String, dynamic>.from(parsedData);
+            widget.onTextRecognizedWithTemplate!.call(result, parsedData);
+            shouldStopRecognition = true; // Cho phép dừng camera
+          } else {
+            // Kết quả TRÙNG với lần trước, không callback
+            debugPrint('Duplicate parsed data - Skipping callback');
+
+            // Nếu autoContinue = false, vẫn dừng camera (đã tìm thấy rồi)
+            shouldStopRecognition = true;
+          }
         } else {
           // ❌ Template không match, KHÔNG dừng camera
           debugPrint('Template validation failed - Continuing to scan...');
@@ -556,8 +571,11 @@ class _CyberCameraRecognitionTextState extends State<CyberCameraRecognitionText>
           return; // Không dừng camera, tiếp tục scan
         }
       } else {
-        // Không validate, trả về data luôn và cho phép dừng
-        widget.onTextRecognizedWithTemplate!.call(result, parsedData);
+        // Không validate, kiểm tra duplicate và trả về data
+        if (_isParsedDataDifferent(parsedData, _lastParsedData)) {
+          _lastParsedData = Map<String, dynamic>.from(parsedData);
+          widget.onTextRecognizedWithTemplate!.call(result, parsedData);
+        }
         shouldStopRecognition = true;
       }
     } else {
@@ -815,6 +833,35 @@ class _CyberCameraRecognitionTextState extends State<CyberCameraRecognitionText>
     }
 
     return null;
+  }
+
+  /// Kiểm tra xem parsed data có khác với lần trước không
+  bool _isParsedDataDifferent(
+    Map<String, dynamic>? newData,
+    Map<String, dynamic>? oldData,
+  ) {
+    // Nếu chưa có data cũ, coi như khác
+    if (oldData == null || oldData.isEmpty) return true;
+
+    // Nếu data mới null hoặc empty, coi như khác
+    if (newData == null || newData.isEmpty) return true;
+
+    // So sánh số lượng keys
+    if (newData.keys.length != oldData.keys.length) return true;
+
+    // So sánh từng giá trị
+    for (var key in newData.keys) {
+      if (!oldData.containsKey(key)) return true;
+
+      final newValue = newData[key];
+      final oldValue = oldData[key];
+
+      // So sánh giá trị (chuyển sang string để dễ so sánh)
+      if (newValue.toString() != oldValue.toString()) return true;
+    }
+
+    // Tất cả giống nhau
+    return false;
   }
 
   /// Apply text filter - chỉ cho phép tiếng Việt và tiếng Anh
@@ -1148,6 +1195,7 @@ class _CyberCameraRecognitionTextState extends State<CyberCameraRecognitionText>
   void resetRecognizer() {
     _lastRecognizedText = null;
     _lastResult = null;
+    _lastParsedData = null; // Reset parsed data
     _debounceTimer?.cancel();
     if (!_isRecognizing &&
         widget.recognitionMode == TextRecognitionMode.continuous) {
@@ -1222,6 +1270,7 @@ class _CyberCameraRecognitionTextState extends State<CyberCameraRecognitionText>
     // Clear cache
     _lastRecognizedText = null;
     _lastResult = null;
+    _lastParsedData = null; // Clear parsed data cache
 
     // Remove observer
     WidgetsBinding.instance.removeObserver(this);
