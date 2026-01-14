@@ -530,6 +530,9 @@ class _CyberCameraRecognitionTextState extends State<CyberCameraRecognitionText>
     }
 
     // Callback with template parsing
+    bool shouldStopRecognition =
+        false; // Flag để quyết định có dừng camera không
+
     if (_templateParser != null &&
         widget.onTextRecognizedWithTemplate != null) {
       // Parse với template
@@ -538,19 +541,29 @@ class _CyberCameraRecognitionTextState extends State<CyberCameraRecognitionText>
       // Validate nếu autoValidate enabled
       if (widget.autoValidateTemplate) {
         if (_templateParser!.validate(parsedData)) {
+          // ✅ Template match thành công
           widget.onTextRecognizedWithTemplate!.call(result, parsedData);
+          shouldStopRecognition = true; // Cho phép dừng camera
         } else {
-          // Template không match, không callback
-          debugPrint('Template validation failed');
-          return;
+          // ❌ Template không match, KHÔNG dừng camera
+          debugPrint('Template validation failed - Continuing to scan...');
+
+          // Vẫn có thể gọi callback onTextRecognized nếu có (để debug)
+          widget.onTextRecognized?.call(result);
+
+          // Reset debounce ngay để tiếp tục scan
+          _lastRecognizedText = null;
+          return; // Không dừng camera, tiếp tục scan
         }
       } else {
-        // Không validate, trả về data luôn
+        // Không validate, trả về data luôn và cho phép dừng
         widget.onTextRecognizedWithTemplate!.call(result, parsedData);
+        shouldStopRecognition = true;
       }
     } else {
-      // Normal callback (không có template)
+      // Normal callback (không có template), cho phép dừng
       widget.onTextRecognized?.call(result);
+      shouldStopRecognition = true;
     }
 
     // Debounce timer
@@ -560,14 +573,15 @@ class _CyberCameraRecognitionTextState extends State<CyberCameraRecognitionText>
       }
     });
 
-    // Xử lý autoContinue
-    if (!widget.autoContinue) {
-      // Dừng nhận diện sau khi có kết quả
+    // Xử lý autoContinue - CHỈ dừng nếu shouldStopRecognition = true
+    if (shouldStopRecognition && !widget.autoContinue) {
+      // Dừng nhận diện sau khi có kết quả HỢP LỆ
       _stopRecognizing();
     }
 
-    // Stop nếu là manual mode
-    if (widget.recognitionMode == TextRecognitionMode.manual) {
+    // Stop nếu là manual mode và có kết quả hợp lệ
+    if (shouldStopRecognition &&
+        widget.recognitionMode == TextRecognitionMode.manual) {
       _stopRecognizing();
     }
   }
