@@ -598,147 +598,126 @@ class _CyberCameraRecognitionTextState extends State<CyberCameraRecognitionText>
     }
 
     // Stop nếu là manual mode và có kết quả hợp lệ
-    if (shouldStopRecognition &&
-        widget.recognitionMode == TextRecognitionMode.manual) {
+    if (widget.recognitionMode == TextRecognitionMode.manual &&
+        shouldStopRecognition) {
       _stopRecognizing();
     }
   }
 
-  /// Xử lý nhận diện biển số xe Việt Nam
+  /// Kiểm tra xem parsed data có khác với lần trước không
+  bool _isParsedDataDifferent(
+    Map<String, dynamic>? newData,
+    Map<String, dynamic>? oldData,
+  ) {
+    if (newData == null && oldData == null) return false;
+    if (newData == null || oldData == null) return true;
+
+    // So sánh từng key-value
+    if (newData.length != oldData.length) return true;
+
+    for (var key in newData.keys) {
+      if (!oldData.containsKey(key)) return true;
+      if (newData[key] != oldData[key]) return true;
+    }
+
+    return false;
+  }
+
+  /// Xử lý nhận diện biển số xe
   void _handleLicensePlateRecognition(
     String fullText,
     RecognizedText recognizedText,
   ) {
-    // Tìm biển số trong text
-    final licensePlate = _extractVietnameseLicensePlate(fullText);
+    // Lọc và chuẩn hóa text cho biển số
+    final cleanedText = _cleanTextForLicensePlate(fullText);
 
-    if (licensePlate == null) {
-      debugPrint('No license plate found in text: $fullText');
-      return;
-    }
-
-    // Check debounce
-    if (_lastRecognizedText == licensePlate.plateNumber &&
-        _debounceTimer?.isActive == true) {
-      return;
-    }
-
-    _debounceTimer?.cancel();
-    _lastRecognizedText = licensePlate.plateNumber;
-
-    // Calculate average confidence
-    double totalConfidence = 0;
-    int blockCount = 0;
-    for (var block in recognizedText.blocks) {
-      for (var line in block.lines) {
-        totalConfidence += 1.0;
-        blockCount++;
-      }
-    }
-    final avgConfidence = blockCount > 0 ? totalConfidence / blockCount : 0.0;
-
-    // Check confidence threshold
-    if (avgConfidence < _effectiveConfidence) return;
-
-    // Create text result
-    final result = RecognizedTextResult(
-      text: licensePlate.plateNumber,
-      fullText: fullText,
-      confidence: avgConfidence,
-      blocks: recognizedText.blocks,
-      timestamp: DateTime.now(),
+    // Pattern cho biển số Việt Nam
+    // Format: XX-YYY ZZZ.ZZ hoặc XX YYY.ZZ
+    // XX: 2 số hoặc chữ (mã tỉnh)
+    // YYY: 1 chữ hoặc 2 số
+    // ZZZ.ZZ: 5-6 số
+    final platePattern = RegExp(
+      r'(\d{2})[\s-]?([A-Z]{1,2}|\d{1,3})[\s.-]?(\d{4,6})',
+      caseSensitive: false,
     );
 
-    _lastResult = result;
+    final match = platePattern.firstMatch(cleanedText);
 
-    // Play sound
-    _playBeep();
+    if (match != null) {
+      final provinceCode = match.group(1);
+      final series = match.group(2);
+      final number = match.group(3);
 
-    // Show message
-    if (widget.messageDuration > 0) {
-      _displayTemporaryMessage('🚗 Biển số: ${licensePlate.plateNumber}');
-    }
+      final plateNumber = '$provinceCode-$series $number';
 
-    // Callback với biển số
-    widget.onLicensePlateRecognized?.call(licensePlate);
+      // Xác định tỉnh thành
+      final province = _getProvinceFromCode(provinceCode ?? '');
 
-    // Callback text result nếu có
-    widget.onTextRecognized?.call(result);
-
-    // Debounce timer
-    _debounceTimer = Timer(Duration(milliseconds: _effectiveDebounce), () {
-      if (widget.recognitionMode == TextRecognitionMode.continuous) {
-        _lastRecognizedText = null;
-      }
-    });
-
-    // Xử lý autoContinue
-    if (!widget.autoContinue) {
-      // Dừng nhận diện sau khi có kết quả
-      _stopRecognizing();
-    }
-
-    // Stop nếu là manual mode
-    if (widget.recognitionMode == TextRecognitionMode.manual) {
-      _stopRecognizing();
-    }
-  }
-
-  /// Trích xuất biển số xe Việt Nam từ text
-  LicensePlateResult? _extractVietnameseLicensePlate(String text) {
-    // Loại bỏ khoảng trắng thừa
-    final cleanText = text.replaceAll(RegExp(r'\s+'), '');
-
-    // Patterns cho các loại biển số Việt Nam
-    final patterns = [
-      // Biển số thông thường: 30A-12345 hoặc 30A12345
-      RegExp(r'(\d{2}[A-Z])[-\s]?(\d{4,5})', caseSensitive: false),
-      // Biển số có chữ: 30AB-12345
-      RegExp(r'(\d{2}[A-Z]{1,2})[-\s]?(\d{4,5})', caseSensitive: false),
-      // Biển số xe máy: 29-B1 12345
-      RegExp(r'(\d{2})[-\s]?([A-Z]\d)[-\s]?(\d{4,5})', caseSensitive: false),
-      // Biển số đặc biệt: 80A-123.45
-      RegExp(r'(\d{2}[A-Z])[-\s]?(\d{3})[.\s]?(\d{2})', caseSensitive: false),
-    ];
-
-    for (var pattern in patterns) {
-      final match = pattern.firstMatch(cleanText);
-      if (match != null) {
-        String plateNumber;
-        String? province;
-
-        if (match.groupCount >= 2) {
-          final prefix = match.group(1)!.toUpperCase();
-          final number = match.group(2)!;
-
-          // Kiểm tra nếu có group 3 (xe máy hoặc đặc biệt)
-          if (match.groupCount >= 3 && match.group(3) != null) {
-            plateNumber = '$prefix-${number}.${match.group(3)}';
-          } else {
-            plateNumber = '$prefix-$number';
-          }
-
-          // Xác định tỉnh thành
-          province = _getProvinceFromCode(prefix.substring(0, 2));
-
-          return LicensePlateResult(
-            plateNumber: plateNumber,
-            province: province,
-            vehicleType: _guessVehicleType(plateNumber),
-          );
+      // Xác định loại xe (dựa vào series)
+      String? vehicleType;
+      if (series != null) {
+        if (RegExp(r'^[A-Z]$').hasMatch(series)) {
+          vehicleType = 'Xe con';
+        } else if (RegExp(r'^\d{2}$').hasMatch(series)) {
+          vehicleType = 'Xe tải/Xe khách';
         }
       }
-    }
 
-    return null;
+      // Check debounce
+      if (_lastRecognizedText == plateNumber &&
+          _debounceTimer?.isActive == true) {
+        return;
+      }
+
+      _debounceTimer?.cancel();
+      _lastRecognizedText = plateNumber;
+
+      final result = LicensePlateResult(
+        plateNumber: plateNumber,
+        province: province,
+        vehicleType: vehicleType,
+      );
+
+      // Play sound
+      _playBeep();
+
+      // Show message
+      if (widget.messageDuration > 0) {
+        _displayTemporaryMessage('✅ Biển số: $plateNumber');
+      }
+
+      // Callback
+      widget.onLicensePlateRecognized?.call(result);
+
+      // Debounce timer
+      _debounceTimer = Timer(Duration(milliseconds: _effectiveDebounce), () {
+        _lastRecognizedText = null;
+      });
+
+      // Auto continue logic
+      if (!widget.autoContinue) {
+        _stopRecognizing();
+      }
+    }
   }
 
-  /// Lấy tên tỉnh thành từ mã
+  /// Clean text để phù hợp với format biển số
+  String _cleanTextForLicensePlate(String text) {
+    // Loại bỏ các ký tự không cần thiết
+    // Giữ lại: số, chữ cái, dấu gạch ngang, dấu chấm, khoảng trắng
+    return text
+        .toUpperCase()
+        .replaceAll(RegExp(r'[^A-Z0-9\s.\-]'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  /// Get province name from code
   String? _getProvinceFromCode(String code) {
     final provinces = {
-      '11': 'Cao Bằng',
-      '12': 'Lạng Sơn',
-      '14': 'Quảng Ninh',
+      '11': 'Hà Nội',
+      '12': 'Hà Giang',
+      '14': 'Tuyên Quang',
       '15': 'Hải Phòng',
       '16': 'Hải Dương',
       '17': 'Thái Bình',
@@ -753,29 +732,34 @@ class _CyberCameraRecognitionTextState extends State<CyberCameraRecognitionText>
       '26': 'Sơn La',
       '27': 'Điện Biên',
       '28': 'Hòa Bình',
-      '29': 'Hà Nội',
-      '30': 'Hà Nội',
-      '31': 'Hà Nội',
-      '32': 'Hà Nội',
-      '33': 'Hà Nội',
-      '34': 'Hải Dương',
-      '35': 'Ninh Bình',
-      '36': 'Thanh Hóa',
-      '37': 'Nghệ An',
-      '38': 'Hà Tĩnh',
-      '43': 'Đà Nẵng',
+      '29': 'Thanh Hóa',
+      '30': 'Hà Tĩnh',
+      '31': 'Nghệ An',
+      '32': 'Quảng Bình',
+      '33': 'Quảng Trị',
+      '34': 'Thừa Thiên Huế',
+      '35': 'Đà Nẵng',
+      '36': 'Quảng Nam',
+      '37': 'Quảng Ngãi',
+      '38': 'Bình Định',
+      '39': 'Gia Lai',
+      '40': 'Kon Tum',
+      '41': 'Đắk Lắk',
+      '42': 'Đắk Nông',
+      '43': 'Phú Yên',
       '47': 'Đắk Lắk',
+      '48': 'Đắk Nông',
       '49': 'Lâm Đồng',
-      '50': 'TP. Hồ Chí Minh',
-      '51': 'TP. Hồ Chí Minh',
-      '52': 'TP. Hồ Chí Minh',
-      '53': 'TP. Hồ Chí Minh',
-      '54': 'TP. Hồ Chí Minh',
-      '55': 'TP. Hồ Chí Minh',
-      '56': 'TP. Hồ Chí Minh',
-      '57': 'TP. Hồ Chí Minh',
-      '58': 'TP. Hồ Chí Minh',
-      '59': 'TP. Hồ Chí Minh',
+      '50': 'TP.HCM',
+      '51': 'TP.HCM',
+      '52': 'TP.HCM',
+      '53': 'TP.HCM',
+      '54': 'TP.HCM',
+      '55': 'TP.HCM',
+      '56': 'TP.HCM',
+      '57': 'TP.HCM',
+      '58': 'TP.HCM',
+      '59': 'TP.HCM',
       '60': 'Đồng Nai',
       '61': 'Bình Dương',
       '62': 'Long An',
@@ -790,160 +774,124 @@ class _CyberCameraRecognitionTextState extends State<CyberCameraRecognitionText>
       '71': 'Bến Tre',
       '72': 'Bà Rịa - Vũng Tàu',
       '73': 'Quảng Bình',
-      '74': 'Quảng Trị',
-      '75': 'Thừa Thiên Huế',
-      '76': 'Quảng Ngãi',
-      '77': 'Bình Định',
-      '78': 'Phú Yên',
-      '79': 'Khánh Hòa',
-      '81': 'Gia Lai',
-      '82': 'Kon Tum',
-      '83': 'Sóc Trăng',
-      '84': 'Trà Vinh',
-      '85': 'Ninh Thuận',
-      '86': 'Bình Thuận',
+      '74': 'Trà Vinh',
+      '75': 'Hậu Giang',
+      '76': 'Bạc Liêu',
+      '77': 'Ninh Thuận',
+      '78': 'Bình Phước',
+      '79': 'Bình Thuận',
+      '80': 'TP.HCM (Ngoại thành)',
+      '81': 'Bình Dương (Ngoại thành)',
+      '82': 'Vĩnh Phúc',
+      '83': 'Bắc Ninh',
+      '84': 'Bắc Giang',
+      '85': 'Sóc Trăng',
+      '86': 'Cao Bằng',
       '88': 'Vĩnh Phúc',
-      '89': 'Hưng Yên',
+      '89': 'Lạng Sơn',
       '90': 'Hà Nam',
-      '92': 'Quảng Nam',
-      '93': 'Bình Phước',
-      '94': 'Bạc Liêu',
-      '95': 'Hậu Giang',
-      '97': 'Bắc Kạn',
-      '98': 'Bắc Giang',
-      '99': 'Bắc Ninh',
+      '92': 'Quảng Ninh',
+      '93': 'Bắc Giang',
+      '94': 'Bắc Kạn',
+      '95': 'Thái Bình',
+      '97': 'Bắc Ninh',
+      '98': 'Hưng Yên',
+      '99': 'Hải Dương',
     };
 
     return provinces[code];
   }
 
-  /// Đoán loại xe từ biển số
-  String? _guessVehicleType(String plateNumber) {
-    // Biển trắng (xe cá nhân)
-    if (RegExp(r'^\d{2}[A-Z]-\d{4,5}$').hasMatch(plateNumber)) {
-      return 'Xe cá nhân';
-    }
-    // Biển vàng (xe kinh doanh)
-    if (RegExp(r'^\d{2}[A-Z]-\d{3}\.\d{2}$').hasMatch(plateNumber)) {
-      return 'Xe kinh doanh';
-    }
-    // Xe máy
-    if (RegExp(r'^\d{2}[A-Z]\d-\d{4,5}$').hasMatch(plateNumber)) {
-      return 'Xe máy';
-    }
-
-    return null;
-  }
-
-  /// Kiểm tra xem parsed data có khác với lần trước không
-  bool _isParsedDataDifferent(
-    Map<String, dynamic>? newData,
-    Map<String, dynamic>? oldData,
-  ) {
-    // Nếu chưa có data cũ, coi như khác
-    if (oldData == null || oldData.isEmpty) return true;
-
-    // Nếu data mới null hoặc empty, coi như khác
-    if (newData == null || newData.isEmpty) return true;
-
-    // So sánh số lượng keys
-    if (newData.keys.length != oldData.keys.length) return true;
-
-    // So sánh từng giá trị
-    for (var key in newData.keys) {
-      if (!oldData.containsKey(key)) return true;
-
-      final newValue = newData[key];
-      final oldValue = oldData[key];
-
-      // So sánh giá trị (chuyển sang string để dễ so sánh)
-      if (newValue.toString() != oldValue.toString()) return true;
-    }
-
-    // Tất cả giống nhau
-    return false;
-  }
-
-  /// Apply text filter - chỉ cho phép tiếng Việt và tiếng Anh
+  /// Apply text filter dựa theo filterType
   String? _applyTextFilter(String text) {
-    // Filter theo loại text
-    String? filtered;
-
     switch (widget.filterType) {
-      case TextFilterType.all:
-        // Chỉ giữ lại chữ cái tiếng Việt, tiếng Anh, số, và khoảng trắng
-        filtered = text.replaceAll(
-          RegExp(r'[^a-zA-ZÀ-ỹ0-9\s]', caseSensitive: false),
-          '',
-        );
-        break;
-
       case TextFilterType.numeric:
-        final numbers = text.replaceAll(RegExp(r'[^0-9]'), '');
-        filtered = numbers.isNotEmpty ? numbers : null;
-        break;
+        // Chỉ giữ lại số
+        return text.replaceAll(RegExp(r'[^\d]'), '');
 
       case TextFilterType.alphabetic:
-        // Chỉ chữ tiếng Việt và tiếng Anh
-        final letters = text.replaceAll(
-          RegExp(r'[^a-zA-ZÀ-ỹ\s]', caseSensitive: false),
-          '',
-        );
-        filtered = letters.isNotEmpty ? letters : null;
-        break;
+        // Chỉ giữ lại chữ cái
+        return text.replaceAll(RegExp(r'[^a-zA-Z\u00C0-\u1EF9]'), '');
 
       case TextFilterType.alphanumeric:
-        // Chữ và số tiếng Việt và tiếng Anh
-        final alphanum = text.replaceAll(
-          RegExp(r'[^a-zA-Z0-9À-ỹ\s]', caseSensitive: false),
-          '',
-        );
-        filtered = alphanum.isNotEmpty ? alphanum : null;
-        break;
+        // Chữ và số
+        return text.replaceAll(RegExp(r'[^a-zA-Z0-9\u00C0-\u1EF9]'), '');
 
       case TextFilterType.custom:
-        if (widget.customFilterPattern == null) {
-          filtered = text;
-        } else {
+        // Custom regex pattern
+        if (widget.customFilterPattern != null) {
           try {
-            final pattern = RegExp(widget.customFilterPattern!);
-            final matches = pattern.allMatches(text);
-            if (matches.isEmpty) {
-              filtered = null;
-            } else {
-              filtered = matches.map((m) => m.group(0)).join(' ');
-            }
+            final regex = RegExp(widget.customFilterPattern!);
+            final matches = regex.allMatches(text);
+            return matches.map((m) => m.group(0)).join('');
           } catch (e) {
-            filtered = text;
+            return text;
           }
         }
-        break;
-    }
+        return text;
 
-    return filtered;
+      case TextFilterType.all:
+      default:
+        return text;
+    }
   }
 
-  void _updateMessage() {
-    if (_isDisposed) return;
+  /// Play beep sound
+  Future<void> _playBeep() async {
+    if (!widget.playBeepSound) return;
 
-    if (widget.messageGetter != null) {
-      try {
-        final newMessage = widget.messageGetter!();
-        if (mounted && newMessage != _currentMessage) {
-          setState(() {
-            _currentMessage = newMessage;
-          });
-        }
-      } catch (e) {}
-    } else if (widget.message != null) {
-      if (_currentMessage != widget.message) {
-        setState(() {
-          _currentMessage = widget.message!;
-        });
+    try {
+      String? soundPath;
+      SoundSourceType sourceType = widget.defaultSoundType;
+
+      // Determine sound based on mode
+      switch (widget.currentSoundMode) {
+        case 'success':
+          soundPath = widget.successSoundPath;
+          sourceType = widget.successSoundType;
+          break;
+        case 'error':
+          soundPath = widget.errorSoundPath;
+          sourceType = widget.errorSoundType;
+          break;
+        default:
+          soundPath = widget.defaultSoundPath;
+          sourceType = widget.defaultSoundType;
       }
+
+      // Play sound
+      if (soundPath != null) {
+        if (sourceType == SoundSourceType.asset) {
+          await _audioPlayer.play(AssetSource(soundPath));
+        } else if (sourceType == SoundSourceType.file) {
+          await _audioPlayer.play(DeviceFileSource(soundPath));
+        } else {
+          // System beep (fallback)
+          await _audioPlayer.play(AssetSource('sounds/beep.mp3'));
+        }
+      } else {
+        // Default system beep
+        await _audioPlayer.play(AssetSource('sounds/beep.mp3'));
+      }
+    } catch (e) {
+      // Ignore sound errors
     }
   }
 
+  /// Update message
+  void _updateMessage() {
+    if (!mounted) return;
+
+    setState(() {
+      if (widget.messageGetter != null) {
+        _currentMessage = widget.messageGetter!();
+      } else if (widget.message != null) {
+        _currentMessage = widget.message!;
+      }
+    });
+  }
+
+  /// Start message update timer
   void _startMessageUpdateTimer() {
     _messageUpdateTimer?.cancel();
     _messageUpdateTimer = Timer.periodic(
@@ -952,15 +900,16 @@ class _CyberCameraRecognitionTextState extends State<CyberCameraRecognitionText>
     );
   }
 
+  /// Display temporary message
   void _displayTemporaryMessage(String message) {
-    if (!widget.showMessage || widget.messageDuration == 0) return;
+    if (!mounted) return;
 
-    _messageDurationTimer?.cancel();
     setState(() {
       _temporaryMessage = message;
       _showTemporaryMessage = true;
     });
 
+    _messageDurationTimer?.cancel();
     _messageDurationTimer = Timer(
       Duration(milliseconds: widget.messageDuration),
       () {
@@ -974,307 +923,62 @@ class _CyberCameraRecognitionTextState extends State<CyberCameraRecognitionText>
     );
   }
 
-  Future<void> _playBeep() async {
-    if (!widget.playBeepSound) return;
-
-    try {
-      SoundSourceType sourceType;
-      String? soundPath;
-
-      switch (widget.currentSoundMode) {
-        case 'success':
-          sourceType = widget.successSoundType;
-          soundPath = widget.successSoundPath;
-          break;
-        case 'error':
-          sourceType = widget.errorSoundType;
-          soundPath = widget.errorSoundPath;
-          break;
-        default:
-          sourceType = widget.defaultSoundType;
-          soundPath = widget.defaultSoundPath;
-      }
-
-      switch (sourceType) {
-        case SoundSourceType.system:
-          SystemSound.play(SystemSoundType.click);
-          HapticFeedback.mediumImpact();
-          break;
-
-        case SoundSourceType.asset:
-          if (soundPath != null) {
-            await _audioPlayer.play(AssetSource(soundPath));
-            HapticFeedback.mediumImpact();
-          } else {
-            _playSystemSound();
-          }
-          break;
-
-        case SoundSourceType.url:
-          if (soundPath != null) {
-            await _audioPlayer.play(UrlSource(soundPath));
-            HapticFeedback.mediumImpact();
-          } else {
-            _playSystemSound();
-          }
-          break;
-
-        case SoundSourceType.file:
-          if (soundPath != null) {
-            await _audioPlayer.play(DeviceFileSource(soundPath));
-            HapticFeedback.mediumImpact();
-          } else {
-            _playSystemSound();
-          }
-          break;
-      }
-    } catch (e) {
-      _playSystemSound();
-    }
-  }
-
-  void _playSystemSound() {
-    SystemSound.play(SystemSoundType.click);
-    HapticFeedback.mediumImpact();
-  }
-
-  @override
-  void didUpdateWidget(CyberCameraRecognitionText oldWidget) {
-    super.didUpdateWidget(oldWidget);
-
-    if (widget.message != oldWidget.message ||
-        widget.messageGetter != oldWidget.messageGetter) {
-      _updateMessage();
-      if (widget.messageGetter != oldWidget.messageGetter) {
-        _messageUpdateTimer?.cancel();
-        if (widget.messageGetter != null) {
-          _startMessageUpdateTimer();
-        }
-      }
-    }
-
-    if (widget.beepVolume != oldWidget.beepVolume) {
-      _audioPlayer.setVolume(widget.beepVolume);
-    }
-
-    if (widget.torchEnabled != oldWidget.torchEnabled) {
-      _toggleTorch();
-    }
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (_isDisposed ||
-        _cameraController == null ||
-        !_cameraController!.value.isInitialized) {
-      return;
-    }
-
-    switch (state) {
-      case AppLifecycleState.resumed:
-        _resumeRecognizing();
-        break;
-      case AppLifecycleState.inactive:
-      case AppLifecycleState.paused:
-      case AppLifecycleState.detached:
-      case AppLifecycleState.hidden:
-        _pauseRecognizing();
-        break;
-    }
-  }
-
-  Future<void> _resumeRecognizing() async {
-    if (_isDisposed) return;
-
-    try {
-      if (_cameraController != null &&
-          !_cameraController!.value.isStreamingImages) {
-        if (widget.recognitionMode == TextRecognitionMode.continuous) {
-          _startImageStream();
-        }
-        if (mounted) {
-          setState(() {
-            _isRecognizing =
-                widget.recognitionMode == TextRecognitionMode.continuous;
-          });
-        }
-      }
-    } catch (e) {}
-  }
-
-  Future<void> _pauseRecognizing() async {
-    if (_isDisposed) return;
-
-    try {
-      await _stopImageStream();
-      if (mounted) {
-        setState(() {
-          _isRecognizing = false;
-        });
-      }
-    } catch (e) {}
-  }
-
-  Future<void> _toggleRecognizing() async {
-    if (_isDisposed || !widget.clickScan) return;
-
+  /// Toggle recognizing state
+  void _toggleRecognizing() {
     if (_isRecognizing) {
-      await _stopRecognizing();
+      _stopRecognizing();
     } else {
-      await _startRecognizing();
-    }
-  }
-
-  Future<void> _startRecognizing() async {
-    if (_isDisposed || _cameraController == null) return;
-
-    try {
-      if (widget.recognitionMode == TextRecognitionMode.continuous ||
-          widget.recognitionMode == TextRecognitionMode.auto) {
-        _startImageStream();
-      } else {
-        // Manual mode: capture single image
-        await _captureSingleImage();
-      }
-
-      if (mounted) {
-        setState(() {
-          _isRecognizing = true;
-        });
-      }
-    } catch (e) {}
-  }
-
-  Future<void> _stopRecognizing() async {
-    if (_isDisposed) return;
-
-    try {
-      await _stopImageStream();
-      if (mounted) {
-        setState(() {
-          _isRecognizing = false;
-        });
-      }
-    } catch (e) {}
-  }
-
-  /// Capture single image cho manual mode
-  Future<void> _captureSingleImage() async {
-    if (_cameraController == null || _textRecognizer == null || _isDisposed) {
-      return;
-    }
-
-    try {
-      final image = await _cameraController!.takePicture();
-      final inputImage = InputImage.fromFilePath(image.path);
-
-      final recognizedText = await _textRecognizer!.processImage(inputImage);
-
-      // Delete temporary file để tiết kiệm bộ nhớ
-      try {
-        await File(image.path).delete();
-      } catch (e) {}
-
-      if (!_isDisposed && mounted) {
-        _handleRecognizedText(recognizedText);
-      }
-    } catch (e) {}
-  }
-
-  Future<void> _toggleTorch() async {
-    if (_cameraController == null || _isDisposed) return;
-
-    try {
-      await _cameraController!.setFlashMode(
-        widget.torchEnabled ? FlashMode.torch : FlashMode.off,
-      );
-    } catch (e) {}
-  }
-
-  /// Public method để reset recognizer
-  void resetRecognizer() {
-    _lastRecognizedText = null;
-    _lastResult = null;
-    _lastParsedData = null; // Reset parsed data
-    _debounceTimer?.cancel();
-    if (!_isRecognizing &&
-        widget.recognitionMode == TextRecognitionMode.continuous) {
       _startRecognizing();
     }
   }
 
-  /// Public method để update message
-  void updateMessage(String message) {
-    if (mounted) {
-      setState(() {
-        _currentMessage = message;
-      });
+  /// Start recognizing
+  void _startRecognizing() {
+    if (!mounted || _isRecognizing) return;
+
+    setState(() {
+      _isRecognizing = true;
+    });
+
+    _startImageStream();
+  }
+
+  /// Stop recognizing
+  void _stopRecognizing() {
+    if (!mounted || !_isRecognizing) return;
+
+    setState(() {
+      _isRecognizing = false;
+    });
+
+    _stopImageStream();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final controller = _cameraController;
+    if (controller == null || !controller.value.isInitialized) {
+      return;
     }
-  }
 
-  /// Public method để lấy last result
-  RecognizedTextResult? getLastResult() {
-    return _lastResult;
-  }
-
-  /// Get effective resolution preset (after auto-detection)
-  ResolutionPreset? getEffectiveResolution() {
-    return _configInitialized ? _effectiveResolution : null;
-  }
-
-  /// Get effective frame skip count (after auto-detection)
-  int? getEffectiveFrameSkip() {
-    return _configInitialized ? _effectiveFrameSkip : null;
-  }
-
-  /// Get effective confidence threshold (after auto-detection)
-  double? getEffectiveConfidence() {
-    return _configInitialized ? _effectiveConfidence : null;
-  }
-
-  /// Get effective debounce ms (after auto-detection)
-  int? getEffectiveDebounce() {
-    return _configInitialized ? _effectiveDebounce : null;
-  }
-
-  /// Get device performance level
-  Future<DevicePerformanceLevel> getDevicePerformanceLevel() async {
-    return await DevicePerformanceDetector.getPerformanceLevel();
+    if (state == AppLifecycleState.inactive) {
+      controller.dispose();
+    } else if (state == AppLifecycleState.resumed) {
+      _initializeCamera();
+    }
   }
 
   @override
   void dispose() {
     _isDisposed = true;
-
-    // Cancel all timers
-    _debounceTimer?.cancel();
-    _debounceTimer = null;
-    _messageUpdateTimer?.cancel();
-    _messageUpdateTimer = null;
-    _messageDurationTimer?.cancel();
-    _messageDurationTimer = null;
-
-    // Dispose audio player
-    _audioPlayer.dispose();
-
-    // Stop image stream và dispose camera
-    _stopImageStream().then((_) {
-      _cameraController?.dispose();
-      _cameraController = null;
-    });
-
-    // Dispose text recognizer
-    _textRecognizer?.close();
-    _textRecognizer = null;
-
-    // Clear cache
-    _lastRecognizedText = null;
-    _lastResult = null;
-    _lastParsedData = null; // Clear parsed data cache
-
-    // Remove observer
     WidgetsBinding.instance.removeObserver(this);
-
+    _debounceTimer?.cancel();
+    _messageUpdateTimer?.cancel();
+    _messageDurationTimer?.cancel();
+    _stopImageStream();
+    _cameraController?.dispose();
+    _textRecognizer?.close();
+    _audioPlayer.dispose();
     super.dispose();
   }
 
@@ -1354,33 +1058,16 @@ class _CyberCameraRecognitionTextState extends State<CyberCameraRecognitionText>
       return const SizedBox.shrink();
     }
 
-    // Tính toán scale để camera preview fill full container
-    // Tương tự như MobileScanner với fit: BoxFit.cover
-    final mediaSize = MediaQuery.of(context).size;
-    final containerHeight = widget.height ?? mediaSize.height;
-
-    // Lấy camera aspect ratio
-    final cameraAspectRatio = _cameraController!.value.aspectRatio;
-
-    // Tính container aspect ratio
-    final containerAspectRatio = mediaSize.width / containerHeight;
-
-    // Tính scale factor để cover full container
-    double scale;
-    if (containerAspectRatio > cameraAspectRatio) {
-      // Container rộng hơn camera -> scale theo width
-      scale = containerAspectRatio / cameraAspectRatio;
-    } else {
-      // Container cao hơn camera -> scale theo height
-      scale = cameraAspectRatio / containerAspectRatio;
-    }
-
-    return Transform.scale(
-      scale: scale,
-      child: Center(
-        child: AspectRatio(
-          aspectRatio: cameraAspectRatio,
-          child: CameraPreview(_cameraController!),
+    return ClipRect(
+      child: OverflowBox(
+        alignment: Alignment.center,
+        child: FittedBox(
+          fit: BoxFit.cover,
+          child: SizedBox(
+            width: _cameraController!.value.previewSize!.height,
+            height: _cameraController!.value.previewSize!.width,
+            child: CameraPreview(_cameraController!),
+          ),
         ),
       ),
     );
