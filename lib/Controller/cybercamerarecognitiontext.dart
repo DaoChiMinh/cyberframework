@@ -302,7 +302,11 @@ class _CyberCameraRecognitionTextState extends State<CyberCameraRecognitionText>
         imageFormatGroup: ImageFormatGroup.yuv420, // Tối ưu cho Android
       );
 
+      // Khóa orientation thành portrait để tránh camera bị vỡ khi xoay ngang
       await _cameraController!.initialize();
+      await _cameraController!.lockCaptureOrientation(
+        DeviceOrientation.portraitUp,
+      );
 
       if (_isDisposed) {
         await _cameraController?.dispose();
@@ -1058,28 +1062,8 @@ class _CyberCameraRecognitionTextState extends State<CyberCameraRecognitionText>
       return const SizedBox.shrink();
     }
 
-    // Lấy kích thước camera preview
-    final size = _cameraController!.value.previewSize!;
-
-    // Tính toán aspect ratio đúng cho portrait mode
-    // Camera thường trả về landscape size, cần đảo cho portrait
-    final isPortrait = size.width < size.height;
-    final previewWidth = isPortrait ? size.width : size.height;
-    final previewHeight = isPortrait ? size.height : size.width;
-
-    return ClipRect(
-      child: OverflowBox(
-        alignment: Alignment.center,
-        child: FittedBox(
-          fit: BoxFit.cover,
-          child: SizedBox(
-            width: previewWidth,
-            height: previewHeight,
-            child: CameraPreview(_cameraController!),
-          ),
-        ),
-      ),
-    );
+    // Vì đã lock orientation ở portraitUp, camera sẽ luôn ổn định
+    return CameraPreview(_cameraController!);
   }
 
   @override
