@@ -16,9 +16,30 @@ enum TextFilterType {
   custom, // Custom regex pattern
 }
 
+/// Kết quả nhận diện biển số xe
+class LicensePlateResult {
+  final String plateNumber;
+  final String? province;
+  final String? vehicleType;
+
+  LicensePlateResult({
+    required this.plateNumber,
+    this.province,
+    this.vehicleType,
+  });
+
+  @override
+  String toString() {
+    return 'LicensePlateResult(plate: $plateNumber, province: $province, type: $vehicleType)';
+  }
+}
+
 class CyberCameraRecognitionText extends StatefulWidget {
   /// Callback khi nhận diện được text
   final Function(RecognizedTextResult)? onTextRecognized;
+
+  /// Callback khi nhận diện được biển số (chỉ dùng khi isDocBienSo = true)
+  final Function(LicensePlateResult)? onLicensePlateRecognized;
 
   /// Chiều cao của camera preview
   final double? height;
@@ -111,9 +132,20 @@ class CyberCameraRecognitionText extends StatefulWidget {
   /// Auto validate parsed data với template
   final bool autoValidateTemplate;
 
+  /// Auto continue sau khi có kết quả
+  /// true: tiếp tục quét sau khi có kết quả
+  /// false: dừng lại sau khi có kết quả, click để tiếp tục
+  final bool autoContinue;
+
+  /// Chế độ đọc biển số xe
+  /// true: Phân tích và trích xuất biển số xe Việt Nam
+  /// false: Đọc text bình thường
+  final bool isDocBienSo;
+
   const CyberCameraRecognitionText({
     super.key,
     this.onTextRecognized,
+    this.onLicensePlateRecognized,
     this.textTemplate,
     this.onTextRecognizedWithTemplate,
     this.templateFuzzyThreshold = 0.7,
@@ -155,6 +187,8 @@ class CyberCameraRecognitionText extends StatefulWidget {
     this.resolutionPreset,
     this.enableImageStreamOptimization = true,
     this.autoDetectPerformance = true,
+    this.autoContinue = true,
+    this.isDocBienSo = false,
   });
 
   @override
@@ -298,11 +332,12 @@ class _CyberCameraRecognitionTextState extends State<CyberCameraRecognitionText>
   }
 
   /// Initialize Text Recognizer
+  /// Chỉ nhận diện tiếng Việt và tiếng Anh
   void _initializeTextRecognizer() {
     if (_isDisposed) return;
 
     try {
-      // Sử dụng script detection để tối ưu performance
+      // Sử dụng latin script để hỗ trợ tiếng Việt và tiếng Anh
       _textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
     } catch (e) {
       debugPrint('Error initializing text recognizer: $e');
@@ -432,7 +467,13 @@ class _CyberCameraRecognitionTextState extends State<CyberCameraRecognitionText>
 
     if (fullText.isEmpty) return;
 
-    // Apply text filter
+    // Nếu là chế độ đọc biển số
+    if (widget.isDocBienSo) {
+      _handleLicensePlateRecognition(fullText, recognizedText);
+      return;
+    }
+
+    // Apply text filter cho chế độ bình thường
     final filteredText = _applyTextFilter(fullText);
     if (filteredText == null || filteredText.isEmpty) return;
 
@@ -499,7 +540,9 @@ class _CyberCameraRecognitionTextState extends State<CyberCameraRecognitionText>
         if (_templateParser!.validate(parsedData)) {
           widget.onTextRecognizedWithTemplate!.call(result, parsedData);
         } else {
-          widget.onTextRecognizedWithTemplate!.call(result, null);
+          // Template không match, không callback
+          debugPrint('Template validation failed');
+          return;
         }
       } else {
         // Không validate, trả về data luôn
@@ -517,41 +560,306 @@ class _CyberCameraRecognitionTextState extends State<CyberCameraRecognitionText>
       }
     });
 
+    // Xử lý autoContinue
+    if (!widget.autoContinue) {
+      // Dừng nhận diện sau khi có kết quả
+      _stopRecognizing();
+    }
+
     // Stop nếu là manual mode
     if (widget.recognitionMode == TextRecognitionMode.manual) {
       _stopRecognizing();
     }
   }
 
-  /// Apply text filter
+  /// Xử lý nhận diện biển số xe Việt Nam
+  void _handleLicensePlateRecognition(
+    String fullText,
+    RecognizedText recognizedText,
+  ) {
+    // Tìm biển số trong text
+    final licensePlate = _extractVietnameseLicensePlate(fullText);
+
+    if (licensePlate == null) {
+      debugPrint('No license plate found in text: $fullText');
+      return;
+    }
+
+    // Check debounce
+    if (_lastRecognizedText == licensePlate.plateNumber &&
+        _debounceTimer?.isActive == true) {
+      return;
+    }
+
+    _debounceTimer?.cancel();
+    _lastRecognizedText = licensePlate.plateNumber;
+
+    // Calculate average confidence
+    double totalConfidence = 0;
+    int blockCount = 0;
+    for (var block in recognizedText.blocks) {
+      for (var line in block.lines) {
+        totalConfidence += 1.0;
+        blockCount++;
+      }
+    }
+    final avgConfidence = blockCount > 0 ? totalConfidence / blockCount : 0.0;
+
+    // Check confidence threshold
+    if (avgConfidence < _effectiveConfidence) return;
+
+    // Create text result
+    final result = RecognizedTextResult(
+      text: licensePlate.plateNumber,
+      fullText: fullText,
+      confidence: avgConfidence,
+      blocks: recognizedText.blocks,
+      timestamp: DateTime.now(),
+    );
+
+    _lastResult = result;
+
+    // Play sound
+    _playBeep();
+
+    // Show message
+    if (widget.messageDuration > 0) {
+      _displayTemporaryMessage('🚗 Biển số: ${licensePlate.plateNumber}');
+    }
+
+    // Callback với biển số
+    widget.onLicensePlateRecognized?.call(licensePlate);
+
+    // Callback text result nếu có
+    widget.onTextRecognized?.call(result);
+
+    // Debounce timer
+    _debounceTimer = Timer(Duration(milliseconds: _effectiveDebounce), () {
+      if (widget.recognitionMode == TextRecognitionMode.continuous) {
+        _lastRecognizedText = null;
+      }
+    });
+
+    // Xử lý autoContinue
+    if (!widget.autoContinue) {
+      // Dừng nhận diện sau khi có kết quả
+      _stopRecognizing();
+    }
+
+    // Stop nếu là manual mode
+    if (widget.recognitionMode == TextRecognitionMode.manual) {
+      _stopRecognizing();
+    }
+  }
+
+  /// Trích xuất biển số xe Việt Nam từ text
+  LicensePlateResult? _extractVietnameseLicensePlate(String text) {
+    // Loại bỏ khoảng trắng thừa
+    final cleanText = text.replaceAll(RegExp(r'\s+'), '');
+
+    // Patterns cho các loại biển số Việt Nam
+    final patterns = [
+      // Biển số thông thường: 30A-12345 hoặc 30A12345
+      RegExp(r'(\d{2}[A-Z])[-\s]?(\d{4,5})', caseSensitive: false),
+      // Biển số có chữ: 30AB-12345
+      RegExp(r'(\d{2}[A-Z]{1,2})[-\s]?(\d{4,5})', caseSensitive: false),
+      // Biển số xe máy: 29-B1 12345
+      RegExp(r'(\d{2})[-\s]?([A-Z]\d)[-\s]?(\d{4,5})', caseSensitive: false),
+      // Biển số đặc biệt: 80A-123.45
+      RegExp(r'(\d{2}[A-Z])[-\s]?(\d{3})[.\s]?(\d{2})', caseSensitive: false),
+    ];
+
+    for (var pattern in patterns) {
+      final match = pattern.firstMatch(cleanText);
+      if (match != null) {
+        String plateNumber;
+        String? province;
+
+        if (match.groupCount >= 2) {
+          final prefix = match.group(1)!.toUpperCase();
+          final number = match.group(2)!;
+
+          // Kiểm tra nếu có group 3 (xe máy hoặc đặc biệt)
+          if (match.groupCount >= 3 && match.group(3) != null) {
+            plateNumber = '$prefix-${number}.${match.group(3)}';
+          } else {
+            plateNumber = '$prefix-$number';
+          }
+
+          // Xác định tỉnh thành
+          province = _getProvinceFromCode(prefix.substring(0, 2));
+
+          return LicensePlateResult(
+            plateNumber: plateNumber,
+            province: province,
+            vehicleType: _guessVehicleType(plateNumber),
+          );
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /// Lấy tên tỉnh thành từ mã
+  String? _getProvinceFromCode(String code) {
+    final provinces = {
+      '11': 'Cao Bằng',
+      '12': 'Lạng Sơn',
+      '14': 'Quảng Ninh',
+      '15': 'Hải Phòng',
+      '16': 'Hải Dương',
+      '17': 'Thái Bình',
+      '18': 'Nam Định',
+      '19': 'Phú Thọ',
+      '20': 'Thái Nguyên',
+      '21': 'Yên Bái',
+      '22': 'Tuyên Quang',
+      '23': 'Hà Giang',
+      '24': 'Lào Cai',
+      '25': 'Lai Châu',
+      '26': 'Sơn La',
+      '27': 'Điện Biên',
+      '28': 'Hòa Bình',
+      '29': 'Hà Nội',
+      '30': 'Hà Nội',
+      '31': 'Hà Nội',
+      '32': 'Hà Nội',
+      '33': 'Hà Nội',
+      '34': 'Hải Dương',
+      '35': 'Ninh Bình',
+      '36': 'Thanh Hóa',
+      '37': 'Nghệ An',
+      '38': 'Hà Tĩnh',
+      '43': 'Đà Nẵng',
+      '47': 'Đắk Lắk',
+      '49': 'Lâm Đồng',
+      '50': 'TP. Hồ Chí Minh',
+      '51': 'TP. Hồ Chí Minh',
+      '52': 'TP. Hồ Chí Minh',
+      '53': 'TP. Hồ Chí Minh',
+      '54': 'TP. Hồ Chí Minh',
+      '55': 'TP. Hồ Chí Minh',
+      '56': 'TP. Hồ Chí Minh',
+      '57': 'TP. Hồ Chí Minh',
+      '58': 'TP. Hồ Chí Minh',
+      '59': 'TP. Hồ Chí Minh',
+      '60': 'Đồng Nai',
+      '61': 'Bình Dương',
+      '62': 'Long An',
+      '63': 'Tiền Giang',
+      '64': 'Vĩnh Long',
+      '65': 'Cần Thơ',
+      '66': 'Đồng Tháp',
+      '67': 'An Giang',
+      '68': 'Kiên Giang',
+      '69': 'Cà Mau',
+      '70': 'Tây Ninh',
+      '71': 'Bến Tre',
+      '72': 'Bà Rịa - Vũng Tàu',
+      '73': 'Quảng Bình',
+      '74': 'Quảng Trị',
+      '75': 'Thừa Thiên Huế',
+      '76': 'Quảng Ngãi',
+      '77': 'Bình Định',
+      '78': 'Phú Yên',
+      '79': 'Khánh Hòa',
+      '81': 'Gia Lai',
+      '82': 'Kon Tum',
+      '83': 'Sóc Trăng',
+      '84': 'Trà Vinh',
+      '85': 'Ninh Thuận',
+      '86': 'Bình Thuận',
+      '88': 'Vĩnh Phúc',
+      '89': 'Hưng Yên',
+      '90': 'Hà Nam',
+      '92': 'Quảng Nam',
+      '93': 'Bình Phước',
+      '94': 'Bạc Liêu',
+      '95': 'Hậu Giang',
+      '97': 'Bắc Kạn',
+      '98': 'Bắc Giang',
+      '99': 'Bắc Ninh',
+    };
+
+    return provinces[code];
+  }
+
+  /// Đoán loại xe từ biển số
+  String? _guessVehicleType(String plateNumber) {
+    // Biển trắng (xe cá nhân)
+    if (RegExp(r'^\d{2}[A-Z]-\d{4,5}$').hasMatch(plateNumber)) {
+      return 'Xe cá nhân';
+    }
+    // Biển vàng (xe kinh doanh)
+    if (RegExp(r'^\d{2}[A-Z]-\d{3}\.\d{2}$').hasMatch(plateNumber)) {
+      return 'Xe kinh doanh';
+    }
+    // Xe máy
+    if (RegExp(r'^\d{2}[A-Z]\d-\d{4,5}$').hasMatch(plateNumber)) {
+      return 'Xe máy';
+    }
+
+    return null;
+  }
+
+  /// Apply text filter - chỉ cho phép tiếng Việt và tiếng Anh
   String? _applyTextFilter(String text) {
+    // Filter theo loại text
+    String? filtered;
+
     switch (widget.filterType) {
       case TextFilterType.all:
-        return text;
+        // Chỉ giữ lại chữ cái tiếng Việt, tiếng Anh, số, và khoảng trắng
+        filtered = text.replaceAll(
+          RegExp(r'[^a-zA-ZÀ-ỹ0-9\s]', caseSensitive: false),
+          '',
+        );
+        break;
 
       case TextFilterType.numeric:
         final numbers = text.replaceAll(RegExp(r'[^0-9]'), '');
-        return numbers.isNotEmpty ? numbers : null;
+        filtered = numbers.isNotEmpty ? numbers : null;
+        break;
 
       case TextFilterType.alphabetic:
-        final letters = text.replaceAll(RegExp(r'[^a-zA-ZÀ-ỹ\s]'), '');
-        return letters.isNotEmpty ? letters : null;
+        // Chỉ chữ tiếng Việt và tiếng Anh
+        final letters = text.replaceAll(
+          RegExp(r'[^a-zA-ZÀ-ỹ\s]', caseSensitive: false),
+          '',
+        );
+        filtered = letters.isNotEmpty ? letters : null;
+        break;
 
       case TextFilterType.alphanumeric:
-        final alphanum = text.replaceAll(RegExp(r'[^a-zA-Z0-9À-ỹ\s]'), '');
-        return alphanum.isNotEmpty ? alphanum : null;
+        // Chữ và số tiếng Việt và tiếng Anh
+        final alphanum = text.replaceAll(
+          RegExp(r'[^a-zA-Z0-9À-ỹ\s]', caseSensitive: false),
+          '',
+        );
+        filtered = alphanum.isNotEmpty ? alphanum : null;
+        break;
 
       case TextFilterType.custom:
-        if (widget.customFilterPattern == null) return text;
-        try {
-          final pattern = RegExp(widget.customFilterPattern!);
-          final matches = pattern.allMatches(text);
-          if (matches.isEmpty) return null;
-          return matches.map((m) => m.group(0)).join(' ');
-        } catch (e) {
-          return text;
+        if (widget.customFilterPattern == null) {
+          filtered = text;
+        } else {
+          try {
+            final pattern = RegExp(widget.customFilterPattern!);
+            final matches = pattern.allMatches(text);
+            if (matches.isEmpty) {
+              filtered = null;
+            } else {
+              filtered = matches.map((m) => m.group(0)).join(' ');
+            }
+          } catch (e) {
+            filtered = text;
+          }
         }
+        break;
     }
+
+    return filtered;
   }
 
   void _updateMessage() {
@@ -1054,8 +1362,8 @@ class _CyberCameraRecognitionTextState extends State<CyberCameraRecognitionText>
         fit: StackFit.expand,
         children: [
           // Camera preview
-          //Center(child: CameraPreview(_cameraController!)),
           _buildCameraPreview(),
+
           // Overlay khi không đang nhận diện
           if (!_isRecognizing)
             Container(
