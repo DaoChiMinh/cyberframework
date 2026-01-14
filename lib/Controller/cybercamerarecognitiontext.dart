@@ -1058,23 +1058,14 @@ class _CyberCameraRecognitionTextState extends State<CyberCameraRecognitionText>
       return const SizedBox.shrink();
     }
 
-    // Lấy kích thước camera preview
-    final size = _cameraController!.value.previewSize!;
-
-    // Tính toán aspect ratio đúng cho portrait mode
-    // Camera thường trả về landscape size, cần đảo cho portrait
-    final isPortrait = size.width < size.height;
-    final previewWidth = isPortrait ? size.width : size.height;
-    final previewHeight = isPortrait ? size.height : size.width;
-
     return ClipRect(
       child: OverflowBox(
         alignment: Alignment.center,
         child: FittedBox(
           fit: BoxFit.cover,
           child: SizedBox(
-            width: previewWidth,
-            height: previewHeight,
+            width: _cameraController!.value.previewSize!.height,
+            height: _cameraController!.value.previewSize!.width,
             child: CameraPreview(_cameraController!),
           ),
         ),
