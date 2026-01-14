@@ -978,6 +978,43 @@ class _CyberCameraRecognitionTextState extends State<CyberCameraRecognitionText>
     }
   }
 
+  Widget _buildCameraPreview() {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
+      return const SizedBox.shrink();
+    }
+
+    // Tính toán scale để camera preview fill full container
+    // Tương tự như MobileScanner với fit: BoxFit.cover
+    final mediaSize = MediaQuery.of(context).size;
+    final containerHeight = widget.height ?? mediaSize.height;
+
+    // Lấy camera aspect ratio
+    final cameraAspectRatio = _cameraController!.value.aspectRatio;
+
+    // Tính container aspect ratio
+    final containerAspectRatio = mediaSize.width / containerHeight;
+
+    // Tính scale factor để cover full container
+    double scale;
+    if (containerAspectRatio > cameraAspectRatio) {
+      // Container rộng hơn camera -> scale theo width
+      scale = containerAspectRatio / cameraAspectRatio;
+    } else {
+      // Container cao hơn camera -> scale theo height
+      scale = cameraAspectRatio / containerAspectRatio;
+    }
+
+    return Transform.scale(
+      scale: scale,
+      child: Center(
+        child: AspectRatio(
+          aspectRatio: cameraAspectRatio,
+          child: CameraPreview(_cameraController!),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Show loading nếu config chưa init hoặc camera chưa ready
@@ -1014,10 +1051,11 @@ class _CyberCameraRecognitionTextState extends State<CyberCameraRecognitionText>
       ),
       clipBehavior: Clip.antiAlias,
       child: Stack(
+        fit: StackFit.expand,
         children: [
           // Camera preview
-          Center(child: CameraPreview(_cameraController!)),
-
+          //Center(child: CameraPreview(_cameraController!)),
+          _buildCameraPreview(),
           // Overlay khi không đang nhận diện
           if (!_isRecognizing)
             Container(
