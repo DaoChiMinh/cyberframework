@@ -1,6 +1,7 @@
 export 'package:cyberframework/Module/cyber.form.dart';
 export 'package:cyberframework/Module/save_storage.dart';
 export 'package:cyberframework/Module/exten.dart';
+export 'package:cyberframework/Module/texttemplate.dart';
 export 'package:cyberframework/Page/base_file_viewer.dart';
 export 'package:cyberframework/Module/CallData/cyberapiextension.dart';
 export 'package:cyberframework/Module/CallData/cyberapiservice.dart';
@@ -32,6 +33,7 @@ export 'package:cyberframework/Controller/cyberotpcontroller.dart';
 export 'package:cyberframework/Controller/cyberotp.dart';
 export 'package:cyberframework/Controller/cyberswitchbutton.dart';
 
+export 'package:cyberframework/Controller/cybercamerarecognitiontext.dart';
 export 'package:cyberframework/Controller/cybercheckboxcontroller.dart';
 export 'package:cyberframework/Controller/cybercameracontroller.dart';
 export 'package:cyberframework/Controller/cyberimagecontroller.dart';
@@ -88,3 +90,7 @@ export 'dart:io';
 export 'package:path_provider/path_provider.dart';
 export 'package:share_plus/share_plus.dart';
 export 'package:printing/printing.dart';
+export 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+export 'package:audioplayers/audioplayers.dart';
+export 'package:camera/camera.dart';
+export 'package:cyberframework/Controller/device_performance_detector.dart';
