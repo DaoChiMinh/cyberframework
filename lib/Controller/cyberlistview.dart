@@ -1769,7 +1769,6 @@ class _MenuBottomSheet extends StatelessWidget {
           CyberDataRow _menuRow = menuRow.copy();
           String _para = _menuRow['strparameter'] as String? ?? '';
           _menuRow['strparameter'] = sourceRow.updatedatatostring(_para);
-          print(_menuRow['strparameter']);
 
           _menuRow.V_Call(context);
         }

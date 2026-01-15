@@ -44,7 +44,7 @@ abstract class CyberFormchklist extends CyberForm {
         selectedIndices.clear();
         _dtMaster = ds1![1];
       }
-      _dttag = ds1![ds1.tableCount - 1];
+      if (ds1!.tableCount > 2) _dttag = ds1![ds1.tableCount - 1];
       return ds1[0]!;
     } else {
       return CyberDataTable(tableName: "data");
@@ -58,23 +58,24 @@ abstract class CyberFormchklist extends CyberForm {
     }
 
     List<Widget> children = [];
-    if (_dttag!.rowCount > 1) {
-      children.add(
-        CyberSwitchButton(
-          options: List.generate(_dttag!.rowCount, (index) {
-            var row = _dttag![_dttag!.rowCount - index - 1];
-            return CyberSwitchOption(
-              label: row['title'] ?? '',
-              value: row['ma_tag'] ?? '',
-            );
-          }),
-          initialIndex: initialTabIndex,
-          onChanged: (index, value, option) {
-            print('Selected: ${option.label}');
-            _ma_tag = option.value;
-          },
-        ),
-      );
+    if (_dttag != null) {
+      if (_dttag!.rowCount > 1) {
+        children.add(
+          CyberSwitchButton(
+            options: List.generate(_dttag!.rowCount, (index) {
+              var row = _dttag![_dttag!.rowCount - index - 1];
+              return CyberSwitchOption(
+                label: row['title'] ?? '',
+                value: row['ma_tag'] ?? '',
+              );
+            }),
+            initialIndex: initialTabIndex,
+            onChanged: (index, value, option) {
+              _ma_tag = option.value;
+            },
+          ),
+        );
+      }
     }
 
     children.add(buildHeader());
