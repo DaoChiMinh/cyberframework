@@ -18,6 +18,23 @@ Future<void> initOneSignal(String AppId) async {
   });
 }
 
+Future<void> LogoutOnsinal() async {
+  await OneSignal.logout();
+}
+
+Future<void> LoginOnsinal(CyberDataRow drLogin) async {
+  await LogoutOnsinal();
+  // Login với external ID mới
+  await OneSignal.login(drLogin["TOKENKEY"] ?? "");
+  OneSignal.User.addTags({
+    "Comment": drLogin["TOKENKEY"] ?? "",
+    "User_name": drLogin["User_name"] ?? "",
+    "M_Ten_CTy": drLogin["M_Ten_CTy"] ?? "",
+    "Ma_So_Thue": drLogin["Ma_So_Thue"] ?? "",
+    "Ma_Dvcs": drLogin["Ma_Dvcs"] ?? "",
+  });
+}
+
 void _handleNotificationOpened(OSNotificationClickEvent event) {
   if (event.notification.additionalData == null) return;
 

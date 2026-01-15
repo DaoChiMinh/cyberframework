@@ -169,13 +169,14 @@ class UserInfo {
     }
     dtPhanHe = dslogin[2];
     dtCommand = dslogin[3];
-
+    await LoginOnsinal(loginRow);
     return true;
   }
 
   /// ✅ Helper method: Clear session
   static Future<void> logout() async {
     await setstrTokenId("");
+    await LogoutOnsinal();
     user_name = "";
     ma_dvcs = "";
     comment = "";
