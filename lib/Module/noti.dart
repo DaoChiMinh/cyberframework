@@ -38,7 +38,6 @@ Future<void> LoginOnsinal(CyberDataRow drLogin) async {
     "Ma_So_Thue": drLogin["Ma_So_Thue"] ?? "",
     "Ma_Dvcs": drLogin["Ma_Dvcs"] ?? "",
   });
-  print("OneSignal login successful");
 }
 
 void _handleNotificationOpened(OSNotificationClickEvent event) {
