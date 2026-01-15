@@ -214,7 +214,7 @@ abstract class CyberFormchklist extends CyberForm {
         _formData.isOk = true;
         _formData.objectData = ds1[1];
       }
-
+      _formData.isOk = true;
       close(result: _formData);
     }
   }
