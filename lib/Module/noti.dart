@@ -3,7 +3,7 @@ import 'package:onesignal_flutter/onesignal_flutter.dart';
 
 Future<void> initOneSignal(String AppId) async {
   OneSignal.initialize(AppId);
-  OneSignal.Debug.setLogLevel(OSLogLevel.none);
+  OneSignal.Debug.setLogLevel(OSLogLevel.info);
   OneSignal.Notifications.requestPermission(true);
 
   // Xử lý khi click notification (app đang chạy hoặc background)
