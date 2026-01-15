@@ -381,33 +381,6 @@ String _formatDatePattern(DateTime date, String pattern) {
   return result;
 }
 
-// Thêm vào file lib/Module/exten.dart
-
-/// ✅ Convert list CyberDataTable to XML with custom table names
-///
-/// Usage:
-/// ```dart
-/// String xml = ToXml([tb1, tb2], ["TB1", "TB2"]);
-///
-/// // With include/exclude columns
-/// String xml = ToXml(
-///   [tb1, tb2],
-///   ["TB1", "TB2"],
-///   tableIncludeColumns: {
-///     "TB1": ["id", "name", "email"],
-///     "TB2": ["product_id", "quantity"]
-///   }
-/// );
-///
-/// // Or exclude columns
-/// String xml = ToXml(
-///   [tb1, tb2],
-///   ["TB1", "TB2"],
-///   tableExcludeColumns: {
-///     "TB1": ["created_date", "modified_date"],
-///   }
-/// );
-/// ```
 String ToXml(
   List<CyberDataTable> tables,
   List<String> tableNames, {
