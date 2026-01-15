@@ -400,6 +400,345 @@ class CyberDataTable extends ChangeNotifier {
 
   bool get isDisposed => _isDisposed;
 
+  // Thêm vào class CyberDataTable
+
+  /// Select rows based on filter expression (like DataTable.Select in C#)
+  ///
+  /// Supported operators:
+  /// - Equality: Ma_kh = 'ABC'
+  /// - Comparison: Tuoi > 25, Tuoi >= 18, Tuoi < 60, Tuoi <= 50
+  /// - Not Equal: Ma_kh != 'ABC' or Ma_kh <> 'ABC'
+  /// - LIKE: Ten LIKE '%Nguyen%'
+  /// - IN: Ma_kh IN ('ABC', 'DEF', 'GHI')
+  /// - AND: Ma_kh = 'ABC' AND Tuoi > 25
+  /// - OR: Ma_kh = 'ABC' OR Ma_kh = 'DEF'
+  ///
+  /// [copy] - If true, returns copied rows (changes won't affect original table)
+  ///          If false, returns reference (changes will affect original table)
+  ///
+  /// Example:
+  /// ```dart
+  /// // Reference - changes affect original table
+  /// var result = table.select("Ma_kh = 'ABC'");
+  ///
+  /// // Copy - changes don't affect original table
+  /// var result2 = table.select("Ma_kh = 'ABC'", copy: true);
+  /// ```
+  List<CyberDataRow> select(String filter, {bool copy = false}) {
+    if (filter.isEmpty) {
+      return copy ? _rows.map((row) => row.copy()).toList() : List.from(_rows);
+    }
+
+    // Handle AND operator
+    if (filter.toUpperCase().contains(' AND ')) {
+      return _selectAnd(filter, copy: copy);
+    }
+
+    // Handle OR operator
+    if (filter.toUpperCase().contains(' OR ')) {
+      return _selectOr(filter, copy: copy);
+    }
+
+    // Single condition
+    return _selectSingle(filter, copy: copy);
+  }
+
+  /// Select and return copied rows (changes won't affect original table)
+  ///
+  /// This is a convenience method equivalent to: select(filter, copy: true)
+  ///
+  /// Example:
+  /// ```dart
+  /// var result = table.selectCopy("Ma_kh = 'ABC'");
+  /// result[0]['ten'] = 'MODIFIED'; // Original table unchanged
+  /// ```
+  List<CyberDataRow> selectCopy(String filter) {
+    return select(filter, copy: true);
+  }
+
+  List<CyberDataRow> _selectSingle(String filter, {bool copy = false}) {
+    List<CyberDataRow> result;
+
+    if (filter.contains('>=')) {
+      result = _filterGreaterOrEqual(filter);
+    } else if (filter.contains('<=')) {
+      result = _filterLessOrEqual(filter);
+    } else if (filter.contains('!=') || filter.contains('<>')) {
+      result = _filterNotEqual(filter);
+    } else if (filter.contains('=')) {
+      result = _filterEqual(filter);
+    } else if (filter.contains('>')) {
+      result = _filterGreater(filter);
+    } else if (filter.contains('<')) {
+      result = _filterLess(filter);
+    } else if (filter.toUpperCase().contains(' LIKE ')) {
+      result = _filterLike(filter);
+    } else if (filter.toUpperCase().contains(' IN ')) {
+      result = _filterIn(filter);
+    } else {
+      result = List.from(_rows);
+    }
+
+    return copy ? result.map((row) => row.copy()).toList() : result;
+  }
+
+  List<CyberDataRow> _selectAnd(String filter, {bool copy = false}) {
+    final conditions = _splitByOperator(filter, ' AND ');
+    var result = List<CyberDataRow>.from(_rows);
+
+    for (var condition in conditions) {
+      result = _filterList(result, condition.trim());
+    }
+
+    return copy ? result.map((row) => row.copy()).toList() : result;
+  }
+
+  List<CyberDataRow> _selectOr(String filter, {bool copy = false}) {
+    final conditions = _splitByOperator(filter, ' OR ');
+    final resultSet = <CyberDataRow>{};
+
+    for (var condition in conditions) {
+      resultSet.addAll(_selectSingle(condition.trim(), copy: false));
+    }
+
+    var result = resultSet.toList();
+    return copy ? result.map((row) => row.copy()).toList() : result;
+  }
+
+  List<String> _splitByOperator(String filter, String operator) {
+    final upperFilter = filter.toUpperCase();
+    final upperOp = operator.toUpperCase();
+    final parts = <String>[];
+    var start = 0;
+    var inQuote = false;
+
+    for (var i = 0; i < filter.length; i++) {
+      if (filter[i] == "'" || filter[i] == '"') {
+        inQuote = !inQuote;
+      }
+
+      if (!inQuote && i <= filter.length - operator.length) {
+        if (upperFilter.substring(i, i + operator.length) == upperOp) {
+          parts.add(filter.substring(start, i));
+          start = i + operator.length;
+          i += operator.length - 1;
+        }
+      }
+    }
+
+    parts.add(filter.substring(start));
+    return parts;
+  }
+
+  List<CyberDataRow> _filterList(List<CyberDataRow> rows, String filter) {
+    if (filter.contains('>=')) {
+      return _filterGreaterOrEqualFromList(rows, filter);
+    } else if (filter.contains('<=')) {
+      return _filterLessOrEqualFromList(rows, filter);
+    } else if (filter.contains('!=') || filter.contains('<>')) {
+      return _filterNotEqualFromList(rows, filter);
+    } else if (filter.contains('=')) {
+      return _filterEqualFromList(rows, filter);
+    } else if (filter.contains('>')) {
+      return _filterGreaterFromList(rows, filter);
+    } else if (filter.contains('<')) {
+      return _filterLessFromList(rows, filter);
+    } else if (filter.toUpperCase().contains(' LIKE ')) {
+      return _filterLikeFromList(rows, filter);
+    } else if (filter.toUpperCase().contains(' IN ')) {
+      return _filterInFromList(rows, filter);
+    }
+
+    return rows;
+  }
+
+  List<CyberDataRow> _filterEqual(String filter) {
+    return _filterEqualFromList(_rows, filter);
+  }
+
+  List<CyberDataRow> _filterEqualFromList(
+    List<CyberDataRow> rows,
+    String filter,
+  ) {
+    final parts = filter.split('=');
+    if (parts.length != 2) return rows;
+
+    final property = parts[0].trim().toLowerCase();
+    final value = _cleanValue(parts[1].trim());
+
+    return rows.where((row) {
+      if (!row.hasField(property)) return false;
+      final rowValue = row[property];
+      return rowValue?.toString() == value;
+    }).toList();
+  }
+
+  List<CyberDataRow> _filterNotEqual(String filter) {
+    return _filterNotEqualFromList(_rows, filter);
+  }
+
+  List<CyberDataRow> _filterNotEqualFromList(
+    List<CyberDataRow> rows,
+    String filter,
+  ) {
+    final operator = filter.contains('!=') ? '!=' : '<>';
+    final parts = filter.split(operator);
+    if (parts.length != 2) return rows;
+
+    final property = parts[0].trim().toLowerCase();
+    final value = _cleanValue(parts[1].trim());
+
+    return rows.where((row) {
+      if (!row.hasField(property)) return false;
+      final rowValue = row[property];
+      return rowValue?.toString() != value;
+    }).toList();
+  }
+
+  List<CyberDataRow> _filterGreater(String filter) {
+    return _filterGreaterFromList(_rows, filter);
+  }
+
+  List<CyberDataRow> _filterGreaterFromList(
+    List<CyberDataRow> rows,
+    String filter,
+  ) {
+    final parts = filter.split('>');
+    if (parts.length != 2) return rows;
+
+    final property = parts[0].trim().toLowerCase();
+    final value = num.tryParse(parts[1].trim());
+    if (value == null) return rows;
+
+    return rows.where((row) {
+      if (!row.hasField(property)) return false;
+      final rowValue = num.tryParse(row[property]?.toString() ?? '');
+      if (rowValue == null) return false;
+      return rowValue > value;
+    }).toList();
+  }
+
+  List<CyberDataRow> _filterGreaterOrEqual(String filter) {
+    return _filterGreaterOrEqualFromList(_rows, filter);
+  }
+
+  List<CyberDataRow> _filterGreaterOrEqualFromList(
+    List<CyberDataRow> rows,
+    String filter,
+  ) {
+    final parts = filter.split('>=');
+    if (parts.length != 2) return rows;
+
+    final property = parts[0].trim().toLowerCase();
+    final value = num.tryParse(parts[1].trim());
+    if (value == null) return rows;
+
+    return rows.where((row) {
+      if (!row.hasField(property)) return false;
+      final rowValue = num.tryParse(row[property]?.toString() ?? '');
+      if (rowValue == null) return false;
+      return rowValue >= value;
+    }).toList();
+  }
+
+  List<CyberDataRow> _filterLess(String filter) {
+    return _filterLessFromList(_rows, filter);
+  }
+
+  List<CyberDataRow> _filterLessFromList(
+    List<CyberDataRow> rows,
+    String filter,
+  ) {
+    final parts = filter.split('<');
+    if (parts.length != 2) return rows;
+
+    final property = parts[0].trim().toLowerCase();
+    final value = num.tryParse(parts[1].trim());
+    if (value == null) return rows;
+
+    return rows.where((row) {
+      if (!row.hasField(property)) return false;
+      final rowValue = num.tryParse(row[property]?.toString() ?? '');
+      if (rowValue == null) return false;
+      return rowValue < value;
+    }).toList();
+  }
+
+  List<CyberDataRow> _filterLessOrEqual(String filter) {
+    return _filterLessOrEqualFromList(_rows, filter);
+  }
+
+  List<CyberDataRow> _filterLessOrEqualFromList(
+    List<CyberDataRow> rows,
+    String filter,
+  ) {
+    final parts = filter.split('<=');
+    if (parts.length != 2) return rows;
+
+    final property = parts[0].trim().toLowerCase();
+    final value = num.tryParse(parts[1].trim());
+    if (value == null) return rows;
+
+    return rows.where((row) {
+      if (!row.hasField(property)) return false;
+      final rowValue = num.tryParse(row[property]?.toString() ?? '');
+      if (rowValue == null) return false;
+      return rowValue <= value;
+    }).toList();
+  }
+
+  List<CyberDataRow> _filterLike(String filter) {
+    return _filterLikeFromList(_rows, filter);
+  }
+
+  List<CyberDataRow> _filterLikeFromList(
+    List<CyberDataRow> rows,
+    String filter,
+  ) {
+    final parts = _splitByOperator(filter, ' LIKE ');
+    if (parts.length != 2) return rows;
+
+    final property = parts[0].trim().toLowerCase();
+    final pattern = _cleanValue(
+      parts[1].trim(),
+    ).replaceAll('%', '.*').replaceAll('_', '.');
+
+    final regex = RegExp(pattern, caseSensitive: false);
+
+    return rows.where((row) {
+      if (!row.hasField(property)) return false;
+      final rowValue = row[property]?.toString() ?? '';
+      return regex.hasMatch(rowValue);
+    }).toList();
+  }
+
+  List<CyberDataRow> _filterIn(String filter) {
+    return _filterInFromList(_rows, filter);
+  }
+
+  List<CyberDataRow> _filterInFromList(List<CyberDataRow> rows, String filter) {
+    final parts = _splitByOperator(filter, ' IN ');
+    if (parts.length != 2) return rows;
+
+    final property = parts[0].trim().toLowerCase();
+    final valuesStr = parts[1].trim().replaceAll('(', '').replaceAll(')', '');
+
+    final values = valuesStr
+        .split(',')
+        .map((e) => _cleanValue(e.trim()))
+        .toList();
+
+    return rows.where((row) {
+      if (!row.hasField(property)) return false;
+      final rowValue = row[property]?.toString();
+      return values.contains(rowValue);
+    }).toList();
+  }
+
+  String _cleanValue(String value) {
+    return value.replaceAll("'", "").replaceAll('"', '').trim();
+  }
+
   @override
   String toString() {
     return 'CyberDataTable{name: $tableName, rows: $rowCount, hasChanges: $hasChanges, disposed: $_isDisposed}';
