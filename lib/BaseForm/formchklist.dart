@@ -188,6 +188,9 @@ abstract class CyberFormchklist extends CyberForm {
     var selectedRows = selectedIndices
         .map((index) => dtList!.rows[index])
         .toList();
+    for (var _dr in selectedRows) {
+      _dr["chk"] = "1";
+    }
     CyberDataTable dt = CyberDataTable(tableName: "SAVE");
     dt.loadDataFromRows(selectedRows);
 
