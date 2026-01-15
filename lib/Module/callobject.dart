@@ -445,7 +445,10 @@ Future<ReturnFormData> V_callform(
         );
       }
       if (result == null) return ReturnFormData(isOk: false);
-      return result;
+      if (result is ReturnFormData) {
+        return result;
+      }
+      return ReturnFormData(isOk: true, objectData: result);
   }
   return ReturnFormData(isOk: true);
 }
