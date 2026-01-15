@@ -1,4 +1,7 @@
+// lib/Controller/cybercomboboxcontroller.dart
+
 import 'package:cyberframework/cyberframework.dart';
+import 'package:flutter/material.dart';
 
 /// Controller cho CyberComboBox widget
 ///
@@ -7,6 +10,7 @@ import 'package:cyberframework/cyberframework.dart';
 /// - Display value (display text)
 /// - DataSource
 /// - DisplayMember/ValueMember
+/// - strFilter (Filter string)
 /// - Enabled state
 /// - Clear/Reset
 ///
@@ -18,6 +22,7 @@ class CyberComboBoxController extends ChangeNotifier {
   CyberDataTable? _dataSource;
   String? _displayMember;
   String? _valueMember;
+  String? _strFilter;
 
   CyberComboBoxController({
     dynamic value,
@@ -26,12 +31,14 @@ class CyberComboBoxController extends ChangeNotifier {
     CyberDataTable? dataSource,
     String? displayMember,
     String? valueMember,
+    String? strFilter,
   }) : _value = value,
        _displayValue = displayValue ?? '',
        _enabled = enabled,
        _dataSource = dataSource,
        _displayMember = displayMember,
-       _valueMember = valueMember {
+       _valueMember = valueMember,
+       _strFilter = strFilter {
     // Listen to dataSource changes
     _dataSource?.addListener(_onDataSourceChanged);
   }
@@ -57,6 +64,9 @@ class CyberComboBoxController extends ChangeNotifier {
 
   /// ValueMember field name
   String? get valueMember => _valueMember;
+
+  /// Filter string
+  String? get strFilter => _strFilter;
 
   /// Check if has value
   bool get hasValue => _displayValue.isNotEmpty;
@@ -127,6 +137,41 @@ class CyberComboBoxController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Set filter string
+  void setFilter(String? filter) {
+    if (_strFilter == filter) return;
+    _strFilter = filter;
+    notifyListeners();
+  }
+
+  // ============================================================================
+  // FILTERED DATA ACCESS
+  // ============================================================================
+
+  /// Get filtered dataSource based on strFilter
+  /// Returns list of rows that match the filter condition
+  List<CyberDataRow> getFilteredRows() {
+    if (_dataSource == null) return [];
+
+    // No filter = return all rows
+    if (_strFilter == null || _strFilter!.isEmpty) {
+      return _dataSource!.rows.toList();
+    }
+
+    // Apply filter using CyberDataTable.select()
+    try {
+      return _dataSource!.select(_strFilter!, copy: false);
+    } catch (e) {
+      debugPrint('❌ Filter error: $e');
+      return _dataSource!.rows.toList();
+    }
+  }
+
+  /// Get filtered row count
+  int getFilteredRowCount() {
+    return getFilteredRows().length;
+  }
+
   // ============================================================================
   // UTILITY METHODS
   // ============================================================================
@@ -145,8 +190,8 @@ class CyberComboBoxController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Get display text cho value hiện tại từ dataSource
-  /// (Tự động tìm trong dataSource nếu có)
+  /// Get display text cho value hiện tại từ filtered dataSource
+  /// (Tự động tìm trong filtered dataSource)
   String? getDisplayText() {
     // Kiểm tra điều kiện cơ bản
     if (_value == null) return null;
@@ -154,14 +199,13 @@ class CyberComboBoxController extends ChangeNotifier {
     if (_displayMember == null || _valueMember == null) return null;
 
     try {
-      final length = _dataSource!.rowCount;
+      // Use filtered rows instead of all rows
+      final filteredRows = getFilteredRows();
 
       // Kiểm tra dataSource có data không
-      if (length == 0) return null;
+      if (filteredRows.isEmpty) return null;
 
-      for (int i = 0; i < length; i++) {
-        final row = _dataSource![i];
-
+      for (var row in filteredRows) {
         // Kiểm tra field tồn tại trong row
         if (!row.hasField(_valueMember!)) continue;
 
@@ -180,7 +224,7 @@ class CyberComboBoxController extends ChangeNotifier {
     return null;
   }
 
-  /// Check if value exists in dataSource
+  /// Check if value exists in filtered dataSource
   bool isValidValue() {
     // Nếu value null thì không valid
     if (_value == null) return false;
@@ -190,14 +234,13 @@ class CyberComboBoxController extends ChangeNotifier {
     if (_valueMember == null) return false;
 
     try {
-      final length = _dataSource!.rowCount;
+      // Use filtered rows
+      final filteredRows = getFilteredRows();
 
       // Nếu dataSource rỗng thì không valid
-      if (length == 0) return false;
+      if (filteredRows.isEmpty) return false;
 
-      for (int i = 0; i < length; i++) {
-        final row = _dataSource![i];
-
+      for (var row in filteredRows) {
         // Kiểm tra field tồn tại trong row
         if (!row.hasField(_valueMember!)) continue;
 
@@ -213,21 +256,20 @@ class CyberComboBoxController extends ChangeNotifier {
     return false;
   }
 
-  /// Get selected row from dataSource
+  /// Get selected row from filtered dataSource
   CyberDataRow? getSelectedRow() {
     if (_value == null) return null;
     if (_dataSource == null) return null;
     if (_valueMember == null) return null;
 
     try {
-      final length = _dataSource!.rowCount;
+      // Use filtered rows
+      final filteredRows = getFilteredRows();
 
       // Kiểm tra dataSource có data không
-      if (length == 0) return null;
+      if (filteredRows.isEmpty) return null;
 
-      for (int i = 0; i < length; i++) {
-        final row = _dataSource![i];
-
+      for (var row in filteredRows) {
         // Kiểm tra field tồn tại trong row
         if (!row.hasField(_valueMember!)) continue;
 
@@ -288,6 +330,8 @@ class CyberComboBoxController extends ChangeNotifier {
   // PRIVATE METHODS
   // ============================================================================
 
+  /// Callback được gọi khi dataSource thay đổi
+  /// Auto-trigger rebuild để update UI
   void _onDataSourceChanged() {
     notifyListeners();
   }
@@ -310,7 +354,9 @@ class CyberComboBoxController extends ChangeNotifier {
         'enabled: $_enabled, '
         'displayMember: $_displayMember, '
         'valueMember: $_valueMember, '
-        'dataSource: ${_dataSource?.rowCount ?? 0} rows'
+        'strFilter: $_strFilter, '
+        'dataSource: ${_dataSource?.rowCount ?? 0} rows, '
+        'filtered: ${getFilteredRowCount()} rows'
         ')';
   }
 }

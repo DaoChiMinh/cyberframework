@@ -1,12 +1,15 @@
+// lib/Controller/cybercombobox.dart
+
 import 'package:cyberframework/cyberframework.dart';
 import 'package:flutter/cupertino.dart';
 
-/// CyberComboBox - ComboBox widget với data binding và internal controller
+/// CyberComboBox - ComboBox widget với data binding, internal controller và filter support
 ///
 /// Triết lý:
 /// - Internal Controller: Widget tự quản lý state, không cần khai báo controller bên ngoài
 /// - Binding Support: Hỗ trợ binding trực tiếp qua thuộc tính `text` và `display`
 /// - External Controller: Optional, khi cần control từ code
+/// - Filter Support: Lọc dữ liệu hiển thị qua strFilter
 ///
 /// Usage:
 /// ```dart
@@ -27,13 +30,24 @@ import 'package:flutter/cupertino.dart';
 ///   displayMember: "ten_kh",
 /// )
 ///
-/// // 3. With external controller (advanced)
-/// final controller = CyberComboBoxController();
+/// // 3. With filter (static)
 /// CyberComboBox(
-///   controller: controller,
+///   text: drEdit.bind("ma_kh"),
+///   display: drEdit.bind("ten_kh"),
 ///   dataSource: dtKhachHang,
 ///   valueMember: "ma_kh",
 ///   displayMember: "ten_kh",
+///   strFilter: "trang_thai = '1'",        // Chỉ hiển thị active
+/// )
+///
+/// // 4. With filter (dynamic binding)
+/// CyberComboBox(
+///   text: drEdit.bind("ma_kho"),
+///   display: drEdit.bind("ten_kho"),
+///   dataSource: dtKho,
+///   valueMember: "ma_kho",
+///   displayMember: "ten_kho",
+///   strFilter: drEdit.bind("filter_kho"), // Filter động
 /// )
 /// ```
 class CyberComboBox extends StatefulWidget {
@@ -58,6 +72,15 @@ class CyberComboBox extends StatefulWidget {
 
   /// DataSource là CyberDataTable
   final CyberDataTable? dataSource;
+
+  /// Filter string để lọc dataSource (có thể binding)
+  /// Sử dụng cú pháp giống CyberDataTable.select()
+  ///
+  /// Examples:
+  /// - "trang_thai = '1'" (lọc theo status)
+  /// - "ma_chi_nhanh = 'CN001'" (lọc theo chi nhánh)
+  /// - "nam >= 2024 AND active = '1'" (lọc kết hợp)
+  final dynamic strFilter;
 
   /// Label hiển thị phía trên
   final String? label;
@@ -100,7 +123,11 @@ class CyberComboBox extends StatefulWidget {
 
   /// Show label hay không
   final bool isShowLabel;
+
+  /// Visible (có thể binding)
   final dynamic isVisible;
+
+  /// Check empty (có thể binding)
   final dynamic isCheckEmpty;
 
   const CyberComboBox({
@@ -111,6 +138,7 @@ class CyberComboBox extends StatefulWidget {
     this.displayMember,
     this.valueMember,
     this.dataSource,
+    this.strFilter,
     this.label,
     this.hint,
     this.labelStyle,
@@ -144,6 +172,8 @@ class _CyberComboBoxState extends State<CyberComboBox> {
   String? _displayBoundField;
   CyberDataRow? _visibilityBoundRow;
   String? _visibilityBoundField;
+  CyberDataRow? _filterBoundRow;
+  String? _filterBoundField;
   bool _isUpdating = false;
 
   // ============================================================================
@@ -173,12 +203,14 @@ class _CyberComboBoxState extends State<CyberComboBox> {
       dataSource: widget.dataSource,
       displayMember: _getDisplayMember(),
       valueMember: _getValueMember(),
+      strFilter: _getFilterString(),
     );
 
     // Parse binding
     _parseBinding();
     _parseDisplayBinding();
     _parseVisibilityBinding();
+    _parseFilterBinding();
 
     // Đăng ký listeners
     _registerListeners();
@@ -217,6 +249,18 @@ class _CyberComboBoxState extends State<CyberComboBox> {
       _parseVisibilityBinding();
     }
 
+    // ✅ Kiểm tra filter binding changes
+    if (widget.strFilter != oldWidget.strFilter) {
+      _unregisterFilterListeners();
+      _parseFilterBinding();
+      _registerFilterListeners();
+
+      // Sync filter từ binding mới
+      if (!_isUpdating && widget.controller == null) {
+        _internalController.setFilter(_getFilterString());
+      }
+    }
+
     // ✅ Sync widget properties vào internal controller
     if (widget.controller == null) {
       if (widget.dataSource != oldWidget.dataSource) {
@@ -231,6 +275,9 @@ class _CyberComboBoxState extends State<CyberComboBox> {
       if (widget.enabled != oldWidget.enabled) {
         _internalController.setEnabled(widget.enabled);
       }
+      if (widget.strFilter != oldWidget.strFilter) {
+        _internalController.setFilter(_getFilterString());
+      }
     }
   }
 
@@ -238,6 +285,7 @@ class _CyberComboBoxState extends State<CyberComboBox> {
   void dispose() {
     _unregisterListeners();
     _unregisterDisplayListeners();
+    _unregisterFilterListeners();
     _internalController.dispose();
     super.dispose();
   }
@@ -279,6 +327,17 @@ class _CyberComboBoxState extends State<CyberComboBox> {
     }
   }
 
+  void _parseFilterBinding() {
+    if (widget.strFilter is CyberBindingExpression) {
+      final expr = widget.strFilter as CyberBindingExpression;
+      _filterBoundRow = expr.row;
+      _filterBoundField = expr.fieldName;
+    } else {
+      _filterBoundRow = null;
+      _filterBoundField = null;
+    }
+  }
+
   void _registerListeners() {
     // Text binding listener
     _boundRow?.addListener(_onBindingChanged);
@@ -299,6 +358,16 @@ class _CyberComboBoxState extends State<CyberComboBox> {
     }
   }
 
+  void _registerFilterListeners() {
+    // Filter binding listener (chỉ register nếu khác các binding khác)
+    if (_filterBoundRow != null &&
+        _filterBoundRow != _boundRow &&
+        _filterBoundRow != _displayBoundRow &&
+        _filterBoundRow != _visibilityBoundRow) {
+      _filterBoundRow!.addListener(_onFilterBindingChanged);
+    }
+  }
+
   void _unregisterListeners() {
     _boundRow?.removeListener(_onBindingChanged);
 
@@ -312,6 +381,15 @@ class _CyberComboBoxState extends State<CyberComboBox> {
   void _unregisterDisplayListeners() {
     if (_displayBoundRow != null && _displayBoundRow != _boundRow) {
       _displayBoundRow!.removeListener(_onDisplayBindingChanged);
+    }
+  }
+
+  void _unregisterFilterListeners() {
+    if (_filterBoundRow != null &&
+        _filterBoundRow != _boundRow &&
+        _filterBoundRow != _displayBoundRow &&
+        _filterBoundRow != _visibilityBoundRow) {
+      _filterBoundRow!.removeListener(_onFilterBindingChanged);
     }
   }
 
@@ -332,6 +410,11 @@ class _CyberComboBoxState extends State<CyberComboBox> {
   void _onVisibilityChanged() {
     if (_isUpdating) return;
     setState(() {}); // Rebuild for visibility change
+  }
+
+  void _onFilterBindingChanged() {
+    if (_isUpdating) return;
+    _syncFromFilterBinding();
   }
 
   void _onControllerChanged() {
@@ -372,6 +455,26 @@ class _CyberComboBoxState extends State<CyberComboBox> {
       if (_controller.displayValue != bindingValue) {
         if (widget.controller == null) {
           _internalController.setDisplayValue(bindingValue);
+        }
+        setState(() {});
+      }
+    } finally {
+      _isUpdating = false;
+    }
+  }
+
+  /// Sync giá trị từ filter binding vào controller
+  void _syncFromFilterBinding() {
+    if (_filterBoundRow == null || _filterBoundField == null) return;
+
+    _isUpdating = true;
+    try {
+      final bindingValue = _filterBoundRow![_filterBoundField!]?.toString();
+      final currentFilter = _controller.strFilter;
+
+      if (currentFilter != bindingValue) {
+        if (widget.controller == null) {
+          _internalController.setFilter(bindingValue);
         }
         setState(() {});
       }
@@ -518,7 +621,27 @@ class _CyberComboBoxState extends State<CyberComboBox> {
     return widget.valueMember?.toString() ?? '';
   }
 
-  /// Get display text cho value hiện tại
+  String? _getFilterString() {
+    // Priority 1: Binding
+    if (widget.strFilter is CyberBindingExpression) {
+      final expr = widget.strFilter as CyberBindingExpression;
+      try {
+        return expr.row[expr.fieldName]?.toString();
+      } catch (e) {
+        return null;
+      }
+    }
+
+    // Priority 2: Direct value
+    if (widget.strFilter != null &&
+        widget.strFilter is! CyberBindingExpression) {
+      return widget.strFilter.toString();
+    }
+
+    return null;
+  }
+
+  /// Get display text cho value hiện tại (sử dụng filtered data)
   String _getDisplayText() {
     final currentValue = _getCurrentValue();
     final dataSource = widget.dataSource ?? _controller.dataSource;
@@ -535,16 +658,17 @@ class _CyberComboBoxState extends State<CyberComboBox> {
     }
 
     try {
-      final length = dataSource.rowCount;
-      for (int i = 0; i < length; i++) {
-        final row = dataSource[i];
+      // Use filtered rows
+      final filteredRows = _controller.getFilteredRows();
+
+      for (var row in filteredRows) {
         final rowValue = row[valueMember];
         if (rowValue?.toString() == currentValue?.toString()) {
           return row[displayMember]?.toString() ?? '';
         }
       }
     } catch (e) {
-      // Ignore errors
+      debugPrint('❌ Get display text error: $e');
     }
 
     return widget.hint ?? '';
@@ -593,16 +717,16 @@ class _CyberComboBoxState extends State<CyberComboBox> {
       final valueMember = _getValueMember();
       final displayMember = _getDisplayMember();
 
-      // Tìm display text tương ứng với value
+      // Tìm display text tương ứng với value (trong filtered data)
       String newDisplayText = '';
       if (newValue != null &&
           dataSource != null &&
           valueMember.isNotEmpty &&
           displayMember.isNotEmpty) {
         try {
-          final length = dataSource.rowCount;
-          for (int i = 0; i < length; i++) {
-            final row = dataSource[i];
+          final filteredRows = _controller.getFilteredRows();
+
+          for (var row in filteredRows) {
             final rowValue = row[valueMember];
             if (rowValue?.toString() == newValue?.toString()) {
               newDisplayText = row[displayMember]?.toString() ?? '';
@@ -610,7 +734,7 @@ class _CyberComboBoxState extends State<CyberComboBox> {
             }
           }
         } catch (e) {
-          // Ignore errors
+          debugPrint('❌ Find display text error: $e');
         }
       }
 
@@ -685,13 +809,29 @@ class _CyberComboBoxState extends State<CyberComboBox> {
       return;
     }
 
+    // Get filtered rows
+    final filteredRows = _controller.getFilteredRows();
+
+    if (filteredRows.isEmpty) {
+      // Show message nếu không có data sau khi filter
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Không có dữ liệu phù hợp với điều kiện lọc'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
+
     final currentValue = _getCurrentValue();
 
     await showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) => _IOSPickerSheet(
-        dataSource: dataSource,
+        filteredRows: filteredRows,
         valueMember: valueMember,
         displayMember: displayMember,
         currentValue: currentValue,
@@ -726,6 +866,11 @@ class _CyberComboBoxState extends State<CyberComboBox> {
             _visibilityBoundRow != _boundRow &&
             _visibilityBoundRow != _displayBoundRow)
           _visibilityBoundRow!,
+        if (_filterBoundRow != null &&
+            _filterBoundRow != _boundRow &&
+            _filterBoundRow != _displayBoundRow &&
+            _filterBoundRow != _visibilityBoundRow)
+          _filterBoundRow!,
       ]),
       builder: (context, _) {
         final displayText = _getDisplayText();
@@ -796,7 +941,6 @@ class _CyberComboBoxState extends State<CyberComboBox> {
                         displayText,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-
                         style:
                             widget.textStyle ??
                             TextStyle(
@@ -848,14 +992,14 @@ class _CyberComboBoxState extends State<CyberComboBox> {
 
 /// iOS-style Picker Bottom Sheet
 class _IOSPickerSheet extends StatefulWidget {
-  final CyberDataTable dataSource;
+  final List<CyberDataRow> filteredRows;
   final String valueMember;
   final String displayMember;
   final dynamic currentValue;
   final ValueChanged<dynamic> onSelected;
 
   const _IOSPickerSheet({
-    required this.dataSource,
+    required this.filteredRows,
     required this.valueMember,
     required this.displayMember,
     required this.currentValue,
@@ -874,10 +1018,10 @@ class _IOSPickerSheetState extends State<_IOSPickerSheet> {
   void initState() {
     super.initState();
 
-    // Find current value index
+    // Find current value index in filtered rows
     _selectedIndex = 0;
-    for (int i = 0; i < widget.dataSource.rowCount; i++) {
-      final row = widget.dataSource[i];
+    for (int i = 0; i < widget.filteredRows.length; i++) {
+      final row = widget.filteredRows[i];
       final rowValue = row[widget.valueMember];
       if (rowValue?.toString() == widget.currentValue?.toString()) {
         _selectedIndex = i;
@@ -899,9 +1043,8 @@ class _IOSPickerSheetState extends State<_IOSPickerSheet> {
   List<Widget> _buildPickerItems() {
     List<Widget> items = [];
 
-    final length = widget.dataSource.rowCount;
-    for (int i = 0; i < length; i++) {
-      final row = widget.dataSource[i];
+    for (int i = 0; i < widget.filteredRows.length; i++) {
+      final row = widget.filteredRows[i];
       final displayText = row[widget.displayMember]?.toString() ?? '';
       final rowValue = row[widget.valueMember];
       final isSelected =
@@ -949,12 +1092,11 @@ class _IOSPickerSheetState extends State<_IOSPickerSheet> {
                 ),
                 TextButton(
                   onPressed: () {
-                    if (widget.dataSource.rowCount > 0) {
-                      final selectedRow = widget.dataSource[_selectedIndex];
+                    if (widget.filteredRows.isNotEmpty) {
+                      final selectedRow = widget.filteredRows[_selectedIndex];
                       final selectedValue = selectedRow[widget.valueMember];
                       widget.onSelected(selectedValue);
                     }
-
                     Navigator.pop(context);
                   },
                   child: const Text(
