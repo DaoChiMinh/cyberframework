@@ -24,8 +24,13 @@ Future<void> LogoutOnsinal() async {
 
 Future<void> LoginOnsinal(CyberDataRow drLogin) async {
   await LogoutOnsinal();
-  // Login với external ID mới
-  await OneSignal.login(drLogin["TOKENKEY"] ?? "");
+  await Future.delayed(const Duration(milliseconds: 500));
+  String tokenKey = drLogin["TOKENKEY"]?.toString().trim() ?? "";
+  if (tokenKey.isEmpty) return;
+
+  await OneSignal.login(tokenKey);
+  await Future.delayed(const Duration(milliseconds: 500));
+
   OneSignal.User.addTags({
     "Comment": drLogin["TOKENKEY"] ?? "",
     "User_name": drLogin["User_name"] ?? "",
@@ -33,6 +38,7 @@ Future<void> LoginOnsinal(CyberDataRow drLogin) async {
     "Ma_So_Thue": drLogin["Ma_So_Thue"] ?? "",
     "Ma_Dvcs": drLogin["Ma_Dvcs"] ?? "",
   });
+  print("OneSignal login successful");
 }
 
 void _handleNotificationOpened(OSNotificationClickEvent event) {
