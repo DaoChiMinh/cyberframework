@@ -61,6 +61,10 @@ class CyberComboBoxController extends ChangeNotifier {
   /// Check if has value
   bool get hasValue => _displayValue.isNotEmpty;
 
+  /// Check if dataSource is valid and has data
+  bool get hasDataSource =>
+      _dataSource != null && (_dataSource?.rowCount ?? 0) > 0;
+
   // ============================================================================
   // SETTERS
   // ============================================================================
@@ -144,19 +148,32 @@ class CyberComboBoxController extends ChangeNotifier {
   /// Get display text cho value hiện tại từ dataSource
   /// (Tự động tìm trong dataSource nếu có)
   String? getDisplayText() {
-    if (_value == null || _dataSource == null) return null;
+    // Kiểm tra điều kiện cơ bản
+    if (_value == null) return null;
+    if (_dataSource == null) return null;
     if (_displayMember == null || _valueMember == null) return null;
 
     try {
       final length = _dataSource!.rowCount;
+
+      // Kiểm tra dataSource có data không
+      if (length == 0) return null;
+
       for (int i = 0; i < length; i++) {
         final row = _dataSource![i];
+
+        // Kiểm tra field tồn tại trong row
+        if (!row.hasField(_valueMember!)) continue;
+
         final rowValue = row[_valueMember!];
         if (rowValue?.toString() == _value?.toString()) {
+          // Kiểm tra displayMember tồn tại
+          if (!row.hasField(_displayMember!)) return null;
           return row[_displayMember!]?.toString();
         }
       }
     } catch (e) {
+      // Log error nếu cần
       return null;
     }
 
@@ -165,13 +182,25 @@ class CyberComboBoxController extends ChangeNotifier {
 
   /// Check if value exists in dataSource
   bool isValidValue() {
-    if (_value == null || _dataSource == null) return false;
+    // Nếu value null thì không valid
+    if (_value == null) return false;
+
+    // Nếu không có dataSource hoặc không có data thì không valid
+    if (_dataSource == null) return false;
     if (_valueMember == null) return false;
 
     try {
       final length = _dataSource!.rowCount;
+
+      // Nếu dataSource rỗng thì không valid
+      if (length == 0) return false;
+
       for (int i = 0; i < length; i++) {
         final row = _dataSource![i];
+
+        // Kiểm tra field tồn tại trong row
+        if (!row.hasField(_valueMember!)) continue;
+
         final rowValue = row[_valueMember!];
         if (rowValue?.toString() == _value?.toString()) {
           return true;
@@ -186,13 +215,22 @@ class CyberComboBoxController extends ChangeNotifier {
 
   /// Get selected row from dataSource
   CyberDataRow? getSelectedRow() {
-    if (_value == null || _dataSource == null) return null;
+    if (_value == null) return null;
+    if (_dataSource == null) return null;
     if (_valueMember == null) return null;
 
     try {
       final length = _dataSource!.rowCount;
+
+      // Kiểm tra dataSource có data không
+      if (length == 0) return null;
+
       for (int i = 0; i < length; i++) {
         final row = _dataSource![i];
+
+        // Kiểm tra field tồn tại trong row
+        if (!row.hasField(_valueMember!)) continue;
+
         final rowValue = row[_valueMember!];
         if (rowValue?.toString() == _value?.toString()) {
           return row;
@@ -213,6 +251,37 @@ class CyberComboBoxController extends ChangeNotifier {
       _displayValue = displayText;
       notifyListeners();
     }
+  }
+
+  /// Validate trước khi submit/confirm
+  /// Trả về error message nếu có lỗi, null nếu OK
+  String? validate() {
+    // Nếu không có dataSource
+    if (_dataSource == null) {
+      return 'DataSource chưa được thiết lập';
+    }
+
+    // Nếu dataSource rỗng
+    if (_dataSource!.rowCount == 0) {
+      return 'DataSource không có dữ liệu';
+    }
+
+    // Nếu thiếu displayMember hoặc valueMember
+    if (_displayMember == null || _valueMember == null) {
+      return 'DisplayMember hoặc ValueMember chưa được thiết lập';
+    }
+
+    // Nếu có value nhưng không hợp lệ
+    if (_value != null && !isValidValue()) {
+      return 'Giá trị được chọn không tồn tại trong DataSource';
+    }
+
+    return null;
+  }
+
+  /// Check if can submit (no validation errors)
+  bool canSubmit() {
+    return validate() == null;
   }
 
   // ============================================================================
