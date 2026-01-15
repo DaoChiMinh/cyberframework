@@ -16,6 +16,7 @@ abstract class CyberFormchklist extends CyberForm {
   Future<void> onLoadData() async {
     _ma_tag = "";
     dtList = await v_loadData(1, 20, "");
+    v_updateIndex();
     this.title = _dtMaster![0]["title"] ?? this.title;
     return super.onLoadData();
   }
@@ -56,6 +57,22 @@ abstract class CyberFormchklist extends CyberForm {
     }
   }
 
+  void v_updateIndex() {
+    if (dtList == null) return;
+    for (int i = 0; i < dtList!.rowCount; i++) {
+      if (dtList![i].getInt("chk") == 1) {
+        if (!selectedIndices.contains(i)) {
+          selectedIndices.add(i);
+        }
+      }
+    }
+    // for (var _row in dtList!.rows) {
+    //   if(_row.getInt("chk")==1){
+    //     selectedIndices.add()
+    //   }
+    // }
+  }
+
   @override
   Widget buildBody(BuildContext context) {
     if (dtList == null) {
@@ -90,7 +107,6 @@ abstract class CyberFormchklist extends CyberForm {
           itemBuilder: (context, row, index) {
             return Padding(
               padding: EdgeInsets.all(1),
-
               child: Container(
                 decoration: BoxDecoration(
                   border: selectedIndices.contains(index)
