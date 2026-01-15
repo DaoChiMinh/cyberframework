@@ -794,6 +794,9 @@ class _CyberComboBoxState extends State<CyberComboBox> {
                     Expanded(
                       child: Text(
                         displayText,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+
                         style:
                             widget.textStyle ??
                             TextStyle(
@@ -946,9 +949,12 @@ class _IOSPickerSheetState extends State<_IOSPickerSheet> {
                 ),
                 TextButton(
                   onPressed: () {
-                    final selectedRow = widget.dataSource[_selectedIndex];
-                    final selectedValue = selectedRow[widget.valueMember];
-                    widget.onSelected(selectedValue);
+                    if (widget.dataSource.rowCount > 0) {
+                      final selectedRow = widget.dataSource[_selectedIndex];
+                      final selectedValue = selectedRow[widget.valueMember];
+                      widget.onSelected(selectedValue);
+                    }
+
                     Navigator.pop(context);
                   },
                   child: const Text(
