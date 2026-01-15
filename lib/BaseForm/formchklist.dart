@@ -28,11 +28,14 @@ abstract class CyberFormchklist extends CyberForm {
     String m_load = "1";
     if (pageIndex > 1) m_load = "0";
     List<String> _paras = strparameter.split("#");
-    _paras[0] = m_load;
-    _paras[1] = pageIndex.toString();
-    _paras[3] = strSearch;
-    _paras[7] = _ma_tag ?? "";
-    String _strparameter = _paras.join("#");
+    String _strparameter = strparameter;
+    if (_paras.length > 3) {
+      _paras[0] = m_load;
+      _paras[1] = pageIndex.toString();
+      _paras[3] = strSearch;
+      _paras[7] = _ma_tag ?? "";
+      _strparameter = _paras.join("#");
+    }
 
     var (ds1, isOk) = await context.callApiAndCheck(
       functionName: cp_name,
@@ -104,7 +107,6 @@ abstract class CyberFormchklist extends CyberForm {
           padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           onLoadData: v_loadData,
           onItemTap: (row, index) {
-            print('Tapped item at index $index');
             if (selectedIndices.contains(index)) {
               selectedIndices.remove(index);
             } else {
