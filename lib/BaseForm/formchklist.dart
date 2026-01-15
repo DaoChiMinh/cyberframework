@@ -12,6 +12,7 @@ abstract class CyberFormchklist extends CyberForm {
   String? _ma_tag;
   List<int> selectedIndices = [];
   bool isOne = false;
+  bool isExec = false;
   @override
   Future<void> onLoadData() async {
     _ma_tag = "";
@@ -42,13 +43,14 @@ abstract class CyberFormchklist extends CyberForm {
     var (ds1, isOk) = await context.callApiAndCheck(
       functionName: cp_name,
       parameter: _strparameter,
-      showLoading: true,
+      showLoading: false,
     );
     if (isOk) {
       if (m_load == "1") {
         selectedIndices.clear();
         _dtMaster = ds1![1];
         isOne = _dtMaster![0].getBool("isone");
+        isExec = _dtMaster![0].getBool("isExecute");
       }
       if (ds1!.tableCount > 2) _dttag = ds1![ds1.tableCount - 1];
       return ds1[0]!;
@@ -142,29 +144,31 @@ abstract class CyberFormchklist extends CyberForm {
           //cyberActionCenterHor: true,
           cyberActionBottom: 16,
           cyberActionRight: 0,
-          cyberActions: [
-            CyberButtonAction(
-              label: setText("Chọn tất", "Select All"),
-              icon: "e6b1",
-              backgroundColor: TextColorGray,
-              onclick: () {
-                selectedIndices = List.generate(
-                  dtList!.rowCount,
-                  (index) => index,
-                );
-                rebuild();
-              },
-            ),
-            CyberButtonAction(
-              label: setText("Bỏ chọn tất", "UnSelect All"),
-              icon: "e9d3",
-              backgroundColor: TextColorGray,
-              onclick: () {
-                selectedIndices.clear();
-                rebuild();
-              },
-            ),
-          ],
+          cyberActions: isOne
+              ? null
+              : [
+                  CyberButtonAction(
+                    label: setText("Chọn tất", "Select All"),
+                    icon: "e6b1",
+                    backgroundColor: TextColorGray,
+                    onclick: () {
+                      selectedIndices = List.generate(
+                        dtList!.rowCount,
+                        (index) => index,
+                      );
+                      rebuild();
+                    },
+                  ),
+                  CyberButtonAction(
+                    label: setText("Bỏ chọn tất", "UnSelect All"),
+                    icon: "e9d3",
+                    backgroundColor: TextColorGray,
+                    onclick: () {
+                      selectedIndices.clear();
+                      rebuild();
+                    },
+                  ),
+                ],
         ),
       ),
     );
@@ -185,10 +189,36 @@ abstract class CyberFormchklist extends CyberForm {
   @override
   // ignore: override_on_non_overriding_member
   Future<void> SaveData() async {
+    ReturnFormData _formData = ReturnFormData(isOk: false);
     var selectedRows = selectedIndices
         .map((index) => dtList!.rows[index])
         .toList();
-    close(result: selectedRows);
+    CyberDataTable dt = CyberDataTable(tableName: "SAVE");
+    dt.loadDataFromRows(selectedRows);
+
+    if (!isExec) {
+      _formData.isOk = true;
+      _formData.objectData = dt;
+      close(result: _formData);
+    } else {
+      String strXML = dt.toXml(tableNameOverride: "SAVE");
+
+      var (ds1, isOk) = await context.callApiAndCheck(
+        functionName: "${cp_name}_Save",
+        parameter: "$strXML##",
+        showLoading: false,
+      );
+      if (!isOk) return;
+      if (ds1 == null) return;
+      if (ds1.tableCount < 2) return;
+
+      if (ds1[1]!.rowCount > 0) {
+        _formData.isOk = true;
+        _formData.objectData = ds1[1];
+      }
+
+      close(result: _formData);
+    }
   }
 
   @override
