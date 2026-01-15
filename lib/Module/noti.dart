@@ -33,7 +33,7 @@ void _handleNotificationOpened(OSNotificationClickEvent event) {
   if (pageName.isEmpty) return;
 
   // Delay một chút để đảm bảo app đã khởi động xong
-  Future.delayed(const Duration(milliseconds: 500), () async {
+  Future.delayed(const Duration(milliseconds: 800), () async {
     await V_callform(
       AppNavigator.context!,
       pageName,

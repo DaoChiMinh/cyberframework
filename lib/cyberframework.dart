@@ -16,6 +16,7 @@ export 'package:cyberframework/Core/cyberspeedmonitorservice.dart';
 export 'package:cyberframework/Core/cyberspeedmonitorwrapper.dart';
 export 'package:cyberframework/Core/cyberspeedoverlay.dart';
 
+export 'package:cyberframework/Module/noti.dart';
 export 'package:cyberframework/Module/Data/cyberdatarow.dart';
 export 'package:cyberframework/Module/Data/cyberdatatable.dart';
 export 'package:cyberframework/Module/Data/cyberdataset.dart';
