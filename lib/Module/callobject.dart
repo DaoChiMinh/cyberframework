@@ -625,7 +625,7 @@ Future<T?> V_callViewDialog<T>(
 
 class ReturnFormData {
   bool? isOk;
-  dynamic objectData;
+  Object? objectData;
 
   ReturnFormData({required this.isOk, this.objectData});
 }
