@@ -68,11 +68,6 @@ abstract class CyberFormchklist extends CyberForm {
         }
       }
     }
-    // for (var _row in dtList!.rows) {
-    //   if(_row.getInt("chk")==1){
-    //     selectedIndices.add()
-    //   }
-    // }
   }
 
   @override
