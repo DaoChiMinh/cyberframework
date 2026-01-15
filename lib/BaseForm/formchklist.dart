@@ -11,6 +11,7 @@ abstract class CyberFormchklist extends CyberForm {
   CyberDataTable? _dttag;
   String? _ma_tag;
   List<int> selectedIndices = [];
+  bool isOne = false;
   @override
   Future<void> onLoadData() async {
     _ma_tag = "";
@@ -46,6 +47,7 @@ abstract class CyberFormchklist extends CyberForm {
       if (m_load == "1") {
         selectedIndices.clear();
         _dtMaster = ds1![1];
+        isOne = _dtMaster![0].getBool("isone");
       }
       if (ds1!.tableCount > 2) _dttag = ds1![ds1.tableCount - 1];
       return ds1[0]!;
@@ -107,6 +109,7 @@ abstract class CyberFormchklist extends CyberForm {
           padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           onLoadData: v_loadData,
           onItemTap: (row, index) {
+            if (isOne) selectedIndices.clear();
             if (selectedIndices.contains(index)) {
               selectedIndices.remove(index);
             } else {
