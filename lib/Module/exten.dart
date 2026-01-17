@@ -3,6 +3,19 @@
 import 'package:crypto/crypto.dart';
 import 'package:cyberframework/cyberframework.dart';
 
+// Color parseColor({Color defaultColor = Colors.white}) {
+//     if (isEmpty) return defaultColor;
+
+//     try {
+//       String hex = replaceAll('#', '');
+//       if (hex.length == 6) {
+//         hex = 'FF$hex';
+//       }
+//       return Color(int.parse(hex, radix: 16));
+//     } catch (e) {
+//       return defaultColor;
+//     }
+//   }
 /// Parse icon from code point string
 IconData? v_parseIcon(String codePointStr) {
   try {

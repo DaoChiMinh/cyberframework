@@ -281,6 +281,40 @@ extension CyberMessageBoxExtension on String {
     if (isEmpty) return defaultColor;
 
     try {
+      String colorStr = trim().toLowerCase();
+
+      // Map các tên màu phổ biến
+      final colorMap = {
+        'red': Colors.red,
+        'blue': Colors.blue,
+        'green': Colors.green,
+        'yellow': Colors.yellow,
+        'orange': Colors.orange,
+        'purple': Colors.purple,
+        'pink': Colors.pink,
+        'brown': Colors.brown,
+        'grey': Colors.grey,
+        'gray': Colors.grey,
+        'black': Colors.black,
+        'white': Colors.white,
+        'cyan': Colors.cyan,
+        'indigo': Colors.indigo,
+        'lime': Colors.lime,
+        'teal': Colors.teal,
+        'amber': Colors.amber,
+        'deeporange': Colors.deepOrange,
+        'deeppurple': Colors.deepPurple,
+        'lightblue': Colors.lightBlue,
+        'lightgreen': Colors.lightGreen,
+        'transparent': Colors.transparent,
+      };
+
+      // Kiểm tra nếu là tên màu
+      if (colorMap.containsKey(colorStr)) {
+        return colorMap[colorStr]!;
+      }
+
+      // Nếu không phải tên màu, parse hex
       String hex = replaceAll('#', '');
       if (hex.length == 6) {
         hex = 'FF$hex';

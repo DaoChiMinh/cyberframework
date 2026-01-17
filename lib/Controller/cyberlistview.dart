@@ -272,6 +272,54 @@ class CyberListView extends StatefulWidget {
   /// Icon khi group đang collapse
   final IconData groupCollapsedIcon;
 
+  /// 🆕 Padding bên trong group header
+  final EdgeInsets groupHeaderPadding;
+
+  /// 🆕 Margin xung quanh group header
+  final EdgeInsets groupHeaderMargin;
+
+  /// 🆕 Border radius của group header
+  final BorderRadius? groupHeaderBorderRadius;
+
+  /// 🆕 Border của group header
+  final Border? groupHeaderBorder;
+
+  /// 🆕 Shadow của group header
+  final List<BoxShadow>? groupHeaderShadow;
+
+  /// 🆕 Khoảng cách giữa group header và item đầu tiên
+  final double groupSpacing;
+
+  /// 🆕 Padding cho items trong group (tạo indent effect)
+  final EdgeInsets? groupItemPadding;
+
+  /// 🆕 Margin cho items trong group
+  final EdgeInsets? groupItemMargin;
+
+  /// 🆕 Gradient cho group header
+  final Gradient? groupHeaderGradient;
+
+  /// 🆕 Icon size trong group header
+  final double? groupIconSize;
+
+  /// 🆕 Font size của group text
+  final double? groupFontSize;
+
+  /// 🆕 Font weight của group text
+  final FontWeight? groupFontWeight;
+
+  /// 🆕 Show count badge trong group header
+  final bool groupShowCount;
+
+  /// 🆕 Màu nền count badge
+  final Color? groupCountBackgroundColor;
+
+  /// 🆕 Màu text count badge
+  final Color? groupCountTextColor;
+
+  /// 🆕 Elevation của group header (như Card)
+  final double? groupHeaderElevation;
+
   const CyberListView({
     super.key,
     this.dataSource,
@@ -344,11 +392,30 @@ class CyberListView extends StatefulWidget {
     this.clmgroup,
     this.widgetgroup,
     this.defaultExpandAllGroups = true,
-    this.groupHeaderBackgroundColor,
-    this.groupHeaderTextColor,
+    this.groupHeaderBackgroundColor = const Color(0xFFFF6B35),
+    this.groupHeaderTextColor = Colors.white,
     this.groupHeaderHeight = 48.0,
     this.groupExpandedIcon = Icons.keyboard_arrow_down,
     this.groupCollapsedIcon = Icons.keyboard_arrow_right,
+    this.groupHeaderPadding = const EdgeInsets.symmetric(
+      horizontal: 16,
+      vertical: 12,
+    ),
+    this.groupHeaderMargin = const EdgeInsets.symmetric(vertical: 8),
+    this.groupHeaderBorderRadius,
+    this.groupHeaderBorder,
+    this.groupHeaderShadow,
+    this.groupSpacing = 0.0,
+    this.groupItemPadding,
+    this.groupItemMargin,
+    this.groupHeaderGradient,
+    this.groupIconSize,
+    this.groupFontSize,
+    this.groupFontWeight,
+    this.groupShowCount = false,
+    this.groupCountBackgroundColor,
+    this.groupCountTextColor,
+    this.groupHeaderElevation,
   }) : assert(columnCount >= 1, 'columnCount phải >= 1');
 
   @override
@@ -1407,25 +1474,22 @@ class _CyberListViewState extends State<CyberListView> {
     return RefreshIndicator(onRefresh: _refresh, child: wrappedListView);
   }
 
-  /// 🎯 Build ListView với groups
-  /// 🎯 Build ListView với groups
-  Widget _buildGroupedList() {
-    final grouped = _getGroupedData();
-
-    if (grouped.isEmpty) {
-      return _buildEmpty();
-    }
-
-    // Tính tổng số items (groups + expanded rows + separators)
+  /// 🎯 Tính tổng số items cho grouped list
+  int _calculateGroupedTotalItems(Map<String, List<CyberDataRow>> grouped) {
     int totalItems = 0;
-    final groupEntries = grouped.entries.toList();
 
-    for (var entry in groupEntries) {
+    for (var entry in grouped.entries) {
       totalItems++; // Group header
 
       final isExpanded =
           _groupExpandStates[entry.key] ?? widget.defaultExpandAllGroups;
+
       if (isExpanded) {
+        // 🆕 Add spacing item if needed
+        if (widget.groupSpacing > 0) {
+          totalItems++; // Spacing after header
+        }
+
         final itemCount = entry.value.length;
         totalItems += itemCount; // Group items
 
@@ -1439,6 +1503,20 @@ class _CyberListViewState extends State<CyberListView> {
     if (_isLoadingMore) {
       totalItems++; // Loading indicator
     }
+
+    return totalItems;
+  }
+
+  /// 🎯 Build ListView với groups
+  Widget _buildGroupedList() {
+    final grouped = _getGroupedData();
+
+    if (grouped.isEmpty) {
+      return _buildEmpty();
+    }
+
+    final groupEntries = grouped.entries.toList();
+    final totalItems = _calculateGroupedTotalItems(grouped);
 
     // Build list với groups
     final listView = ListView.builder(
@@ -1487,6 +1565,14 @@ class _CyberListViewState extends State<CyberListView> {
       }
       currentIndex++;
 
+      // 🆕 Add spacing after group header if expanded
+      if (isExpanded && widget.groupSpacing > 0) {
+        if (currentIndex == flatIndex) {
+          return SizedBox(height: widget.groupSpacing);
+        }
+        currentIndex++;
+      }
+
       // Check if this is item in expanded group
       if (isExpanded && groupRows.isNotEmpty) {
         final hasSeparator = widget.separator != null;
@@ -1513,9 +1599,21 @@ class _CyberListViewState extends State<CyberListView> {
               ? _buildSlidableItem(row, globalIndex)
               : _buildItem(row, globalIndex);
 
+          // 🆕 Wrap item with padding/margin if specified
+          Widget wrappedItem = itemWidget;
+
+          if (widget.groupItemPadding != null ||
+              widget.groupItemMargin != null) {
+            wrappedItem = Container(
+              padding: widget.groupItemPadding,
+              margin: widget.groupItemMargin,
+              child: itemWidget,
+            );
+          }
+
           return KeyedSubtree(
             key: ValueKey(row.identityKey),
-            child: itemWidget,
+            child: wrappedItem,
           );
         }
 
@@ -1575,64 +1673,88 @@ class _CyberListViewState extends State<CyberListView> {
         widget.groupHeaderTextColor ??
         CupertinoColors.label.resolveFrom(context);
 
-    return InkWell(
-      onTap: () => _toggleGroup(groupKey),
-      child: Container(
-        height: widget.groupHeaderHeight,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          border: Border(
-            bottom: BorderSide(
-              color: CupertinoColors.separator.resolveFrom(context),
-              width: 0.5,
+    // 🆕 Build header content
+    Widget headerContent = Row(
+      children: [
+        // Expand/Collapse icon
+        Icon(
+          isExpanded ? widget.groupExpandedIcon : widget.groupCollapsedIcon,
+          color: textColor,
+          size: widget.groupIconSize ?? 20,
+        ),
+        const SizedBox(width: 12),
+
+        // Group value text
+        Expanded(
+          child: Text(
+            displayValue.isEmpty ? setText('(Trống)', '(Empty)') : displayValue,
+            style: TextStyle(
+              fontSize: widget.groupFontSize ?? 16,
+              fontWeight: widget.groupFontWeight ?? FontWeight.w600,
+              color: textColor,
             ),
           ),
         ),
-        child: Row(
-          children: [
-            // Expand/Collapse icon
-            Icon(
-              isExpanded ? widget.groupExpandedIcon : widget.groupCollapsedIcon,
-              color: textColor,
-              size: 20,
-            ),
-            const SizedBox(width: 12),
 
-            // Group value text
-            Expanded(
-              child: Text(
-                displayValue.isEmpty
-                    ? setText('(Trống)', '(Empty)')
-                    : displayValue,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: textColor,
+        // Count badge
+        if (widget.groupShowCount)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color:
+                  widget.groupCountBackgroundColor ??
+                  CupertinoColors.systemGrey4.resolveFrom(context),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              '${groupRows.length}',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: widget.groupCountTextColor ?? textColor,
+              ),
+            ),
+          ),
+      ],
+    );
+
+    // 🆕 Wrap in Container với full customization
+    Widget headerWidget = InkWell(
+      onTap: () => _toggleGroup(groupKey),
+      child: Container(
+        height: widget.groupHeaderHeight,
+        padding: widget.groupHeaderPadding,
+        margin: widget.groupHeaderMargin,
+        decoration: BoxDecoration(
+          color: widget.groupHeaderGradient == null ? backgroundColor : null,
+          gradient: widget.groupHeaderGradient,
+          borderRadius: widget.groupHeaderBorderRadius,
+          border:
+              widget.groupHeaderBorder ??
+              Border(
+                bottom: BorderSide(
+                  color: CupertinoColors.separator.resolveFrom(context),
+                  width: 0.5,
                 ),
               ),
-            ),
-
-            // Count badge
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: CupertinoColors.systemGrey4.resolveFrom(context),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                '${groupRows.length}',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: textColor,
-                ),
-              ),
-            ),
-          ],
+          boxShadow: widget.groupHeaderShadow,
         ),
+        child: headerContent,
       ),
     );
+
+    // 🆕 Add elevation if specified (Material style)
+    if (widget.groupHeaderElevation != null &&
+        widget.groupHeaderElevation! > 0) {
+      headerWidget = Material(
+        elevation: widget.groupHeaderElevation!,
+        borderRadius:
+            widget.groupHeaderBorderRadius ?? BorderRadius.circular(16),
+        child: headerWidget,
+      );
+    }
+
+    return headerWidget;
   }
 
   /// 🎯 OPTIMIZATION: Horizontal ListView
