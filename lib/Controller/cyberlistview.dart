@@ -33,6 +33,19 @@ typedef ToolbarActionCallback = void Function(CyberDataRow actionRow);
 /// Callback khi xóa item - trả về true nếu xóa thành công, false nếu không xóa
 typedef DeleteCallback = Future<bool> Function(CyberDataRow row, int index);
 
+/// Custom builder cho group header
+/// - groupValue: Giá trị của group
+/// - groupRows: Danh sách rows trong group
+/// - isExpanded: Trạng thái mở/đóng
+/// - onToggle: Callback khi tap vào header
+typedef GroupHeaderBuilder =
+    Widget Function(
+      String groupValue,
+      List<CyberDataRow> groupRows,
+      bool isExpanded,
+      VoidCallback onToggle,
+    );
+
 class CyberListView extends StatefulWidget {
   final CyberDataTable? dataSource;
 
@@ -230,6 +243,35 @@ class CyberListView extends StatefulWidget {
   /// Padding của container
   final EdgeInsets cyberActionPadding;
 
+  // ============================================================================
+  // GROUP PROPERTIES
+  // ============================================================================
+
+  /// Tên cột để group dữ liệu (case-insensitive)
+  /// Khi có giá trị, ListView sẽ hiển thị theo nhóm với group headers
+  final String? clmgroup;
+
+  /// Custom builder cho group header
+  final GroupHeaderBuilder? widgetgroup;
+
+  /// Mặc định expand tất cả groups khi load
+  final bool defaultExpandAllGroups;
+
+  /// Màu nền group header (mặc định: xám)
+  final Color? groupHeaderBackgroundColor;
+
+  /// Màu text group header
+  final Color? groupHeaderTextColor;
+
+  /// Height của group header
+  final double groupHeaderHeight;
+
+  /// Icon khi group đang expand
+  final IconData groupExpandedIcon;
+
+  /// Icon khi group đang collapse
+  final IconData groupCollapsedIcon;
+
   const CyberListView({
     super.key,
     this.dataSource,
@@ -298,6 +340,15 @@ class CyberListView extends StatefulWidget {
       horizontal: 26,
       vertical: 6,
     ),
+    // Group properties
+    this.clmgroup,
+    this.widgetgroup,
+    this.defaultExpandAllGroups = true,
+    this.groupHeaderBackgroundColor,
+    this.groupHeaderTextColor,
+    this.groupHeaderHeight = 48.0,
+    this.groupExpandedIcon = Icons.keyboard_arrow_down,
+    this.groupCollapsedIcon = Icons.keyboard_arrow_right,
   }) : assert(columnCount >= 1, 'columnCount phải >= 1');
 
   @override
@@ -331,6 +382,18 @@ class _CyberListViewState extends State<CyberListView> {
 
   /// ✅ Timer cho search debounce
   Timer? _searchDebounceTimer;
+
+  // ============================================================================
+  // GROUP STATE
+  // ============================================================================
+
+  /// Map lưu trạng thái expand/collapse của từng group
+  /// Key: group value (lowercase), Value: isExpanded
+  final Map<String, bool> _groupExpandStates = {};
+
+  /// Cached grouped data
+  Map<String, List<CyberDataRow>>? _cachedGroupedData;
+  int _cachedGroupVersion = -1;
 
   /// 🎯 OPTIMIZATION: Working rows với cache size limit
   List<CyberDataRow> get _workingRows {
@@ -388,6 +451,18 @@ class _CyberListViewState extends State<CyberListView> {
     _searchHaystackCache.clear();
   }
 
+  /// 🎯 Invalidate group cache
+  void _invalidateGroupCache() {
+    _cachedGroupedData = null;
+    _cachedGroupVersion = -1;
+  }
+
+  /// Clear group states
+  void _clearGroupStates() {
+    _groupExpandStates.clear();
+    _invalidateGroupCache();
+  }
+
   /// 🎯 CRITICAL FIX: Get cache key với identityKey + version
   String _getSearchCacheKey(CyberDataRow row) {
     return '${row.identityKey}_$_dataSourceVersion';
@@ -443,6 +518,117 @@ class _CyberListViewState extends State<CyberListView> {
         widget.isDelete;
   }
 
+  // ============================================================================
+  // GROUP METHODS
+  // ============================================================================
+
+  /// Khởi tạo expand states cho tất cả groups
+  void _initializeGroupStates() {
+    if (widget.clmgroup == null) return;
+
+    final grouped = _getGroupedData();
+    for (var groupKey in grouped.keys) {
+      if (!_groupExpandStates.containsKey(groupKey)) {
+        _groupExpandStates[groupKey] = widget.defaultExpandAllGroups;
+      }
+    }
+  }
+
+  /// Lấy dữ liệu đã group với cache
+  Map<String, List<CyberDataRow>> _getGroupedData() {
+    // Check cache
+    if (_cachedGroupedData != null &&
+        _cachedGroupVersion == _dataSourceVersion &&
+        _cachedFilterVersion == _filterVersion) {
+      return _cachedGroupedData!;
+    }
+
+    // Build grouped data
+    final grouped = <String, List<CyberDataRow>>{};
+    final workingRows = _workingRows;
+
+    if (widget.clmgroup == null || workingRows.isEmpty) {
+      return grouped;
+    }
+
+    final columnName = widget.clmgroup!.toLowerCase();
+
+    for (var row in workingRows) {
+      final groupValue = row[columnName]?.toString() ?? '';
+      final groupKey = groupValue.toLowerCase();
+
+      if (!grouped.containsKey(groupKey)) {
+        grouped[groupKey] = [];
+      }
+      grouped[groupKey]!.add(row);
+    }
+
+    // Cache nếu không quá lớn
+    if (grouped.length < 100) {
+      _cachedGroupedData = grouped;
+      _cachedGroupVersion = _dataSourceVersion;
+    }
+
+    return grouped;
+  }
+
+  /// Toggle expand/collapse group
+  void _toggleGroup(String groupKey) {
+    if (mounted) {
+      setState(() {
+        _groupExpandStates[groupKey] = !(_groupExpandStates[groupKey] ?? true);
+      });
+    }
+  }
+
+  /// Expand tất cả groups
+  void expandAllGroups() {
+    if (!mounted || widget.clmgroup == null) return;
+
+    setState(() {
+      final grouped = _getGroupedData();
+      for (var groupKey in grouped.keys) {
+        _groupExpandStates[groupKey] = true;
+      }
+    });
+  }
+
+  /// Collapse tất cả groups
+  void collapseAllGroups() {
+    if (!mounted || widget.clmgroup == null) return;
+
+    setState(() {
+      final grouped = _getGroupedData();
+      for (var groupKey in grouped.keys) {
+        _groupExpandStates[groupKey] = false;
+      }
+    });
+  }
+
+  /// Expand một group cụ thể
+  void expandGroup(String groupValue) {
+    if (!mounted || widget.clmgroup == null) return;
+
+    final groupKey = groupValue.toLowerCase();
+    if (_groupExpandStates.containsKey(groupKey)) {
+      setState(() {
+        _groupExpandStates[groupKey] = true;
+      });
+    }
+  }
+
+  /// Collapse một group cụ thể
+  void collapseGroup(String groupValue) {
+    if (!mounted || widget.clmgroup == null) return;
+
+    final groupKey = groupValue.toLowerCase();
+    if (_groupExpandStates.containsKey(groupKey)) {
+      setState(() {
+        _groupExpandStates[groupKey] = false;
+      });
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -456,6 +642,11 @@ class _CyberListViewState extends State<CyberListView> {
     // 🎯 CRITICAL FIX: Listen to dataSource changes
     if (widget.dataSource != null) {
       widget.dataSource!.addListener(_onDataSourceChanged);
+    }
+
+    // Initialize group states nếu có group
+    if (widget.clmgroup != null && widget.dataSource != null) {
+      _initializeGroupStates();
     }
 
     if (widget.onLoadData != null && widget.dataSource == null) {
@@ -476,6 +667,14 @@ class _CyberListViewState extends State<CyberListView> {
       widget.dataSource?.addListener(_onDataSourceChanged);
     }
 
+    // Reset group states nếu clmgroup thay đổi
+    if (widget.clmgroup != oldWidget.clmgroup) {
+      _groupExpandStates.clear();
+      _cachedGroupedData = null;
+      _cachedGroupVersion = -1;
+      _initializeGroupStates();
+    }
+
     // ✅ Kiểm tra refreshKey thay đổi (ví dụ khi đổi tab)
     if (widget.refreshKey != oldWidget.refreshKey) {
       // Reset tất cả state
@@ -488,6 +687,7 @@ class _CyberListViewState extends State<CyberListView> {
       _incrementFilterVersion();
       _invalidateCache();
       _clearSearchCache();
+      _clearGroupStates();
 
       // Reload data nếu có onLoadData
       if (widget.onLoadData != null) {
@@ -511,6 +711,7 @@ class _CyberListViewState extends State<CyberListView> {
       _incrementDataVersion();
       _invalidateCache();
       _clearSearchCache();
+      _clearGroupStates();
       if (mounted) {
         setState(() {});
       }
@@ -541,6 +742,8 @@ class _CyberListViewState extends State<CyberListView> {
     _filteredIndices = null;
     _invalidateCache();
     _clearSearchCache();
+    _groupExpandStates.clear();
+    _invalidateGroupCache();
     super.dispose();
   }
 
@@ -552,6 +755,7 @@ class _CyberListViewState extends State<CyberListView> {
     _incrementDataVersion();
     _clearSearchCache();
     _invalidateCache();
+    _invalidateGroupCache();
 
     // 🎯 CRITICAL FIX: BẮT BUỘC setState để rebuild UI
     if (mounted) {
@@ -598,6 +802,12 @@ class _CyberListViewState extends State<CyberListView> {
       _incrementDataVersion();
       _invalidateCache();
       _clearSearchCache();
+      _invalidateGroupCache();
+
+      // Re-initialize group states
+      if (widget.clmgroup != null) {
+        _initializeGroupStates();
+      }
 
       // 🎯 Chỉ 1 setState ở cuối
       if (mounted) {
@@ -651,6 +861,7 @@ class _CyberListViewState extends State<CyberListView> {
       _incrementDataVersion();
       _invalidateCache();
       _clearSearchCache();
+      _invalidateGroupCache();
 
       if (mounted) {
         setState(() {
@@ -739,6 +950,7 @@ class _CyberListViewState extends State<CyberListView> {
             _incrementFilterVersion();
             _invalidateCache();
             _clearSearchCache();
+            _invalidateGroupCache();
           });
         }
         return;
@@ -789,6 +1001,7 @@ class _CyberListViewState extends State<CyberListView> {
         _filteredIndices = indices;
         _incrementFilterVersion();
         _invalidateCache();
+        _invalidateGroupCache();
       });
     }
   }
@@ -883,6 +1096,7 @@ class _CyberListViewState extends State<CyberListView> {
           } else {
             _invalidateCache();
             _clearSearchCache();
+            _invalidateGroupCache();
             if (mounted) {
               setState(() {});
             }
@@ -1146,6 +1360,12 @@ class _CyberListViewState extends State<CyberListView> {
 
   /// 🎯 OPTIMIZATION: ListView với optimization flags
   Widget _buildList() {
+    // ✅ Check if grouping is enabled
+    if (widget.clmgroup != null) {
+      return _buildGroupedList();
+    }
+
+    // ... existing code for non-grouped list ...
     final rows = _workingRows;
 
     final listView = ListView.separated(
@@ -1185,6 +1405,212 @@ class _CyberListViewState extends State<CyberListView> {
     }
 
     return RefreshIndicator(onRefresh: _refresh, child: wrappedListView);
+  }
+
+  /// 🎯 Build ListView với groups
+  Widget _buildGroupedList() {
+    final grouped = _getGroupedData();
+
+    if (grouped.isEmpty) {
+      return _buildEmpty();
+    }
+
+    // Tính tổng số items (groups + expanded rows)
+    int totalItems = 0;
+    for (var entry in grouped.entries) {
+      totalItems++; // Group header
+
+      final isExpanded =
+          _groupExpandStates[entry.key] ?? widget.defaultExpandAllGroups;
+      if (isExpanded) {
+        totalItems += entry.value.length; // Group items
+      }
+    }
+
+    if (_isLoadingMore) {
+      totalItems++; // Loading indicator
+    }
+
+    // Build list với groups
+    final listView = ListView.builder(
+      controller: _scrollController,
+      padding: widget.padding ?? const EdgeInsets.all(8),
+      itemCount: totalItems,
+      shrinkWrap: _useShrinkWrap,
+      physics: _scrollPhysics,
+      // 🎯 OPTIMIZATION FLAGS
+      addAutomaticKeepAlives: false,
+      addRepaintBoundaries: true,
+      cacheExtent: 500,
+      itemBuilder: (context, index) {
+        return _buildGroupedListItem(grouped, index);
+      },
+    );
+
+    final wrappedListView = SlidableAutoCloseBehavior(child: listView);
+
+    if (_useShrinkWrap) {
+      return wrappedListView;
+    }
+
+    return RefreshIndicator(onRefresh: _refresh, child: wrappedListView);
+  }
+
+  /// Build item trong grouped list (group header hoặc row item)
+  Widget _buildGroupedListItem(
+    Map<String, List<CyberDataRow>> grouped,
+    int flatIndex,
+  ) {
+    int currentIndex = 0;
+
+    // Iterate through groups để tìm item tại flatIndex
+    for (var entry in grouped.entries) {
+      final groupKey = entry.key;
+      final groupRows = entry.value;
+      final isExpanded =
+          _groupExpandStates[groupKey] ?? widget.defaultExpandAllGroups;
+
+      // Check if this is group header
+      if (currentIndex == flatIndex) {
+        return _buildGroupHeader(groupKey, groupRows, isExpanded);
+      }
+      currentIndex++;
+
+      // Check if this is item in expanded group
+      if (isExpanded) {
+        final groupItemCount = groupRows.length;
+
+        if (flatIndex < currentIndex + groupItemCount) {
+          final itemIndexInGroup = flatIndex - currentIndex;
+          final row = groupRows[itemIndexInGroup];
+
+          // Calculate global index for callbacks
+          final globalIndex = _workingRows.indexOf(row);
+
+          final itemWidget = _hasSwipeActions
+              ? _buildSlidableItem(row, globalIndex)
+              : _buildItem(row, globalIndex);
+
+          return KeyedSubtree(
+            key: ValueKey(row.identityKey),
+            child: itemWidget,
+          );
+        }
+
+        currentIndex += groupItemCount;
+      }
+    }
+
+    // Loading indicator
+    return const Padding(
+      padding: EdgeInsets.all(16),
+      child: Center(child: CircularProgressIndicator()),
+    );
+  }
+
+  /// Build group header (mặc định hoặc custom)
+  Widget _buildGroupHeader(
+    String groupKey,
+    List<CyberDataRow> groupRows,
+    bool isExpanded,
+  ) {
+    // Lấy giá trị hiển thị (có thể khác với groupKey do lowercase)
+    final displayValue = groupRows.isNotEmpty
+        ? groupRows.first[widget.clmgroup!]?.toString() ?? groupKey
+        : groupKey;
+
+    // Custom widget nếu có
+    if (widget.widgetgroup != null) {
+      return widget.widgetgroup!(
+        displayValue,
+        groupRows,
+        isExpanded,
+        () => _toggleGroup(groupKey),
+      );
+    }
+
+    // Default group header
+    return _buildDefaultGroupHeader(
+      displayValue,
+      groupRows,
+      isExpanded,
+      groupKey,
+    );
+  }
+
+  /// Build default group header (màu xám, text + icon)
+  Widget _buildDefaultGroupHeader(
+    String displayValue,
+    List<CyberDataRow> groupRows,
+    bool isExpanded,
+    String groupKey,
+  ) {
+    final backgroundColor =
+        widget.groupHeaderBackgroundColor ??
+        CupertinoColors.systemGrey5.resolveFrom(context);
+
+    final textColor =
+        widget.groupHeaderTextColor ??
+        CupertinoColors.label.resolveFrom(context);
+
+    return InkWell(
+      onTap: () => _toggleGroup(groupKey),
+      child: Container(
+        height: widget.groupHeaderHeight,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          border: Border(
+            bottom: BorderSide(
+              color: CupertinoColors.separator.resolveFrom(context),
+              width: 0.5,
+            ),
+          ),
+        ),
+        child: Row(
+          children: [
+            // Expand/Collapse icon
+            Icon(
+              isExpanded ? widget.groupExpandedIcon : widget.groupCollapsedIcon,
+              color: textColor,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+
+            // Group value text
+            Expanded(
+              child: Text(
+                displayValue.isEmpty
+                    ? setText('(Trống)', '(Empty)')
+                    : displayValue,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: textColor,
+                ),
+              ),
+            ),
+
+            // Count badge
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: CupertinoColors.systemGrey4.resolveFrom(context),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '${groupRows.length}',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: textColor,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   /// 🎯 OPTIMIZATION: Horizontal ListView
