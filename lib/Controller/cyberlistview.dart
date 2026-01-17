@@ -1408,6 +1408,7 @@ class _CyberListViewState extends State<CyberListView> {
   }
 
   /// 🎯 Build ListView với groups
+  /// 🎯 Build ListView với groups
   Widget _buildGroupedList() {
     final grouped = _getGroupedData();
 
@@ -1415,15 +1416,23 @@ class _CyberListViewState extends State<CyberListView> {
       return _buildEmpty();
     }
 
-    // Tính tổng số items (groups + expanded rows)
+    // Tính tổng số items (groups + expanded rows + separators)
     int totalItems = 0;
-    for (var entry in grouped.entries) {
+    final groupEntries = grouped.entries.toList();
+
+    for (var entry in groupEntries) {
       totalItems++; // Group header
 
       final isExpanded =
           _groupExpandStates[entry.key] ?? widget.defaultExpandAllGroups;
       if (isExpanded) {
-        totalItems += entry.value.length; // Group items
+        final itemCount = entry.value.length;
+        totalItems += itemCount; // Group items
+
+        // Add separators (n-1 separators for n items)
+        if (widget.separator != null && itemCount > 0) {
+          totalItems += itemCount - 1;
+        }
       }
     }
 
@@ -1443,7 +1452,7 @@ class _CyberListViewState extends State<CyberListView> {
       addRepaintBoundaries: true,
       cacheExtent: 500,
       itemBuilder: (context, index) {
-        return _buildGroupedListItem(grouped, index);
+        return _buildGroupedListItem(grouped, groupEntries, index);
       },
     );
 
@@ -1456,15 +1465,17 @@ class _CyberListViewState extends State<CyberListView> {
     return RefreshIndicator(onRefresh: _refresh, child: wrappedListView);
   }
 
-  /// Build item trong grouped list (group header hoặc row item)
+  /// Build item trong grouped list (group header, separator, hoặc row item)
   Widget _buildGroupedListItem(
     Map<String, List<CyberDataRow>> grouped,
+    List<MapEntry<String, List<CyberDataRow>>> groupEntries,
     int flatIndex,
   ) {
     int currentIndex = 0;
 
     // Iterate through groups để tìm item tại flatIndex
-    for (var entry in grouped.entries) {
+    for (int groupIdx = 0; groupIdx < groupEntries.length; groupIdx++) {
+      final entry = groupEntries[groupIdx];
       final groupKey = entry.key;
       final groupRows = entry.value;
       final isExpanded =
@@ -1477,12 +1488,23 @@ class _CyberListViewState extends State<CyberListView> {
       currentIndex++;
 
       // Check if this is item in expanded group
-      if (isExpanded) {
-        final groupItemCount = groupRows.length;
+      if (isExpanded && groupRows.isNotEmpty) {
+        final hasSeparator = widget.separator != null;
+        final itemsWithSeparators = hasSeparator
+            ? groupRows.length * 2 - 1
+            : groupRows.length;
 
-        if (flatIndex < currentIndex + groupItemCount) {
-          final itemIndexInGroup = flatIndex - currentIndex;
-          final row = groupRows[itemIndexInGroup];
+        if (flatIndex < currentIndex + itemsWithSeparators) {
+          final localIndex = flatIndex - currentIndex;
+
+          // Check if this is a separator
+          if (hasSeparator && localIndex.isOdd) {
+            return widget.separator!;
+          }
+
+          // This is an item
+          final itemIndex = hasSeparator ? localIndex ~/ 2 : localIndex;
+          final row = groupRows[itemIndex];
 
           // Calculate global index for callbacks
           final globalIndex = _workingRows.indexOf(row);
@@ -1497,7 +1519,7 @@ class _CyberListViewState extends State<CyberListView> {
           );
         }
 
-        currentIndex += groupItemCount;
+        currentIndex += itemsWithSeparators;
       }
     }
 
