@@ -35,7 +35,7 @@ class CyberRadioItem {
   final String label;
 
   /// Binding expression tới column trong CyberDataRow
-  final dynamic binding;
+  final dynamic text;
 
   /// Icon code (optional)
   final String? icon;
@@ -60,7 +60,7 @@ class CyberRadioItem {
 
   const CyberRadioItem({
     required this.label,
-    required this.binding,
+    required this.text,
     this.icon,
     this.enabled = true,
     this.value,
@@ -71,8 +71,8 @@ class CyberRadioItem {
 
   /// Parse binding để lấy row và field
   CyberBindingInfo? get bindingInfo {
-    if (binding is CyberBindingExpression) {
-      final expr = binding as CyberBindingExpression;
+    if (text is CyberBindingExpression) {
+      final expr = text as CyberBindingExpression;
       return CyberBindingInfo(row: expr.row, fieldName: expr.fieldName);
     }
     return null;
