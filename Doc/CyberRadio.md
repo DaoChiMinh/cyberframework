@@ -202,15 +202,15 @@ CyberRadioGroup(
   items: [
     CyberRadioItem(
       label: "Ô tô",
-      binding: drEdit.bind("is_car"),
+      text: drEdit.bind("is_car"),
     ),
     CyberRadioItem(
       label: "Xe máy",
-      binding: drEdit.bind("is_motorcycle"),
+      text: drEdit.bind("is_motorcycle"),
     ),
     CyberRadioItem(
       label: "Xe đạp",
-      binding: drEdit.bind("is_bicycle"),
+      text: drEdit.bind("is_bicycle"),
     ),
   ],
 )
@@ -237,17 +237,17 @@ CyberRadioGroup(
   items: [
     CyberRadioItem(
       label: "Ô tô",
-      binding: drEdit.bind("vehicle_type"),
+      text: drEdit.bind("vehicle_type"),
       value: "car",
     ),
     CyberRadioItem(
       label: "Xe máy",
-      binding: drEdit.bind("vehicle_type"),
+      text: drEdit.bind("vehicle_type"),
       value: "motorcycle",
     ),
     CyberRadioItem(
       label: "Xe đạp",
-      binding: drEdit.bind("vehicle_type"),
+      text: drEdit.bind("vehicle_type"),
       value: "bicycle",
     ),
   ],
@@ -262,13 +262,13 @@ CyberRadioGroup(
   items: [
     CyberRadioItem(
       label: "Ô tô",
-      binding: drEdit.bind("vehicle_type"),
+      text: drEdit.bind("vehicle_type"),
       value: "car",
       isSingleColumn: true,  // Set cho từng item
     ),
     CyberRadioItem(
       label: "Xe máy",
-      binding: drEdit.bind("vehicle_type"),
+      text: drEdit.bind("vehicle_type"),
       value: "motorcycle",
       isSingleColumn: true,
     ),
@@ -323,22 +323,22 @@ CyberRadioGroup(
   items: [
     CyberRadioItem(
       label: "Chờ xử lý",
-      binding: drEdit.bind("order_status"),
+      text: drEdit.bind("order_status"),
       value: "pending",
     ),
     CyberRadioItem(
       label: "Đang giao",
-      binding: drEdit.bind("order_status"),
+      text: drEdit.bind("order_status"),
       value: "shipping",
     ),
     CyberRadioItem(
       label: "Hoàn thành",
-      binding: drEdit.bind("order_status"),
+      text: drEdit.bind("order_status"),
       value: "completed",
     ),
     CyberRadioItem(
       label: "Đã hủy",
-      binding: drEdit.bind("order_status"),
+      text: drEdit.bind("order_status"),
       value: "cancelled",
     ),
   ],
@@ -354,19 +354,19 @@ CyberRadioGroup(
   items: [
     CyberRadioItem(
       label: "Tiền mặt",
-      binding: drEdit.bind("payment_method"),
+      text: drEdit.bind("payment_method"),
       value: "cash",
       icon: "money",  // Material icon code
     ),
     CyberRadioItem(
       label: "Thẻ ngân hàng",
-      binding: drEdit.bind("payment_method"),
+      text: drEdit.bind("payment_method"),
       value: "card",
       icon: "credit_card",
     ),
     CyberRadioItem(
       label: "Chuyển khoản",
-      binding: drEdit.bind("payment_method"),
+      text: drEdit.bind("payment_method"),
       value: "transfer",
       icon: "account_balance",
     ),
@@ -394,17 +394,17 @@ CyberRadioGroup(
   items: [
     CyberRadioItem(
       label: "Cao",
-      binding: drEdit.bind("priority"),
+      text: drEdit.bind("priority"),
       value: 1,
     ),
     CyberRadioItem(
       label: "Trung bình",
-      binding: drEdit.bind("priority"),
+      text: drEdit.bind("priority"),
       value: 2,
     ),
     CyberRadioItem(
       label: "Thấp",
-      binding: drEdit.bind("priority"),
+      text: drEdit.bind("priority"),
       value: 3,
     ),
   ],
@@ -422,17 +422,17 @@ CyberRadioGroup(
   items: [
     CyberRadioItem(
       label: "TNHH",
-      binding: drEdit.bind("business_type"),
+      text: drEdit.bind("business_type"),
       value: "LLC",
     ),
     CyberRadioItem(
       label: "Cổ phần",
-      binding: drEdit.bind("business_type"),
+      text: drEdit.bind("business_type"),
       value: "JSC",
     ),
     CyberRadioItem(
       label: "Tư nhân",
-      binding: drEdit.bind("business_type"),
+      text: drEdit.bind("business_type"),
       value: "PRIVATE",
     ),
   ],
@@ -463,17 +463,17 @@ CyberRadioGroup(
   items: [
     CyberRadioItem(
       label: "Giao hàng nhanh (50.000đ)",
-      binding: drEdit.bind("shipping_type"),
+      text: drEdit.bind("shipping_type"),
       value: "express",
     ),
     CyberRadioItem(
       label: "Giao hàng tiêu chuẩn (20.000đ)",
-      binding: drEdit.bind("shipping_type"),
+      text: drEdit.bind("shipping_type"),
       value: "standard",
     ),
     CyberRadioItem(
       label: "Miễn phí (3-5 ngày)",
-      binding: drEdit.bind("shipping_type"),
+      text: drEdit.bind("shipping_type"),
       value: "free",
     ),
   ],
@@ -489,23 +489,23 @@ CyberRadioGroup(
   items: [
     CyberRadioItem(
       label: "Miễn phí",
-      binding: drEdit.bind("service_plan"),
+      text: drEdit.bind("service_plan"),
       value: "free",
     ),
     CyberRadioItem(
       label: "Cơ bản (99.000đ/tháng)",
-      binding: drEdit.bind("service_plan"),
+      text: drEdit.bind("service_plan"),
       value: "basic",
     ),
     CyberRadioItem(
       label: "Pro (299.000đ/tháng)",
-      binding: drEdit.bind("service_plan"),
+      text: drEdit.bind("service_plan"),
       value: "pro",
       enabled: false,  // Disable item này
     ),
     CyberRadioItem(
       label: "Enterprise (Liên hệ)",
-      binding: drEdit.bind("service_plan"),
+      text: drEdit.bind("service_plan"),
       value: "enterprise",
       enabled: false,
     ),
@@ -523,19 +523,19 @@ CyberRadioGroup(
   items: [
     CyberRadioItem(
       label: "Tùy chọn 1",
-      binding: drEdit.bind("is_option1"),
+      text: drEdit.bind("is_option1"),
       selectedValue: true,    // Khi chọn: is_option1 = true
       unselectedValue: false, // Khi bỏ chọn: is_option1 = false
     ),
     CyberRadioItem(
       label: "Tùy chọn 2",
-      binding: drEdit.bind("is_option2"),
+      text: drEdit.bind("is_option2"),
       selectedValue: true,
       unselectedValue: false,
     ),
     CyberRadioItem(
       label: "Tùy chọn 3",
-      binding: drEdit.bind("is_option3"),
+      text: drEdit.bind("is_option3"),
       selectedValue: true,
       unselectedValue: false,
     ),
@@ -587,7 +587,7 @@ class VehicleFormScreen extends StatelessWidget {
     return List.generate(types.length, (index) {
       return CyberRadioItem(
         label: labels[index],
-        binding: drEdit.bind("vehicle_type"),
+        text: drEdit.bind("vehicle_type"),
         value: types[index],
       );
     });
@@ -616,12 +616,12 @@ Column(
       items: [
         CyberRadioItem(
           label: "Giao tận nơi",
-          binding: drEdit.bind("delivery_method"),
+          text: drEdit.bind("delivery_method"),
           value: "home",
         ),
         CyberRadioItem(
           label: "Nhận tại cửa hàng",
-          binding: drEdit.bind("delivery_method"),
+          text: drEdit.bind("delivery_method"),
           value: "store",
         ),
       ],
@@ -637,17 +637,17 @@ Column(
       items: [
         CyberRadioItem(
           label: "Sáng (8h-12h)",
-          binding: drEdit.bind("delivery_time"),
+          text: drEdit.bind("delivery_time"),
           value: "morning",
         ),
         CyberRadioItem(
           label: "Chiều (13h-17h)",
-          binding: drEdit.bind("delivery_time"),
+          text: drEdit.bind("delivery_time"),
           value: "afternoon",
         ),
         CyberRadioItem(
           label: "Tối (18h-21h)",
-          binding: drEdit.bind("delivery_time"),
+          text: drEdit.bind("delivery_time"),
           value: "evening",
         ),
       ],
@@ -784,8 +784,8 @@ void printCurrentOption() {
    // ❌ Tránh
    CyberRadioGroup(
      items: [
-       CyberRadioItem(binding: drEdit.bind("type"), value: "A", isSingleColumn: true),
-       CyberRadioItem(binding: drEdit.bind("is_b")), // Multi-column
+       CyberRadioItem(text: drEdit.bind("type"), value: "A", isSingleColumn: true),
+       CyberRadioItem(text: drEdit.bind("is_b")), // Multi-column
      ],
    )
    ```
@@ -886,7 +886,7 @@ CyberRadioItem(selectedValue: true, unselectedValue: false)
 // ❌ Sai
 CyberRadioGroup(
   items: [
-    CyberRadioItem(binding: drEdit.bind("type"), value: "A"),
+    CyberRadioItem(text: drEdit.bind("type"), value: "A"),
     // Thiếu isSingleColumn
   ],
 )
@@ -895,8 +895,8 @@ CyberRadioGroup(
 CyberRadioGroup(
   isSingleColumn: true,  // Set ở group level
   items: [
-    CyberRadioItem(binding: drEdit.bind("type"), value: "A"),
-    CyberRadioItem(binding: drEdit.bind("type"), value: "B"),
+    CyberRadioItem(text: drEdit.bind("type"), value: "A"),
+    CyberRadioItem(text: drEdit.bind("type"), value: "B"),
   ],
 )
 ```
@@ -953,16 +953,16 @@ CyberRadioGroup(
 // ✅ Tốt - Chỉ listen những row cần thiết
 CyberRadioGroup(
   items: [
-    CyberRadioItem(binding: drEdit.bind("type"), value: "A"),
-    CyberRadioItem(binding: drEdit.bind("type"), value: "B"),
+    CyberRadioItem(text: drEdit.bind("type"), value: "A"),
+    CyberRadioItem(text: drEdit.bind("type"), value: "B"),
   ],
 )
 
 // ❌ Tránh - Bind vào nhiều rows khác nhau
 CyberRadioGroup(
   items: [
-    CyberRadioItem(binding: drEdit1.bind("type"), value: "A"),
-    CyberRadioItem(binding: drEdit2.bind("type"), value: "B"),
+    CyberRadioItem(text: drEdit1.bind("type"), value: "A"),
+    CyberRadioItem(text: drEdit2.bind("type"), value: "B"),
   ],
 )
 ```
