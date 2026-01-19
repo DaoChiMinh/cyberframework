@@ -131,7 +131,7 @@ class CyberRadioGroup extends StatefulWidget {
     this.isCheckEmpty = false,
     this.isShowLabel = true,
     this.enabled = true,
-    this.isSingleColumn,
+    this.isSingleColumn = true,
   });
 
   @override
