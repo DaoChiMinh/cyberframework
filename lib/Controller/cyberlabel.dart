@@ -19,7 +19,6 @@ class CyberLabel extends StatelessWidget {
   final BorderRadius? rippleBorderRadius;
   final EdgeInsets? tapPadding;
 
-  // ✅ Thêm maxLines và overflow
   final int? maxLines;
   final TextOverflow? overflow;
 
@@ -64,6 +63,15 @@ class CyberLabel extends StatelessWidget {
 
   /// Check có event nào không
   bool get _hasEvents => onLeaver != null;
+
+  /// ✅ Helper method để wrap background color
+  Widget _wrapWithBackground(Widget child) {
+    if (backgroundColor == null) {
+      return child;
+    }
+
+    return ColoredBox(color: backgroundColor!, child: child);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -118,9 +126,9 @@ class CyberLabel extends StatelessWidget {
         contentWidget = _buildTextWidget(value);
       }
 
-      // ✅ Nếu không có event thì return content trực tiếp
+      // ✅ Nếu không có event thì return content với background
       if (!_hasEvents) {
-        return contentWidget;
+        return _wrapWithBackground(contentWidget);
       }
 
       // ✅ Wrap với GestureDetector nếu có event
@@ -128,31 +136,35 @@ class CyberLabel extends StatelessWidget {
 
       if (shouldShowRipple) {
         // Sử dụng InkWell để có ripple effect
-        return InkWell(
-          onTap: () => onLeaver?.call(""),
-          splashColor:
-              rippleColor?.withValues(alpha: 0.3) ??
-              Theme.of(context).primaryColor.withValues(alpha: 0.2),
-          highlightColor:
-              rippleColor?.withValues(alpha: 0.1) ??
-              Theme.of(context).primaryColor.withValues(alpha: 0.1),
-          borderRadius: rippleBorderRadius ?? BorderRadius.circular(4),
-          child: Padding(
-            padding:
-                tapPadding ??
-                const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-            child: contentWidget,
+        return _wrapWithBackground(
+          InkWell(
+            onTap: () => onLeaver?.call(""),
+            splashColor:
+                rippleColor?.withValues(alpha: 0.3) ??
+                Theme.of(context).primaryColor.withValues(alpha: 0.2),
+            highlightColor:
+                rippleColor?.withValues(alpha: 0.1) ??
+                Theme.of(context).primaryColor.withValues(alpha: 0.1),
+            borderRadius: rippleBorderRadius ?? BorderRadius.circular(4),
+            child: Padding(
+              padding:
+                  tapPadding ??
+                  const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              child: contentWidget,
+            ),
           ),
         );
       } else {
         // Không có ripple, chỉ dùng GestureDetector
-        return GestureDetector(
-          onTap: () => onLeaver?.call(""),
-          child: Padding(
-            padding:
-                tapPadding ??
-                const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-            child: contentWidget,
+        return _wrapWithBackground(
+          GestureDetector(
+            onTap: () => onLeaver?.call(""),
+            child: Padding(
+              padding:
+                  tapPadding ??
+                  const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              child: contentWidget,
+            ),
           ),
         );
       }
@@ -200,12 +212,8 @@ class CyberLabel extends StatelessWidget {
       displayText,
       style: style?.copyWith(color: textcolor) ?? TextStyle(color: textcolor),
       textAlign: textalign,
-      maxLines: maxLines, // ✅ Áp dụng maxLines
-      overflow:
-          overflow ??
-          (maxLines != null
-              ? TextOverflow.ellipsis
-              : null), // ✅ Default ellipsis khi có maxLines
+      maxLines: maxLines,
+      overflow: overflow ?? (maxLines != null ? TextOverflow.ellipsis : null),
     );
   }
 
@@ -224,7 +232,7 @@ class CyberLabel extends StatelessWidget {
         valueStr,
         style: style?.copyWith(color: textcolor) ?? TextStyle(color: textcolor),
         textAlign: textalign,
-        maxLines: maxLines, // ✅ Áp dụng maxLines cho fallback text
+        maxLines: maxLines,
         overflow: overflow ?? (maxLines != null ? TextOverflow.ellipsis : null),
       );
     }
@@ -246,12 +254,13 @@ extension CyberClickableLabelExtension on String {
     VoidCallback? onDoubleTap,
     TextStyle? style,
     Color? textcolor,
+    Color? backgroundColor,
     String? format,
     bool? showRipple,
     Color? rippleColor,
     bool isIcon = false,
     double? iconSize,
-    int? maxLines, // ✅ Thêm vào extension
+    int? maxLines,
     TextOverflow? overflow,
   }) {
     return CyberLabel(
@@ -259,6 +268,7 @@ extension CyberClickableLabelExtension on String {
       onLeaver: onTap,
       style: style,
       textcolor: textcolor,
+      backgroundColor: backgroundColor,
       format: format,
       showRipple: showRipple,
       rippleColor: rippleColor,
@@ -273,6 +283,7 @@ extension CyberClickableLabelExtension on String {
     Function(dynamic)? onTap,
     double? size,
     Color? color,
+    Color? backgroundColor,
     bool? showRipple,
     Color? rippleColor,
   }) {
@@ -281,6 +292,7 @@ extension CyberClickableLabelExtension on String {
       isIcon: true,
       iconSize: size,
       textcolor: color,
+      backgroundColor: backgroundColor,
       onLeaver: onTap,
       showRipple: showRipple,
       rippleColor: rippleColor,
