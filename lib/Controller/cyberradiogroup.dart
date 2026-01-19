@@ -3,24 +3,46 @@
 import 'package:cyberframework/cyberframework.dart';
 import 'package:flutter/material.dart';
 
-/// CyberRadioGroup - Radio group với multi-column binding
+/// CyberRadioGroup - Radio group với multi-column hoặc single-column binding
 ///
-/// Triết lý:
+/// **Multi-column mode (default):**
 /// - Mỗi radio item bind vào 1 column riêng trong CyberDataRow
 /// - Khi chọn item: column của item đó = selectedValue (default: 1)
 /// - Các item khác: column = unselectedValue (default: 0)
 /// - Tự động listen và update khi binding thay đổi
 ///
+/// **Single-column mode:**
+/// - Tất cả items bind vào cùng 1 column
+/// - Mỗi item có value riêng
+/// - Khi chọn item: column = value của item đó
+///
 /// Usage:
 /// ```dart
-/// // Example: 4 items cho loại xe
+/// // Multi-column mode (default)
 /// CyberRadioGroup(
 ///   label: "Loại phương tiện",
 ///   items: [
 ///     CyberRadioItem(label: "Ô tô", binding: drEdit.bind("is_car")),
 ///     CyberRadioItem(label: "Xe máy", binding: drEdit.bind("is_motorcycle")),
-///     CyberRadioItem(label: "Xe đạp", binding: drEdit.bind("is_bicycle")),
-///     CyberRadioItem(label: "Khác", binding: drEdit.bind("is_other")),
+///   ],
+/// )
+///
+/// // Single-column mode (giống CyberRadioBox)
+/// CyberRadioGroup(
+///   label: "Loại phương tiện",
+///   items: [
+///     CyberRadioItem(
+///       label: "Ô tô",
+///       binding: drEdit.bind("vehicle_type"),
+///       value: "car",
+///       isSingleColumn: true,
+///     ),
+///     CyberRadioItem(
+///       label: "Xe máy",
+///       binding: drEdit.bind("vehicle_type"),
+///       value: "motorcycle",
+///       isSingleColumn: true,
+///     ),
 ///   ],
 /// )
 /// ```
