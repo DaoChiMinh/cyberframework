@@ -1,5 +1,32 @@
-import 'package:cyberframework/cyberframework.dart';
+// lib/Controller/cyberradiobox.dart
 
+import 'package:cyberframework/cyberframework.dart';
+import 'package:flutter/material.dart';
+
+/// CyberRadioBox - Single radio button widget (Traditional Pattern)
+///
+/// Triết lý:
+/// - Một binding cho cả group (text)
+/// - Mỗi radio có value riêng
+/// - Khi chọn: text = value của radio được chọn
+///
+/// Usage:
+/// ```dart
+/// // Sử dụng riêng lẻ
+/// CyberRadioBox(
+///   text: drEdit.bind("gender"),
+///   group: "gender_group",
+///   value: "male",
+///   label: "Nam",
+/// )
+///
+/// CyberRadioBox(
+///   text: drEdit.bind("gender"),
+///   group: "gender_group",
+///   value: "female",
+///   label: "Nữ",
+/// )
+/// ```
 class CyberRadioBox extends StatefulWidget {
   /// Binding đến field chứa giá trị được chọn (data binding)
   final dynamic text;
@@ -33,7 +60,10 @@ class CyberRadioBox extends StatefulWidget {
 
   /// Size của radio button
   final double? size;
+
+  /// Visible binding
   final dynamic isVisible;
+
   const CyberRadioBox({
     super.key,
     required this.text,
@@ -66,6 +96,53 @@ class _CyberRadioBoxState extends State<CyberRadioBox> {
     super.initState();
     _parseBinding();
     _parseVisibilityBinding();
+    _registerListeners();
+  }
+
+  @override
+  void didUpdateWidget(CyberRadioBox oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (widget.text != oldWidget.text) {
+      _unregisterListeners();
+      _parseBinding();
+      _registerListeners();
+    }
+
+    if (widget.isVisible != oldWidget.isVisible) {
+      _parseVisibilityBinding();
+    }
+  }
+
+  @override
+  void dispose() {
+    _unregisterListeners();
+    super.dispose();
+  }
+
+  void _parseBinding() {
+    if (widget.text is CyberBindingExpression) {
+      final expr = widget.text as CyberBindingExpression;
+      _boundRow = expr.row;
+      _boundField = expr.fieldName;
+    } else {
+      _boundRow = null;
+      _boundField = null;
+    }
+  }
+
+  void _parseVisibilityBinding() {
+    if (widget.isVisible is CyberBindingExpression) {
+      final expr = widget.isVisible as CyberBindingExpression;
+      _visibilityBoundRow = expr.row;
+      _visibilityBoundField = expr.fieldName;
+    } else {
+      _visibilityBoundRow = null;
+      _visibilityBoundField = null;
+    }
+  }
+
+  void _registerListeners() {
     if (_boundRow != null) {
       _boundRow!.addListener(_onBindingChanged);
     }
@@ -74,52 +151,18 @@ class _CyberRadioBoxState extends State<CyberRadioBox> {
     }
   }
 
-  @override
-  void dispose() {
+  void _unregisterListeners() {
     if (_boundRow != null) {
       _boundRow!.removeListener(_onBindingChanged);
     }
     if (_visibilityBoundRow != null && _visibilityBoundRow != _boundRow) {
       _visibilityBoundRow!.removeListener(_onBindingChanged);
     }
-    super.dispose();
   }
 
-  void _parseBinding() {
-    if (widget.text == null) {
-      _boundRow = null;
-      _boundField = null;
-      return;
-    }
-
-    if (widget.text is CyberBindingExpression) {
-      final expr = widget.text as CyberBindingExpression;
-      _boundRow = expr.row;
-      _boundField = expr.fieldName;
-
-      return;
-    }
-
-    _boundRow = null;
-    _boundField = null;
-  }
-
-  void _parseVisibilityBinding() {
-    if (widget.isVisible == null) {
-      _visibilityBoundRow = null;
-      _visibilityBoundField = null;
-      return;
-    }
-
-    if (widget.isVisible is CyberBindingExpression) {
-      final expr = widget.isVisible as CyberBindingExpression;
-      _visibilityBoundRow = expr.row;
-      _visibilityBoundField = expr.fieldName;
-      return;
-    }
-
-    _visibilityBoundRow = null;
-    _visibilityBoundField = null;
+  void _onBindingChanged() {
+    if (_isUpdating) return;
+    setState(() {});
   }
 
   bool _parseBool(dynamic value) {
@@ -142,13 +185,7 @@ class _CyberRadioBoxState extends State<CyberRadioBox> {
     return _parseBool(widget.isVisible);
   }
 
-  void _onBindingChanged() {
-    if (_isUpdating || _boundRow == null || _boundField == null) return;
-    setState(() {}); // Trigger rebuild
-  }
-
   dynamic _getCurrentGroupValue() {
-    // ✅ Parse binding nếu chưa parse hoặc widget.text thay đổi
     if (widget.text is CyberBindingExpression) {
       final expr = widget.text as CyberBindingExpression;
       if (_boundRow != expr.row || _boundField != expr.fieldName) {
@@ -179,9 +216,7 @@ class _CyberRadioBoxState extends State<CyberRadioBox> {
     if (widget.value is CyberBindingExpression) {
       final expr = widget.value as CyberBindingExpression;
       try {
-        final val = expr.row[expr.fieldName];
-
-        return val;
+        return expr.row[expr.fieldName];
       } catch (e) {
         return null;
       }
@@ -193,44 +228,42 @@ class _CyberRadioBoxState extends State<CyberRadioBox> {
     final groupValue = _getCurrentGroupValue();
     final myValue = _getValue();
 
-    // ✅ So sánh theo string để tránh lỗi type mismatch
-    final isSelected = groupValue?.toString() == myValue?.toString();
-
-    return isSelected;
+    // So sánh theo string để tránh lỗi type mismatch
+    return groupValue?.toString() == myValue?.toString();
   }
 
   void _updateValue() {
-    if (!widget.enabled) {
-      return;
-    }
+    if (!widget.enabled) return;
 
     final newValue = _getValue();
 
     _isUpdating = true;
 
-    // ✅ Update binding
-    if (_boundRow != null && _boundField != null) {
-      final originalValue = _boundRow![_boundField!];
+    try {
+      // Update binding
+      if (_boundRow != null && _boundField != null) {
+        final originalValue = _boundRow![_boundField!];
 
-      // Preserve original type
-      if (originalValue is String && newValue != null) {
-        _boundRow![_boundField!] = newValue.toString();
-      } else if (originalValue is int && newValue is int) {
-        _boundRow![_boundField!] = newValue;
-      } else if (originalValue is double && newValue is num) {
-        _boundRow![_boundField!] = newValue.toDouble();
-      } else {
-        _boundRow![_boundField!] = newValue;
+        // Preserve original type
+        if (originalValue is String && newValue != null) {
+          _boundRow![_boundField!] = newValue.toString();
+        } else if (originalValue is int && newValue is int) {
+          _boundRow![_boundField!] = newValue;
+        } else if (originalValue is double && newValue is num) {
+          _boundRow![_boundField!] = newValue.toDouble();
+        } else {
+          _boundRow![_boundField!] = newValue;
+        }
       }
-    }
 
-    // ✅ Callback
-    widget.onChanged?.call(newValue);
-    widget.onLeaver?.call(newValue);
+      // Callbacks
+      widget.onChanged?.call(newValue);
+      widget.onLeaver?.call(newValue);
 
-    setState(() {
+      setState(() {});
+    } finally {
       _isUpdating = false;
-    });
+    }
   }
 
   @override
@@ -238,10 +271,11 @@ class _CyberRadioBoxState extends State<CyberRadioBox> {
     if (!_isVisible()) {
       return const SizedBox.shrink();
     }
+
     Widget buildRadioBox() {
       final isSelected = _isSelected();
 
-      // ✅ iOS Radio widget (không có gesture)
+      // iOS Radio widget
       Widget radioDisplay = _IOSRadioBox(
         selected: isSelected,
         enabled: widget.enabled,
@@ -250,7 +284,7 @@ class _CyberRadioBoxState extends State<CyberRadioBox> {
         size: widget.size ?? 24,
       );
 
-      // ✅ Nếu có label, wrap với InkWell + Row
+      // Nếu có label, wrap với InkWell + Row
       if (widget.label != null && widget.label!.isNotEmpty) {
         return InkWell(
           onTap: widget.enabled ? _updateValue : null,
@@ -279,14 +313,14 @@ class _CyberRadioBoxState extends State<CyberRadioBox> {
         );
       }
 
-      // ✅ Không có label, wrap radio với GestureDetector
+      // Không có label, wrap radio với GestureDetector
       return GestureDetector(
         onTap: widget.enabled ? _updateValue : null,
         child: radioDisplay,
       );
     }
 
-    // ✅ Wrap toàn bộ với ListenableBuilder nếu có binding
+    // Wrap với ListenableBuilder nếu có binding
     if (_boundRow != null) {
       return ListenableBuilder(
         listenable: _boundRow!,
@@ -348,88 +382,4 @@ class _IOSRadioBox extends StatelessWidget {
       ),
     );
   }
-}
-
-/// Helper để tạo RadioBox group dễ dàng hơn
-class CyberRadioGroup extends StatelessWidget {
-  /// Binding đến field chứa giá trị được chọn
-  final dynamic text;
-
-  /// Tên nhóm
-  final String group;
-
-  /// Danh sách các radio items
-  final List<CyberRadioItem> items;
-
-  /// Callback khi thay đổi
-  final ValueChanged<dynamic>? onChanged;
-
-  /// Hướng hiển thị
-  final Axis direction;
-
-  /// Khoảng cách
-  final double spacing;
-
-  /// Enable/disable
-  final bool enabled;
-
-  const CyberRadioGroup({
-    super.key,
-    required this.text,
-    required this.group,
-    required this.items,
-    this.onChanged,
-    this.direction = Axis.vertical,
-    this.spacing = 8,
-    this.enabled = true,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final radios = items.map((item) {
-      return CyberRadioBox(
-        text: text,
-        group: group,
-        value: item.value,
-        label: item.label,
-        enabled: enabled && item.enabled,
-        onChanged: onChanged,
-        activeColor: item.activeColor,
-        size: item.size,
-      );
-    }).toList();
-
-    if (direction == Axis.horizontal) {
-      return Wrap(spacing: spacing, children: radios);
-    } else {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: radios
-            .map(
-              (radio) => Padding(
-                padding: EdgeInsets.only(bottom: spacing),
-                child: radio,
-              ),
-            )
-            .toList(),
-      );
-    }
-  }
-}
-
-/// Data class cho mỗi radio item
-class CyberRadioItem {
-  final dynamic value;
-  final String label;
-  final bool enabled;
-  final Color? activeColor;
-  final double? size;
-
-  const CyberRadioItem({
-    required this.value,
-    required this.label,
-    this.enabled = true,
-    this.activeColor,
-    this.size,
-  });
 }
