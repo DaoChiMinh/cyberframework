@@ -2,6 +2,7 @@
 
 import 'package:crypto/crypto.dart';
 import 'package:cyberframework/cyberframework.dart';
+import 'package:uuid/uuid.dart';
 
 // Color parseColor({Color defaultColor = Colors.white}) {
 //     if (isEmpty) return defaultColor;
@@ -188,6 +189,9 @@ extension DateTimeFormatExtension on DateTime {
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
+String NewId() {
+  return Uuid().v4();
+}
 
 String _formatNumber(num value, String format) {
   try {
