@@ -16,6 +16,11 @@ import 'package:flutter/material.dart';
 /// - Mỗi item có value riêng
 /// - Khi chọn item: column = value của item đó
 ///
+/// **Mode Priority:**
+/// - Group level `isSingleColumn` có priority cao nhất (override tất cả items)
+/// - Nếu không set ở group level, dùng setting của từng item
+/// - Default: Multi-column mode
+///
 /// Usage:
 /// ```dart
 /// // Multi-column mode (default)
@@ -27,7 +32,25 @@ import 'package:flutter/material.dart';
 ///   ],
 /// )
 ///
-/// // Single-column mode (giống CyberRadioBox)
+/// // Single-column mode - Set ở group level (RECOMMENDED)
+/// CyberRadioGroup(
+///   label: "Loại phương tiện",
+///   isSingleColumn: true,  // ← Set 1 lần cho tất cả items
+///   items: [
+///     CyberRadioItem(
+///       label: "Ô tô",
+///       binding: drEdit.bind("vehicle_type"),
+///       value: "car",
+///     ),
+///     CyberRadioItem(
+///       label: "Xe máy",
+///       binding: drEdit.bind("vehicle_type"),
+///       value: "motorcycle",
+///     ),
+///   ],
+/// )
+///
+/// // Single-column mode - Set ở item level (nếu cần control riêng lẻ)
 /// CyberRadioGroup(
 ///   label: "Loại phương tiện",
 ///   items: [
@@ -35,7 +58,7 @@ import 'package:flutter/material.dart';
 ///       label: "Ô tô",
 ///       binding: drEdit.bind("vehicle_type"),
 ///       value: "car",
-///       isSingleColumn: true,
+///       isSingleColumn: true,  // ← Set cho từng item
 ///     ),
 ///     CyberRadioItem(
 ///       label: "Xe máy",
@@ -87,6 +110,12 @@ class CyberRadioGroup extends StatefulWidget {
   /// Enabled
   final bool enabled;
 
+  /// Single-column mode cho tất cả items
+  /// - true: Tất cả items sẽ bind vào cùng 1 column (mỗi item có value riêng)
+  /// - false: Mỗi item bind vào column riêng (multi-column mode)
+  /// - null: Dùng setting của từng item (default behavior)
+  final bool? isSingleColumn;
+
   const CyberRadioGroup({
     super.key,
     required this.items,
@@ -102,6 +131,7 @@ class CyberRadioGroup extends StatefulWidget {
     this.isCheckEmpty = false,
     this.isShowLabel = true,
     this.enabled = true,
+    this.isSingleColumn,
   });
 
   @override
@@ -220,10 +250,110 @@ class _CyberRadioGroupState extends State<CyberRadioGroup> {
   // SELECTION LOGIC
   // ============================================================================
 
+  /// Kiểm tra mode của item (group level override item level nếu có)
+  bool _isItemSingleColumn(CyberRadioItem item) {
+    // Group level có set? → Dùng group level
+    if (widget.isSingleColumn != null) {
+      return widget.isSingleColumn!;
+    }
+    // Không có group level → Dùng item level
+    return item.isSingleColumn;
+  }
+
+  /// Kiểm tra item có được chọn không (với group mode override)
+  bool _isItemSelected(CyberRadioItem item) {
+    final info = item.bindingInfo;
+    if (info == null) return false;
+
+    try {
+      final currentValue = info.row[info.fieldName];
+      final isSingleColumn = _isItemSingleColumn(item);
+
+      // Single-column mode: so sánh với value
+      if (isSingleColumn && item.value != null) {
+        return _compareValue(currentValue, item.value);
+      }
+
+      // Multi-column mode: so sánh với selectedValue
+      return _compareValue(currentValue, item.selectedValue);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Select một item (với group mode override)
+  void _selectItemValue(CyberRadioItem item) {
+    final info = item.bindingInfo;
+    if (info == null || !item.enabled) return;
+
+    try {
+      final currentValue = info.row[info.fieldName];
+      final isSingleColumn = _isItemSingleColumn(item);
+
+      // Single-column mode: set = value của item
+      if (isSingleColumn && item.value != null) {
+        _setFieldValue(info, currentValue, item.value);
+        return;
+      }
+
+      // Multi-column mode: set = selectedValue
+      _setFieldValue(info, currentValue, item.selectedValue);
+    } catch (e) {
+      // Ignore
+    }
+  }
+
+  /// Unselect một item (với group mode override)
+  void _unselectItemValue(CyberRadioItem item) {
+    final isSingleColumn = _isItemSingleColumn(item);
+
+    // Single-column mode: không cần unselect
+    if (isSingleColumn) return;
+
+    // Multi-column mode: set = unselectedValue
+    final info = item.bindingInfo;
+    if (info == null) return;
+
+    try {
+      final currentValue = info.row[info.fieldName];
+      _setFieldValue(info, currentValue, item.unselectedValue);
+    } catch (e) {
+      // Ignore
+    }
+  }
+
+  /// Helper: Set field value với type preservation
+  void _setFieldValue(
+    CyberBindingInfo info,
+    dynamic currentValue,
+    dynamic newValue,
+  ) {
+    if (currentValue is String && newValue != null) {
+      info.row[info.fieldName] = newValue.toString();
+    } else if (currentValue is int && newValue is num) {
+      info.row[info.fieldName] = newValue.toInt();
+    } else if (currentValue is double && newValue is num) {
+      info.row[info.fieldName] = newValue.toDouble();
+    } else if (currentValue is bool && newValue is bool) {
+      info.row[info.fieldName] = newValue;
+    } else {
+      info.row[info.fieldName] = newValue;
+    }
+  }
+
+  /// So sánh 2 giá trị
+  bool _compareValue(dynamic a, dynamic b) {
+    if (a == null && b == null) return true;
+    if (a == null || b == null) return false;
+    if (a is num && b is num) return a == b;
+    if (a is bool && b is bool) return a == b;
+    return a.toString() == b.toString();
+  }
+
   /// Lấy index của item đang được chọn
   int? _getSelectedIndex() {
     for (int i = 0; i < widget.items.length; i++) {
-      if (widget.items[i].isSelected()) {
+      if (_isItemSelected(widget.items[i])) {
         return i;
       }
     }
@@ -241,12 +371,12 @@ class _CyberRadioGroupState extends State<CyberRadioGroup> {
     _isUpdating = true;
     try {
       // Select item được chọn
-      selectedItem.select();
+      _selectItemValue(selectedItem);
 
       // Unselect tất cả các item khác
       for (int i = 0; i < widget.items.length; i++) {
         if (i != index) {
-          widget.items[i].unselect();
+          _unselectItemValue(widget.items[i]);
         }
       }
 
