@@ -28,7 +28,7 @@ class CyberSignaturePad extends StatefulWidget {
 
 class _CyberSignaturePadState extends State<CyberSignaturePad> {
   final GlobalKey _signatureKey = GlobalKey();
-  final List<List<Offset>> _strokes = [];
+  List<List<Offset>> _strokes = []; // Không final để có thể reassign
   List<Offset> _currentStroke = [];
   bool _hasDrawn = false;
 
@@ -44,29 +44,32 @@ class _CyberSignaturePadState extends State<CyberSignaturePad> {
 
   void _onPanStart(DragStartDetails details) {
     setState(() {
-      _currentStroke = [details.localPosition];
+      _currentStroke = [details.localPosition]; // Tạo List mới
       _hasDrawn = true;
     });
   }
 
   void _onPanUpdate(DragUpdateDetails details) {
     setState(() {
-      _currentStroke.add(details.localPosition);
+      _currentStroke = [
+        ..._currentStroke,
+        details.localPosition,
+      ]; // Tạo List mới
     });
   }
 
   void _onPanEnd(DragEndDetails details) {
     setState(() {
       if (_currentStroke.isNotEmpty) {
-        _strokes.add(List.from(_currentStroke));
-        _currentStroke = [];
+        _strokes = [..._strokes, List.from(_currentStroke)]; // Tạo List mới
+        _currentStroke = []; // Reset
       }
     });
   }
 
   void _clear() {
     setState(() {
-      _strokes.clear();
+      _strokes = []; // Tạo List mới thay vì .clear()
       _currentStroke = [];
       _hasDrawn = false;
     });
@@ -147,20 +150,21 @@ class _CyberSignaturePadState extends State<CyberSignaturePad> {
                           currentStroke: _currentStroke,
                           penColor: widget.penColor,
                           penStrokeWidth: widget.penStrokeWidth,
+                          backgroundColor: widget.backgroundColor,
                         ),
                         child: Container(
-                          color: widget.backgroundColor,
-                          child: Center(
-                            child: !_hasDrawn
-                                ? Text(
+                          // Container chỉ để set size, không set color
+                          child: !_hasDrawn
+                              ? Center(
+                                  child: Text(
                                     'Vẽ chữ ký của bạn ở đây',
                                     style: TextStyle(
                                       color: Colors.grey[400],
                                       fontSize: 16,
                                     ),
-                                  )
-                                : null,
-                          ),
+                                  ),
+                                )
+                              : null,
                         ),
                       ),
                     ),
@@ -224,16 +228,22 @@ class _SignaturePainter extends CustomPainter {
   final List<Offset> currentStroke;
   final Color penColor;
   final double penStrokeWidth;
+  final Color backgroundColor;
 
   _SignaturePainter({
     required this.strokes,
     required this.currentStroke,
     required this.penColor,
     required this.penStrokeWidth,
+    required this.backgroundColor,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
+    // Draw background first
+    final bgPaint = Paint()..color = backgroundColor;
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), bgPaint);
+
     final paint = Paint()
       ..color = penColor
       ..strokeCap = StrokeCap.round
@@ -269,7 +279,11 @@ class _SignaturePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _SignaturePainter oldDelegate) {
+    // Bây giờ có thể dùng reference comparison vì mỗi lần setState tạo List mới
     return oldDelegate.strokes != strokes ||
-        oldDelegate.currentStroke != currentStroke;
+        oldDelegate.currentStroke != currentStroke ||
+        oldDelegate.penColor != penColor ||
+        oldDelegate.penStrokeWidth != penStrokeWidth ||
+        oldDelegate.backgroundColor != backgroundColor;
   }
 }
