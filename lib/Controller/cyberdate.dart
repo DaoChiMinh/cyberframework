@@ -101,6 +101,7 @@ class CyberDate extends StatefulWidget {
 
   /// Hiển thị nút Clear để xóa giá trị (set về nullValue)
   final bool showClearButton;
+  final bool showprefixIcon;
 
   /// Default null value: 01/01/1900
   static final DateTime defaultNullValue = DateTime(1900, 1, 1);
@@ -113,6 +114,7 @@ class CyberDate extends StatefulWidget {
     this.hint,
     this.format = "dd/MM/yyyy",
     this.prefixIcon,
+    this.showprefixIcon = true,
     this.borderSize = 1,
     this.borderRadius,
     this.enabled = true,
@@ -830,7 +832,9 @@ class _CyberDateState extends State<CyberDate> {
       ),
       prefixIcon: iconData != null
           ? Icon(iconData, size: 18)
-          : const Icon(Icons.calendar_today, size: 18),
+          : (widget.showprefixIcon
+                ? const Icon(Icons.calendar_today, size: 18)
+                : null),
       suffixIcon: suffixWidget,
 
       // ✅ Border based on error state and borderSize
