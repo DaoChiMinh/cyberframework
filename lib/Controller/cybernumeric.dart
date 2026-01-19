@@ -194,12 +194,13 @@ class _CyberNumericState extends State<CyberNumeric> {
   void _onFocusChanged() {
     if (!_focusNode.hasFocus) {
       // Blur: validate và format đầy đủ
-      final text = _textController.text.replaceAll(_thousandsSeparator, '');
-      num? value = num.tryParse(text);
-      if (value == null) {
-        value = 0;
-      }
-      // Validate min/max
+      final text = _textController.text.trim().replaceAll(
+        _thousandsSeparator,
+        '',
+      );
+      num? value = text.isEmpty ? null : num.tryParse(text);
+
+      // Validate min/max (chỉ khi value != null)
       if (value != null) {
         if (widget.min != null && value < widget.min!) value = widget.min;
         if (widget.max != null && value! > widget.max!) value = widget.max;
@@ -214,9 +215,10 @@ class _CyberNumericState extends State<CyberNumeric> {
       }
       _isUpdating = false;
 
+      // ✅ Call onLeaver với giá trị đã validate
       widget.onLeaver?.call(value);
       _textController.text = _format(value);
-      _previousText = _textController.text; // Lưu lại text sau khi blur
+      _previousText = _textController.text;
     }
   }
 
@@ -484,6 +486,16 @@ class _CyberNumericState extends State<CyberNumeric> {
     return ListenableBuilder(
       listenable: listenable,
       builder: (context, _) {
+        // ✅ CRITICAL FIX: Sync from source when rebuilt (only if not focused)
+        if (!_focusNode.hasFocus && !_isUpdating) {
+          // Schedule sync after this frame to avoid setState during build
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && !_focusNode.hasFocus && !_isUpdating) {
+              _syncFromSource();
+            }
+          });
+        }
+
         final isEnabled = widget.enabled && _effectiveController.enabled;
 
         Widget textField = TextField(
