@@ -13,6 +13,19 @@ import 'package:cyberframework/cyberframework.dart';
 ///   displayValue: 'ma_kh',
 /// )
 /// ```
+///
+/// Hỗ trợ custom data source:
+/// ```dart
+/// CyberLookup(
+///   text: drEdit.bind('ma_sp'),
+///   display: drEdit.bind('ten_sp'),
+///   cp_nameCus: 'GET_SanPham',              // Custom function
+///   parameterCus: 'param1#param2',          // Custom parameters
+///   displayField: 'ten_sp',
+///   displayValue: 'ma_sp',
+/// )
+/// // Khi dùng cp_nameCus: load toàn bộ data một lần, tìm kiếm local
+/// ```
 class CyberLookup extends StatefulWidget {
   // === DATA BINDING ===
   /// Text value - có thể binding: dr.bind('ma_kh')
@@ -39,6 +52,14 @@ class CyberLookup extends StatefulWidget {
 
   /// Số record mỗi trang
   final int lookupPageSize;
+
+  // === CUSTOM DATA SOURCE ===
+  /// Tên function custom để lấy dữ liệu (thay vì dùng CP_W10SysListoDir)
+  /// Khi set, sẽ load toàn bộ data một lần và search local
+  final dynamic cp_nameCus;
+
+  /// Parameter cho custom function
+  final dynamic parameterCus;
 
   // === UI PROPERTIES ===
   final String? label;
@@ -68,6 +89,8 @@ class CyberLookup extends StatefulWidget {
     this.displayField,
     this.displayValue,
     this.lookupPageSize = 50,
+    this.cp_nameCus,
+    this.parameterCus,
     this.label,
     this.hint,
     this.labelStyle,
@@ -111,6 +134,10 @@ class _CyberLookupState extends State<CyberLookup> {
   String? _strFilterBoundField;
   CyberDataRow? _tbNameBoundRow;
   String? _tbNameBoundField;
+  CyberDataRow? _cp_nameCusBoundRow;
+  String? _cp_nameCusBoundField;
+  CyberDataRow? _parameterCusBoundRow;
+  String? _parameterCusBoundField;
 
   // === FLAGS ===
   bool _isInternalUpdate = false;
@@ -131,6 +158,8 @@ class _CyberLookupState extends State<CyberLookup> {
     _parseVisibilityBinding();
     _parseStrFilterBinding();
     _parseTbNameBinding();
+    _parseCp_nameCusBinding();
+    _parseParameterCusBinding();
 
     // Sync initial values
     _syncFromWidget();
@@ -162,6 +191,12 @@ class _CyberLookupState extends State<CyberLookup> {
     if (widget.tbName != oldWidget.tbName) {
       _parseTbNameBinding();
     }
+    if (widget.cp_nameCus != oldWidget.cp_nameCus) {
+      _parseCp_nameCusBinding();
+    }
+    if (widget.parameterCus != oldWidget.parameterCus) {
+      _parseParameterCusBinding();
+    }
 
     // Sync values
     _syncFromWidget();
@@ -190,6 +225,8 @@ class _CyberLookupState extends State<CyberLookup> {
     _displayBoundRow?.removeListener(_onDisplayBindingChanged);
     _strFilterBoundRow?.removeListener(_onStrFilterBindingChanged);
     _tbNameBoundRow?.removeListener(_onTbNameBindingChanged);
+    _cp_nameCusBoundRow?.removeListener(_onCp_nameCusBindingChanged);
+    _parameterCusBoundRow?.removeListener(_onParameterCusBindingChanged);
 
     super.dispose();
   }
@@ -277,6 +314,40 @@ class _CyberLookupState extends State<CyberLookup> {
     }
   }
 
+  void _parseCp_nameCusBinding() {
+    // Cleanup old binding
+    if (_cp_nameCusBoundRow != null) {
+      _cp_nameCusBoundRow!.removeListener(_onCp_nameCusBindingChanged);
+      _cp_nameCusBoundRow = null;
+      _cp_nameCusBoundField = null;
+    }
+
+    // Parse new binding
+    if (widget.cp_nameCus is CyberBindingExpression) {
+      final expr = widget.cp_nameCus as CyberBindingExpression;
+      _cp_nameCusBoundRow = expr.row;
+      _cp_nameCusBoundField = expr.fieldName;
+      _cp_nameCusBoundRow!.addListener(_onCp_nameCusBindingChanged);
+    }
+  }
+
+  void _parseParameterCusBinding() {
+    // Cleanup old binding
+    if (_parameterCusBoundRow != null) {
+      _parameterCusBoundRow!.removeListener(_onParameterCusBindingChanged);
+      _parameterCusBoundRow = null;
+      _parameterCusBoundField = null;
+    }
+
+    // Parse new binding
+    if (widget.parameterCus is CyberBindingExpression) {
+      final expr = widget.parameterCus as CyberBindingExpression;
+      _parameterCusBoundRow = expr.row;
+      _parameterCusBoundField = expr.fieldName;
+      _parameterCusBoundRow!.addListener(_onParameterCusBindingChanged);
+    }
+  }
+
   // ============================================================================
   // SYNC LOGIC
   // ============================================================================
@@ -356,6 +427,20 @@ class _CyberLookupState extends State<CyberLookup> {
   void _onTbNameBindingChanged() {
     if (!mounted) return;
     // Rebuild để UI có tbName mới khi mở popup
+    setState(() {});
+  }
+
+  /// Sync khi cp_nameCus binding thay đổi
+  void _onCp_nameCusBindingChanged() {
+    if (!mounted) return;
+    // Rebuild để UI có cp_nameCus mới khi mở popup
+    setState(() {});
+  }
+
+  /// Sync khi parameterCus binding thay đổi
+  void _onParameterCusBindingChanged() {
+    if (!mounted) return;
+    // Rebuild để UI có parameterCus mới khi mở popup
     setState(() {});
   }
 
@@ -488,17 +573,25 @@ class _CyberLookupState extends State<CyberLookup> {
     final displayField = _extractParam(widget.displayField);
     final valueField = _extractParam(widget.displayValue);
     final pageSize = widget.lookupPageSize;
+    final cp_nameCus = _extractParam(widget.cp_nameCus);
+    final parameterCus = _extractParam(widget.parameterCus);
 
-    if (tbName.isEmpty || displayField.isEmpty || valueField.isEmpty) return;
+    if (displayField.isEmpty || valueField.isEmpty) return;
+
+    // Kiểm tra: nếu dùng custom function thì bắt buộc có cp_nameCus
+    // Nếu không dùng custom thì bắt buộc có tbName
+    if (cp_nameCus.isEmpty && tbName.isEmpty) return;
 
     // Get current value
     final currentTextValue = _controller.textValue;
 
     // Tạo unique key để force reload nếu strFilter khác null/trắng
     // Điều này đảm bảo popup sẽ load data mới mỗi lần mở
-    final lookupKey = strFilter.isNotEmpty
-        ? '${tbName}_${strFilter}_${DateTime.now().millisecondsSinceEpoch}'
-        : tbName;
+    final lookupKey = cp_nameCus.isNotEmpty
+        ? '${cp_nameCus}_${parameterCus}_${DateTime.now().millisecondsSinceEpoch}'
+        : (strFilter.isNotEmpty
+              ? '${tbName}_${strFilter}_${DateTime.now().millisecondsSinceEpoch}'
+              : tbName);
 
     final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
@@ -512,6 +605,8 @@ class _CyberLookupState extends State<CyberLookup> {
         displayValue: valueField,
         currentTextValue: currentTextValue,
         pageSize: pageSize,
+        cp_nameCus: cp_nameCus,
+        parameterCus: parameterCus,
       ),
     );
 
@@ -669,7 +764,9 @@ class _CyberLookupState extends State<CyberLookup> {
     final hasBindings =
         _visibilityBoundRow != null ||
         _strFilterBoundRow != null ||
-        _tbNameBoundRow != null;
+        _tbNameBoundRow != null ||
+        _cp_nameCusBoundRow != null ||
+        _parameterCusBoundRow != null;
 
     if (hasBindings) {
       return ListenableBuilder(
@@ -677,6 +774,8 @@ class _CyberLookupState extends State<CyberLookup> {
           if (_visibilityBoundRow != null) _visibilityBoundRow!,
           if (_strFilterBoundRow != null) _strFilterBoundRow!,
           if (_tbNameBoundRow != null) _tbNameBoundRow!,
+          if (_cp_nameCusBoundRow != null) _cp_nameCusBoundRow!,
+          if (_parameterCusBoundRow != null) _parameterCusBoundRow!,
         ]),
         builder: (context, child) => buildLookupWidget(),
       );
@@ -700,7 +799,7 @@ class _InternalLookupController extends ChangeNotifier {
 }
 
 // ============================================================================
-// LOOKUP BOTTOM SHEET - VIRTUAL PAGING
+// LOOKUP BOTTOM SHEET - VIRTUAL PAGING + CUSTOM DATA SOURCE
 // ============================================================================
 
 class _LookupBottomSheet extends StatefulWidget {
@@ -710,6 +809,8 @@ class _LookupBottomSheet extends StatefulWidget {
   final String displayValue;
   final dynamic currentTextValue;
   final int pageSize;
+  final String cp_nameCus;
+  final String parameterCus;
 
   const _LookupBottomSheet({
     super.key,
@@ -719,6 +820,8 @@ class _LookupBottomSheet extends StatefulWidget {
     required this.displayValue,
     this.currentTextValue,
     this.pageSize = 50,
+    this.cp_nameCus = '',
+    this.parameterCus = '',
   });
 
   @override
@@ -729,7 +832,12 @@ class _LookupBottomSheetState extends State<_LookupBottomSheet> {
   final TextEditingController _searchController = TextEditingController();
   late ScrollController _scrollController;
 
+  // ALL DATA - dùng khi custom data source
+  final List<CyberDataRow> _allRows = [];
+
+  // FILTERED DATA - dùng cho hiển thị
   final List<CyberDataRow> _rows = [];
+
   bool _isLoading = false;
   bool _isLoadingMore = false;
   bool _hasMoreData = true;
@@ -741,14 +849,20 @@ class _LookupBottomSheetState extends State<_LookupBottomSheet> {
 
   Timer? _searchDebounceTimer;
 
+  // Custom data source mode
+  bool get _isCustomMode => widget.cp_nameCus.isNotEmpty;
+
   @override
   void initState() {
     super.initState();
     _scrollController = ScrollController();
-    _scrollController.addListener(_onScroll);
+
+    // Chỉ listen scroll khi KHÔNG dùng custom mode
+    if (!_isCustomMode) {
+      _scrollController.addListener(_onScroll);
+    }
 
     // QUAN TRỌNG: Mỗi khi mở popup, LUÔN load data mới
-    // Đặc biệt khi có strFilter
     _loadInitialData();
   }
 
@@ -760,6 +874,7 @@ class _LookupBottomSheetState extends State<_LookupBottomSheet> {
     _searchDebounceTimer?.cancel();
     _selectedIndices.clear();
     _rows.clear();
+    _allRows.clear();
     super.dispose();
   }
 
@@ -771,11 +886,18 @@ class _LookupBottomSheetState extends State<_LookupBottomSheet> {
     setState(() {
       _isLoading = true;
       _rows.clear();
+      _allRows.clear();
       _selectedIndices.clear();
       _hasMoreData = true;
     });
 
-    await _loadPage(_currentPage);
+    if (_isCustomMode) {
+      // Custom mode: load toàn bộ data một lần
+      await _loadCustomData();
+    } else {
+      // Standard mode: load page đầu tiên
+      await _loadPage(_currentPage);
+    }
 
     if (mounted) {
       setState(() {
@@ -784,7 +906,91 @@ class _LookupBottomSheetState extends State<_LookupBottomSheet> {
     }
   }
 
+  /// Load data từ custom function (load toàn bộ một lần)
+  Future<void> _loadCustomData() async {
+    if (!mounted) return;
+
+    try {
+      final response = await context.callApi(
+        functionName: widget.cp_nameCus,
+        parameter: widget.parameterCus,
+        showLoading: false,
+      );
+
+      if (!mounted) return;
+
+      if (response.isValid()) {
+        final ds = response.toCyberDataset();
+        if (ds != null) {
+          final dt = ds[0];
+
+          if (dt != null) {
+            final hasIschon = dt.containerColumn("ischon");
+            final allRows = dt.rows;
+
+            if (mounted) {
+              setState(() {
+                _isMultiSelect = hasIschon;
+                _allRows.clear();
+                _allRows.addAll(allRows);
+
+                // Filter local nếu có search text
+                _filterLocalData();
+
+                // Custom mode: không có load more
+                _hasMoreData = false;
+              });
+            }
+          } else {
+            if (mounted) {
+              setState(() {
+                _hasMoreData = false;
+              });
+            }
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _hasMoreData = false;
+        });
+      }
+    }
+  }
+
+  /// Filter data local khi ở custom mode
+  void _filterLocalData() {
+    if (_currentSearchText.isEmpty) {
+      // Không có search text -> hiển thị tất cả
+      _rows.clear();
+      _rows.addAll(_allRows);
+    } else {
+      // Có search text -> filter
+      final searchLower = _currentSearchText.toLowerCase();
+      _rows.clear();
+
+      for (var row in _allRows) {
+        final displayText =
+            row[widget.displayField]?.toString().toLowerCase() ?? '';
+        final valueText =
+            row[widget.displayValue]?.toString().toLowerCase() ?? '';
+
+        if (displayText.contains(searchLower) ||
+            valueText.contains(searchLower)) {
+          _rows.add(row);
+        }
+      }
+    }
+
+    // Clear selected indices vì filtered list đã thay đổi
+    _selectedIndices.clear();
+  }
+
   Future<void> _loadMore() async {
+    // Custom mode: không có load more
+    if (_isCustomMode) return;
+
     if (!mounted || _isLoadingMore || !_hasMoreData) return;
 
     setState(() {
@@ -880,14 +1086,28 @@ class _LookupBottomSheetState extends State<_LookupBottomSheet> {
   void _onSearch(String value) {
     _searchDebounceTimer?.cancel();
 
-    _searchDebounceTimer = Timer(const Duration(milliseconds: 800), () {
-      if (!mounted) return;
-      if (_searchController.text == value &&
-          (value.isEmpty || value.length > 3)) {
-        _currentSearchText = value;
-        _loadInitialData();
-      }
-    });
+    if (_isCustomMode) {
+      // Custom mode: search local ngay lập tức (không debounce)
+      _searchDebounceTimer = Timer(const Duration(milliseconds: 300), () {
+        if (!mounted) return;
+        if (_searchController.text == value) {
+          setState(() {
+            _currentSearchText = value;
+            _filterLocalData();
+          });
+        }
+      });
+    } else {
+      // Standard mode: search với API (có debounce)
+      _searchDebounceTimer = Timer(const Duration(milliseconds: 800), () {
+        if (!mounted) return;
+        if (_searchController.text == value &&
+            (value.isEmpty || value.length > 3)) {
+          _currentSearchText = value;
+          _loadInitialData();
+        }
+      });
+    }
   }
 
   Future<void> _refresh() async {
@@ -1020,7 +1240,9 @@ class _LookupBottomSheetState extends State<_LookupBottomSheet> {
       child: TextField(
         controller: _searchController,
         decoration: InputDecoration(
-          hintText: 'Nhập từ khóa tìm kiếm...',
+          hintText: _isCustomMode
+              ? 'Tìm trong danh sách...'
+              : 'Nhập từ khóa tìm kiếm...',
           prefixIcon: const Icon(Icons.search),
           suffixIcon: _searchController.text.isNotEmpty
               ? IconButton(
@@ -1069,10 +1291,15 @@ class _LookupBottomSheetState extends State<_LookupBottomSheet> {
   }
 
   Widget _buildListView() {
+    // Custom mode: không có loading more indicator
+    final itemCount = _isCustomMode
+        ? _rows.length
+        : _rows.length + (_isLoadingMore ? 1 : 0);
+
     return ListView.separated(
       controller: _scrollController,
       cacheExtent: 500,
-      itemCount: _rows.length + (_isLoadingMore ? 1 : 0),
+      itemCount: itemCount,
       separatorBuilder: (context, index) =>
           Divider(height: 1, thickness: 1, color: Colors.grey[200]),
       itemBuilder: (context, index) {

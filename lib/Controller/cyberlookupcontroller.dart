@@ -1,15 +1,15 @@
 import 'package:cyberframework/cyberframework.dart';
 
 /// CyberLookupController - OPTIONAL controller cho advanced use cases
-/// 
+///
 /// NOTE: Trong hầu hết trường hợp, KHÔNG CẦN dùng controller này.
 /// CyberLookup đã có internal controller và hỗ trợ binding trực tiếp.
-/// 
+///
 /// Chỉ dùng controller này khi:
 /// - Cần programmatic control phức tạp
 /// - Cần validation logic phức tạp
 /// - Cần share state giữa nhiều widgets
-/// 
+///
 /// Example with binding (RECOMMENDED - không cần controller):
 /// ```dart
 /// CyberLookup(
@@ -20,18 +20,30 @@ import 'package:cyberframework/cyberframework.dart';
 ///   displayValue: 'ma_kh',
 /// )
 /// ```
-/// 
+///
+/// Example with custom data source:
+/// ```dart
+/// CyberLookup(
+///   text: drEdit.bind('ma_sp'),
+///   display: drEdit.bind('ten_sp'),
+///   cp_nameCus: 'GET_SanPham',
+///   parameterCus: 'param1#param2',
+///   displayField: 'ten_sp',
+///   displayValue: 'ma_sp',
+/// )
+/// ```
+///
 /// Example with controller (ADVANCED):
 /// ```dart
 /// final controller = CyberLookupController(
 ///   initialTextValue: 'KH001',
 ///   initialDisplayValue: 'Khách hàng A',
 /// );
-/// 
+///
 /// // Programmatic control
 /// controller.setValues(textValue: 'KH002', displayValue: 'Khách hàng B');
 /// controller.clear();
-/// 
+///
 /// // Bind to CyberDataRow
 /// controller.bindText(drEdit, 'ma_kh');
 /// controller.bindDisplay(drEdit, 'ten_kh');
@@ -60,6 +72,10 @@ class CyberLookupController extends ChangeNotifier {
   String? _valueFieldName;
   int _lookupPageSize;
 
+  // === CUSTOM DATA SOURCE ===
+  String? _cp_nameCus;
+  String? _parameterCus;
+
   // === PUBLIC GETTERS ===
   dynamic get textValue => _textValue;
   String get displayValue => _displayValue;
@@ -75,6 +91,10 @@ class CyberLookupController extends ChangeNotifier {
   String? get valueFieldName => _valueFieldName;
   int get lookupPageSize => _lookupPageSize;
 
+  // Custom data source getters
+  String? get cp_nameCus => _cp_nameCus;
+  String? get parameterCus => _parameterCus;
+
   CyberLookupController({
     dynamic initialTextValue,
     String? initialDisplayValue,
@@ -85,6 +105,8 @@ class CyberLookupController extends ChangeNotifier {
     String? displayFieldName,
     String? valueFieldName,
     int lookupPageSize = 50,
+    String? cp_nameCus,
+    String? parameterCus,
   }) : _textValue = initialTextValue,
        _displayValue = initialDisplayValue ?? '',
        _enabled = enabled,
@@ -93,7 +115,9 @@ class CyberLookupController extends ChangeNotifier {
        _strFilter = strFilter,
        _displayFieldName = displayFieldName,
        _valueFieldName = valueFieldName,
-       _lookupPageSize = lookupPageSize {
+       _lookupPageSize = lookupPageSize,
+       _cp_nameCus = cp_nameCus,
+       _parameterCus = parameterCus {
     _validate();
   }
 
@@ -147,6 +171,8 @@ class CyberLookupController extends ChangeNotifier {
     String? displayFieldName,
     String? valueFieldName,
     int? lookupPageSize,
+    String? cp_nameCus,
+    String? parameterCus,
   }) {
     bool changed = false;
 
@@ -168,6 +194,14 @@ class CyberLookupController extends ChangeNotifier {
     }
     if (lookupPageSize != null && _lookupPageSize != lookupPageSize) {
       _lookupPageSize = lookupPageSize;
+      changed = true;
+    }
+    if (cp_nameCus != null && _cp_nameCus != cp_nameCus) {
+      _cp_nameCus = cp_nameCus;
+      changed = true;
+    }
+    if (parameterCus != null && _parameterCus != parameterCus) {
+      _parameterCus = parameterCus;
       changed = true;
     }
 
