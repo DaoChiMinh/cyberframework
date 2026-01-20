@@ -1,31 +1,5 @@
 import 'package:cyberframework/cyberframework.dart';
 
-/// CyberLookup - Lookup control với Internal Controller + Binding
-///
-/// Hỗ trợ binding 2 chiều cho text value và display value:
-/// ```dart
-/// CyberLookup(
-///   text: drEdit.bind('ma_kh'),           // Binding text value
-///   display: drEdit.bind('ten_kh'),        // Binding display value
-///   strFilter: drEdit.bind('dieu_kien'),   // Binding filter (auto reload khi thay đổi)
-///   tbName: 'dmkh',
-///   displayField: 'ten_kh',
-///   displayValue: 'ma_kh',
-/// )
-/// ```
-///
-/// Hỗ trợ custom data source:
-/// ```dart
-/// CyberLookup(
-///   text: drEdit.bind('ma_sp'),
-///   display: drEdit.bind('ten_sp'),
-///   cp_nameCus: 'GET_SanPham',              // Custom function
-///   parameterCus: 'param1#param2',          // Custom parameters
-///   displayField: 'ten_sp',
-///   displayValue: 'ma_sp',
-/// )
-/// // Khi dùng cp_nameCus: load toàn bộ data một lần, tìm kiếm local
-/// ```
 class CyberLookup extends StatefulWidget {
   // === DATA BINDING ===
   /// Text value - có thể binding: dr.bind('ma_kh')
@@ -620,7 +594,7 @@ class _CyberLookupState extends State<CyberLookup> {
       if (widget.onLeaver != null) {
         Future.delayed(Duration.zero, () {
           if (mounted) {
-            widget.onLeaver!(textValue);
+            widget.onLeaver!(result);
           }
         });
       }
