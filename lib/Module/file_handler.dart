@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:cyberframework/cyberframework.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -385,7 +386,7 @@ class FileHandler {
       if (context != null && context.mounted) {
         switch (result.status) {
           case ShareResultStatus.success:
-            _showSuccessDialog(context, 'Đã chia sẻ thành công');
+            _showSuccessDialog('Đã chia sẻ thành công');
             break;
           case ShareResultStatus.dismissed:
             break;
@@ -501,13 +502,10 @@ class FileHandler {
         await file.writeAsBytes(fileData.bytes);
       }
 
-      if (context != null && context.mounted) {
-        _showSuccessDialog(
-          context,
-          'Đã tải xuống thành công!',
-          detail: 'File đã được lưu vào thư viện',
-        );
-      }
+      _showSuccessDialog(
+        'Đã tải xuống thành công!',
+        detail: 'File đã được lưu vào thư viện',
+      );
     } catch (e) {
       debugPrint('Error saving media: $e');
       if (context != null && context.mounted) {
@@ -545,7 +543,10 @@ class FileHandler {
           break;
       }
     }
-
+    _showInfoDialog(
+      context!,
+      setText("Lưu file thành công", "Saved file successfully"),
+    );
     return result;
   }
 
@@ -566,7 +567,10 @@ class FileHandler {
       }
       return null;
     }
-
+    _showInfoDialog(
+      context!,
+      setText("Lưu file thành công", "Saved file successfully"),
+    );
     return savePath;
   }
 
@@ -736,25 +740,26 @@ class FileHandler {
   }
 
   /// Show success dialog
-  static void _showSuccessDialog(
-    BuildContext context,
-    String message, {
-    String? detail,
-  }) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        icon: const Icon(Icons.check_circle, color: Colors.green, size: 48),
-        title: Text(message),
-        content: detail != null ? Text(detail) : null,
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
+  static void _showSuccessDialog(String message, {String? detail}) {
+    //message.showToast(type: CyberShowToast.center);
+    message.showToast(
+      type: CyberShowToast.center,
+      toastType: CyberToastType.success,
     );
+    // showDialog(
+    //   context: AppNavigator.context!,
+    //   builder: (context) => AlertDialog(
+    //     icon: const Icon(Icons.check_circle, color: Colors.green, size: 48),
+    //     title: Text(message),
+    //     content: detail != null ? Text(detail) : null,
+    //     actions: [
+    //       TextButton(
+    //         onPressed: () => Navigator.pop(context),
+    //         child: const Text('OK'),
+    //       ),
+    //     ],
+    //   ),
+    // );
   }
 
   /// Show error dialog
@@ -763,38 +768,33 @@ class FileHandler {
     String message, {
     String? detail,
   }) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        icon: const Icon(Icons.error, color: Colors.red, size: 48),
-        title: Text(message),
-        content: detail != null
-            ? SingleChildScrollView(child: Text(detail))
-            : null,
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Đóng'),
-          ),
-        ],
-      ),
+    message.showToast(
+      type: CyberShowToast.center,
+      toastType: CyberToastType.error,
     );
+    // showDialog(
+    //   context: context,
+    //   builder: (context) => AlertDialog(
+    //     icon: const Icon(Icons.error, color: Colors.red, size: 48),
+    //     title: Text(message),
+    //     content: detail != null
+    //         ? SingleChildScrollView(child: Text(detail))
+    //         : null,
+    //     actions: [
+    //       TextButton(
+    //         onPressed: () => Navigator.pop(context),
+    //         child: const Text('Đóng'),
+    //       ),
+    //     ],
+    //   ),
+    // );
   }
 
   /// Show info dialog
   static void _showInfoDialog(BuildContext context, String message) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        icon: const Icon(Icons.info, color: Colors.blue, size: 48),
-        title: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
+    message.showToast(
+      type: CyberShowToast.center,
+      toastType: CyberToastType.info,
     );
   }
 

@@ -2,6 +2,7 @@
 //import 'package:flutter_app_badger/flutter_app_badger.dart';
 import 'package:crypto/crypto.dart';
 import 'package:cyberframework/cyberframework.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:uuid/uuid.dart';
 
 // Color parseColor({Color defaultColor = Colors.white}) {
@@ -484,6 +485,65 @@ extension CyberDataTableListExtension on List<CyberDataTable> {
       tableNames,
       tableIncludeColumns: tableIncludeColumns,
       tableExcludeColumns: tableExcludeColumns,
+    );
+  }
+}
+
+enum CyberShowToast { center, top, bottom }
+
+enum CyberToastType { success, error, warning, info }
+
+extension StringToastExtension on String {
+  void showToast({
+    CyberShowToast type = CyberShowToast.bottom,
+    CyberToastType toastType = CyberToastType.info,
+    int durationSeconds = 2,
+  }) {
+    ToastGravity gravity;
+
+    switch (type) {
+      case CyberShowToast.center:
+        gravity = ToastGravity.CENTER;
+        break;
+      case CyberShowToast.top:
+        gravity = ToastGravity.TOP;
+        break;
+      case CyberShowToast.bottom:
+        gravity = ToastGravity.BOTTOM;
+        break;
+    }
+
+    // Chọn màu theo loại toast
+    Color backgroundColor;
+    IconData icon;
+
+    switch (toastType) {
+      case CyberToastType.success:
+        backgroundColor = Colors.green;
+        icon = Icons.check_circle;
+        break;
+      case CyberToastType.error:
+        backgroundColor = Colors.red;
+        icon = Icons.error;
+        break;
+      case CyberToastType.warning:
+        backgroundColor = Colors.orange;
+        icon = Icons.warning;
+        break;
+      case CyberToastType.info:
+        backgroundColor = Colors.blue;
+        icon = Icons.info;
+        break;
+    }
+
+    Fluttertoast.showToast(
+      msg: this,
+      toastLength: Toast.LENGTH_SHORT,
+      gravity: gravity,
+      timeInSecForIosWeb: durationSeconds,
+      backgroundColor: backgroundColor,
+      textColor: Colors.white,
+      fontSize: 16.0,
     );
   }
 }
