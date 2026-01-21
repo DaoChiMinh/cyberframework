@@ -1,5 +1,8 @@
+import 'dart:io';
 import 'package:cyberframework/cyberframework.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:flutter/material.dart';
 
 /// Enum định nghĩa các loại file có thể chọn
 enum FilePickerType { pdf, image, doc, camera, file }
@@ -56,31 +59,6 @@ extension CyberFilePickerExtension on BuildContext {
   /// [cancelLabel]: Text của nút Cancel
   ///
   /// Returns: FilePickerResult chứa thông tin file đã chọn/upload
-  ///
-  /// Ví dụ:
-  /// ```dart
-  /// // Tự động upload
-  /// final result = await context.showFilePickerActionSheet(
-  ///   actions: ['Chọn PDF', 'Chọn ảnh', 'Chụp ảnh'],
-  ///   types: [FilePickerType.pdf, FilePickerType.image, FilePickerType.camera],
-  ///   autoUpload: true,
-  /// );
-  ///
-  /// // Không tự động upload
-  /// final result = await context.showFilePickerActionSheet(
-  ///   actions: ['Chọn file', 'Chọn ảnh'],
-  ///   types: [FilePickerType.file, FilePickerType.image],
-  ///   autoUpload: false,
-  /// );
-  ///
-  /// if (result != null) {
-  ///   print('File name: ${result.fileName}');
-  ///   print('File URL: ${result.urlFile}');
-  ///
-  ///   // Convert sang CyberDataRow
-  ///   CyberDataRow row = result.toCyberDataRow();
-  /// }
-  /// ```
   Future<FilePickerResult?> showFilePickerActionSheet({
     required List<String> actions,
     required List<FilePickerType> types,
@@ -101,6 +79,12 @@ extension CyberFilePickerExtension on BuildContext {
       );
     }
 
+    // Reset kết quả trước đó
+    _lastPickedFile = null;
+
+    // Tạo Completer để đợi kết quả
+    final completer = Completer<FilePickerResult?>();
+
     // Tạo list CyberActionSheet
     List<CyberActionSheet> actionSheetItems = [];
 
@@ -113,8 +97,20 @@ extension CyberFilePickerExtension on BuildContext {
           label: action,
           icon: _getIconForType(type),
           onclick: () async {
+            // Delay nhỏ để đảm bảo dialog đóng hoàn toàn
+            await Future.delayed(const Duration(milliseconds: 300));
+
             // Xử lý chọn file
-            await _handleFilePicker(this, type, autoUpload, uploadFilePath);
+            final result = await _handleFilePicker(
+              this,
+              type,
+              autoUpload,
+              uploadFilePath,
+            );
+
+            // Lưu kết quả
+            _lastPickedFile = result;
+            completer.complete(result);
           },
         ),
       );
@@ -128,12 +124,19 @@ extension CyberFilePickerExtension on BuildContext {
       cancelLabel: cancelLabel ?? 'Hủy',
     );
 
-    // Trả về kết quả đã được lưu trong _lastPickedFile
-    return _lastPickedFile;
+    // Đợi 1 chút để user chọn action
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    // Nếu không có kết quả sau 100ms, trả về null (user đã cancel)
+    if (!completer.isCompleted) {
+      completer.complete(null);
+    }
+
+    return completer.future;
   }
 
   /// Xử lý chọn file theo loại
-  Future<void> _handleFilePicker(
+  Future<FilePickerResult?> _handleFilePicker(
     BuildContext context,
     FilePickerType type,
     bool autoUpload,
@@ -164,19 +167,30 @@ extension CyberFilePickerExtension on BuildContext {
           break;
       }
 
-      // Lưu kết quả
-      _lastPickedFile = result;
+      return result;
     } catch (e) {
       debugPrint('❌ Error picking file: $e');
 
-      // Hiển thị lỗi cho user
-      await 'Không thể chọn file. Vui lòng thử lại.'.V_MsgBox(
-        context,
-        type: CyberMsgBoxType.error,
-      );
+      // Kiểm tra xem có phải lỗi quyền không
+      if (e.toString().contains('background') ||
+          e.toString().contains('permission')) {
+        await _showPermissionError(context);
+      } else {
+        // Hiển thị lỗi cho user
+        await 'Không thể chọn file. Vui lòng thử lại.'.V_MsgBox(
+          context,
+          type: CyberMsgBoxType.error,
+        );
+      }
 
-      _lastPickedFile = null;
+      return null;
     }
+  }
+
+  /// Hiển thị lỗi quyền
+  Future<void> _showPermissionError(BuildContext context) async {
+    await 'Ứng dụng cần quyền truy cập camera/thư viện ảnh. Vui lòng cấp quyền trong Cài đặt.'
+        .V_MsgBox(context, type: CyberMsgBoxType.error);
   }
 
   /// Chọn file PDF
@@ -239,38 +253,65 @@ extension CyberFilePickerExtension on BuildContext {
     );
   }
 
-  /// Chụp ảnh từ camera
+  /// Chụp ảnh từ camera - ĐÃ CẢI THIỆN
   Future<FilePickerResult?> _pickFromCamera(
     BuildContext context,
     bool autoUpload,
     String? uploadFilePath,
   ) async {
-    final ImagePicker picker = ImagePicker();
-    final XFile? photo = await picker.pickImage(
-      source: ImageSource.camera,
-      imageQuality: 85,
-    );
+    try {
+      final ImagePicker picker = ImagePicker();
 
-    if (photo == null) return null;
+      // Sử dụng preferredCameraDevice để tránh lỗi background
+      final XFile? photo = await picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 85,
+        preferredCameraDevice: CameraDevice.rear,
+      );
 
-    // Convert XFile sang File
-    final file = File(photo.path);
-    final bytes = await file.readAsBytes();
-    final fileSize = bytes.length;
-    final fileName = photo.name;
-    final fileType = fileName.split('.').last.toLowerCase();
+      if (photo == null) return null;
 
-    // Tạo FilePickerResult
-    return await _processFileData(
-      context,
-      fileName: fileName,
-      fileType: fileType,
-      fileSize: fileSize,
-      fileBytes: bytes,
-      fileObject: file,
-      autoUpload: autoUpload,
-      uploadFilePath: uploadFilePath,
-    );
+      // Convert XFile sang File
+      final file = File(photo.path);
+
+      // Kiểm tra file có tồn tại không
+      if (!await file.exists()) {
+        throw Exception('File không tồn tại sau khi chụp ảnh');
+      }
+
+      final bytes = await file.readAsBytes();
+      final fileSize = bytes.length;
+      final fileName = photo.name.isNotEmpty
+          ? photo.name
+          : 'camera_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final fileType = fileName.split('.').last.toLowerCase();
+
+      // Tạo FilePickerResult
+      return await _processFileData(
+        context,
+        fileName: fileName,
+        fileType: fileType,
+        fileSize: fileSize,
+        fileBytes: bytes,
+        fileObject: file,
+        autoUpload: autoUpload,
+        uploadFilePath: uploadFilePath,
+      );
+    } on Exception catch (e) {
+      debugPrint('❌ Camera error: $e');
+
+      // Kiểm tra lỗi cụ thể
+      if (e.toString().contains('background')) {
+        await _showPermissionError(context);
+      } else {
+        await 'Không thể mở camera. Vui lòng thử lại.'.V_MsgBox(
+          context,
+          type: CyberMsgBoxType.error,
+        );
+      }
+
+      return null;
+    }
   }
 
   /// Chọn bất kỳ loại file nào
@@ -355,7 +396,9 @@ extension CyberFilePickerExtension on BuildContext {
     // Tự động upload file
     try {
       // Tạo upload path
-      final finalUploadPath = uploadFilePath ?? '/$fileName';
+      final finalUploadPath = uploadFilePath != null
+          ? '$uploadFilePath$fileName'
+          : '/$fileName';
 
       // Upload sử dụng uploadSingleObjectAndCheck
       final (uploadedFile, status) = await context.uploadSingleObjectAndCheck(
