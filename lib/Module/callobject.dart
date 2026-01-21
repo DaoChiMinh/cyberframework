@@ -262,8 +262,8 @@ Future<ReturnFormData> V_callform(
     case "share":
       await FileHandler.shareFile(
         source: strfrm,
-        fileExtension: cpName,
-        fileName: title,
+        fileExtension: strparameter,
+        fileName: cpName,
         subject: title,
         context: context,
       );
@@ -271,18 +271,18 @@ Future<ReturnFormData> V_callform(
     case "download":
       await FileHandler.downloadFile(
         source: strfrm,
-        fileExtension: cpName,
-        customFileName: strparameter,
+        fileExtension: strparameter,
+        customFileName: cpName,
         context: context,
       );
       break;
     case "print":
       await FileHandler.printFile(
         source: strfrm,
-        fileType: cpName == "pdf"
+        fileType: strparameter == "pdf"
             ? "pdf"
-            : (cpName == "text" ? "text" : "image"),
-        documentName: title,
+            : (strparameter == "text" ? "text" : "image"),
+        documentName: cpName,
         context: context,
       );
       break;
