@@ -602,6 +602,437 @@ class CyberApiService with WidgetsBindingObserver {
     }
   }
 
+  String uploadFileUrl =
+      'https://mauiapidms.cybersoft.com.vn/api/CyberAPIUploadFile';
+
+  /// Upload files với list base64 và list file paths
+  ///
+  /// Tham số:
+  /// - [base64List]: Danh sách string base64 của các file
+  /// - [filePathList]: Danh sách file paths có cấu trúc: /SubFolder/FileName.FileType
+  ///   + Nếu có subfolder: "/images/photo.jpg" => SubFolder: "images"
+  ///   + Nếu không có subfolder: "photo.jpg" => SubFolder tự động sinh theo GUID
+  ///
+  /// Ví dụ:
+  /// ```dart
+  /// await context.uploadFiles(
+  ///   base64List: [base64Image1, base64Image2],
+  ///   filePathList: ['/images/photo1.jpg', 'document.pdf'],
+  /// );
+  /// ```
+  Future<ReturnData> uploadFiles({
+    required BuildContext context,
+    required List<String> base64List,
+    required List<String> filePathList,
+    bool showLoading = true,
+    bool showError = true,
+  }) async {
+    // Validate input
+    if (base64List.length != filePathList.length) {
+      return ReturnData(
+        status: false,
+        message: 'Số lượng base64 và file path không khớp',
+        isConnect: false,
+      );
+    }
+
+    if (base64List.isEmpty) {
+      return ReturnData(
+        status: false,
+        message: 'Danh sách file trống',
+        isConnect: false,
+      );
+    }
+
+    // Tạo CyberApiFilePost từ lists
+    final filePost = CyberApiFilePost.fromLists(
+      base64List: base64List,
+      filePathList: filePathList,
+    );
+
+    return await uploadFile(
+      context: context,
+      filePost: filePost,
+      showLoading: showLoading,
+      showError: showError,
+    );
+  }
+
+  /// Upload file với CyberApiFilePost object
+  Future<ReturnData> uploadFile({
+    required BuildContext context,
+    required CyberApiFilePost filePost,
+    bool showLoading = true,
+    bool showError = true,
+  }) async {
+    // ✅ Check if app is paused
+    if (_isAppPaused) {
+      return ReturnData(
+        status: false,
+        message: 'App is in background',
+        isConnect: false,
+      );
+    }
+
+    // ⚡ Internet check with cache
+    if (enableInternetCheck) {
+      final checkResult = await _performInternetCheckWithCache(context);
+      if (!checkResult.isValid) {
+        if (showError && context.mounted) {
+          _showError(context, checkResult.message, checkResult.errorType);
+        }
+        return ReturnData(
+          status: false,
+          message: checkResult.message,
+          isConnect: false,
+        );
+      }
+
+      _initialVPNState ??= checkResult.isUsingVPN;
+    }
+
+    if (showLoading && context.mounted) {
+      showLoadingOverlay(context);
+    }
+
+    try {
+      // Get server URL
+      String serverUrl = await DeviceInfo.servername;
+      if (serverUrl.isEmpty) {
+        serverUrl = 'https://mauiapidms.cybersoft.com.vn/';
+      }
+
+      if (!serverUrl.endsWith("/")) {
+        uploadFileUrl = "$serverUrl/api/CyberAPIUploadFile";
+      } else {
+        uploadFileUrl = "${serverUrl}api/CyberAPIUploadFile";
+      }
+
+      // Convert to request string
+      final requestStr = await filePost.convertToRequestString();
+      final url = Uri.parse(uploadFileUrl);
+
+      final response = await http
+          .post(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+              'Cyber-cetificate': await DeviceInfo.cetificate,
+              'Cyber-Mac': await DeviceInfo.macdevice,
+              'Access-Control-Allow-Origin': '*',
+            },
+            body: requestStr,
+          )
+          .timeout(timeout);
+
+      if (showLoading && context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+
+      if (response.statusCode != 200) {
+        final returnData = ReturnData(
+          status: false,
+          message: 'HTTP ${response.statusCode}: ${response.reasonPhrase}',
+          isConnect: true,
+        );
+
+        if (showError && context.mounted) {
+          _showError(context, returnData.message!, InternetErrorType.none);
+        }
+
+        return returnData;
+      }
+
+      final encryptedData = response.body;
+
+      if (encryptedData.isEmpty) {
+        final returnData = ReturnData(
+          status: false,
+          message: 'Response không hợp lệ',
+          isConnect: true,
+        );
+
+        if (showError && context.mounted) {
+          _showError(context, returnData.message!, InternetErrorType.none);
+        }
+
+        return returnData;
+      }
+
+      final returnData = parseResponse(encryptedData);
+
+      // ✅ Show server error if needed
+      if (!returnData.isValid() &&
+          showError &&
+          context.mounted &&
+          returnData.isConnect == true) {
+        _showError(
+          context,
+          returnData.message ?? 'Lỗi từ máy chủ',
+          InternetErrorType.none,
+        );
+      }
+
+      return returnData;
+    } on SocketException {
+      if (showLoading && context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+
+      _invalidateCache();
+
+      final errorInfo = await _analyzeNetworkError();
+      final returnData = ReturnData(
+        status: false,
+        message: errorInfo.message,
+        isConnect: false,
+      );
+
+      if (showError && context.mounted) {
+        _showError(context, errorInfo.message, errorInfo.errorType);
+      }
+
+      return returnData;
+    } on TimeoutException {
+      if (showLoading && context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+
+      _invalidateCache();
+
+      final errorInfo = await _analyzeTimeoutError();
+      final returnData = ReturnData(
+        status: false,
+        message: errorInfo.message,
+        isConnect: false,
+      );
+
+      if (showError && context.mounted) {
+        _showError(context, errorInfo.message, errorInfo.errorType);
+      }
+
+      return returnData;
+    } catch (e) {
+      if (showLoading && context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+
+      final returnData = ReturnData(
+        status: false,
+        message: 'Lỗi: $e',
+        isConnect: false,
+      );
+
+      if (showError && context.mounted) {
+        _showError(context, returnData.message!, InternetErrorType.none);
+      }
+
+      return returnData;
+    }
+  }
+
+  /// Upload 1 file đơn giản với file path
+  ///
+  /// Ví dụ:
+  /// ```dart
+  /// await context.uploadSingleFile(
+  ///   base64Data: base64Image,
+  ///   filePath: '/images/photo.jpg', // hoặc 'photo.jpg'
+  /// );
+  /// ```
+  Future<ReturnData> uploadSingleFile({
+    required BuildContext context,
+    required String base64Data,
+    required String filePath,
+    bool showLoading = true,
+    bool showError = true,
+  }) async {
+    return await uploadFiles(
+      context: context,
+      base64List: [base64Data],
+      filePathList: [filePath],
+      showLoading: showLoading,
+      showError: showError,
+    );
+  }
+  // ============================================================================
+  // ✅ UPLOAD OBJECT - SMART AUTO-DETECTION
+  // ============================================================================
+
+  /// Upload nhiều objects với auto-detection
+  ///
+  /// Objects có thể là:
+  /// - String file path: "/storage/photo.jpg"
+  /// - String URL: "https://example.com/image.jpg"
+  /// - String base64: "iVBORw0KGgoAAAANSUhEUgAA..."
+  /// - File object: File('/path/to/file.jpg')
+  /// - Uint8List / List<&gt;int&gt;>: bytes array
+  /// - XFile: từ image_picker
+  /// - UploadObject: custom wrapper
+  ///
+  /// Ví dụ:
+  /// ```dart
+  /// await context.uploadObjects(
+  ///   objects: [
+  ///     '/storage/photo1.jpg',                    // File path
+  ///     'https://example.com/image.jpg',          // URL
+  ///     base64String,                             // Base64
+  ///     File('/path/file.pdf'),                   // File object
+  ///     uint8List,                                // Bytes
+  ///     xfileFromPicker,                          // XFile
+  ///   ],
+  ///   filePaths: [                                // Optional custom paths
+  ///     '/photos/1.jpg',
+  ///     '/downloads/image.jpg',
+  ///     '/encoded/file.jpg',
+  ///     '/files/document.pdf',
+  ///     '/bytes/data.bin',
+  ///     null,  // Auto generate
+  ///   ],
+  /// );
+  /// ```
+  Future<ReturnData> uploadObjects({
+    required BuildContext context,
+    required List<dynamic> objects,
+    List<String?>? filePaths,
+    bool showLoading = true,
+    bool showError = true,
+  }) async {
+    // Validate input
+    if (objects.isEmpty) {
+      return ReturnData(
+        status: false,
+        message: 'Danh sách objects trống',
+        isConnect: false,
+      );
+    }
+
+    if (filePaths != null && filePaths.length != objects.length) {
+      return ReturnData(
+        status: false,
+        message: 'Số lượng objects và filePaths không khớp',
+        isConnect: false,
+      );
+    }
+
+    try {
+      // Convert objects sang UploadObject
+      List<UploadObject> uploadObjects = [];
+
+      for (int i = 0; i < objects.length; i++) {
+        final obj = objects[i];
+        final customPath = filePaths != null ? filePaths[i] : null;
+
+        // Nếu đã là UploadObject thì dùng luôn
+        if (obj is UploadObject) {
+          uploadObjects.add(obj);
+        } else {
+          // Auto detect và tạo UploadObject
+          uploadObjects.add(UploadObject.auto(obj, filePath: customPath));
+        }
+      }
+
+      // Convert sang base64 và file paths
+      List<String> base64List = [];
+      List<String> filePathList = [];
+
+      for (var uploadObj in uploadObjects) {
+        try {
+          // Convert sang base64
+          final base64Data = await uploadObj.toBase64();
+          base64List.add(base64Data);
+
+          // Get file path
+          final filePath = await uploadObj.getFilePath();
+          filePathList.add(filePath);
+
+          debugPrint('✅ Converted: ${uploadObj.sourceTypeName} → $filePath');
+        } catch (e) {
+          debugPrint('❌ Error converting ${uploadObj.sourceTypeName}: $e');
+
+          if (showError && context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Lỗi xử lý file: $e'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+
+          return ReturnData(
+            status: false,
+            message: 'Lỗi xử lý file: $e',
+            isConnect: false,
+          );
+        }
+      }
+
+      // Upload using existing method
+      return await uploadFiles(
+        context: context,
+        base64List: base64List,
+        filePathList: filePathList,
+        showLoading: showLoading,
+        showError: showError,
+      );
+    } catch (e) {
+      debugPrint('❌ Error in uploadObjects: $e');
+
+      return ReturnData(status: false, message: 'Lỗi: $e', isConnect: false);
+    }
+  }
+
+  /// Upload 1 object với auto-detection
+  ///
+  /// Object có thể là:
+  /// - String file path
+  /// - String URL
+  /// - String base64
+  /// - File object
+  /// - Bytes array
+  /// - XFile
+  /// - UploadObject
+  ///
+  /// Ví dụ:
+  /// ```dart
+  /// // Upload từ file path
+  /// await context.uploadSingleObject(
+  ///   object: '/storage/photo.jpg',
+  ///   filePath: '/photos/vacation.jpg',
+  /// );
+  ///
+  /// // Upload từ URL
+  /// await context.uploadSingleObject(
+  ///   object: 'https://example.com/image.jpg',
+  /// );
+  ///
+  /// // Upload từ base64
+  /// await context.uploadSingleObject(
+  ///   object: base64String,
+  ///   filePath: '/encoded/file.jpg',
+  /// );
+  ///
+  /// // Upload từ File object
+  /// await context.uploadSingleObject(
+  ///   object: File('/path/to/file.pdf'),
+  /// );
+  /// ```
+  Future<ReturnData> uploadSingleObject({
+    required BuildContext context,
+    required dynamic object,
+    String? filePath,
+    bool showLoading = true,
+    bool showError = true,
+  }) async {
+    return await uploadObjects(
+      context: context,
+      objects: [object],
+      filePaths: filePath != null ? [filePath] : null,
+      showLoading: showLoading,
+      showError: showError,
+    );
+  }
+
   /// ✅ Cleanup (call when app terminates)
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);

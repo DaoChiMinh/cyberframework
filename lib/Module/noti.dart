@@ -13,8 +13,11 @@ Future<void> initOneSignal(String AppId) async {
 
   // Xử lý khi app được mở từ notification (app đã đóng hoàn toàn)
   OneSignal.Notifications.addForegroundWillDisplayListener((event) {
-    // Có thể xử lý hiển thị notification khi app đang ở foreground
-    event.notification;
+    if (event.notification.additionalData == null) return;
+
+    final data = event.notification.additionalData!;
+    int countbage = data["ios_badgeCount"] ?? 0;
+    updatebage(countbage);
   });
 }
 
