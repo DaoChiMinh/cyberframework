@@ -263,8 +263,8 @@ Future<ReturnFormData> V_callform(
       await FileHandler.shareFile(
         source: strfrm,
         fileExtension: strparameter,
-        fileName: cpName,
-        subject: title,
+        fileName: cpName != "" ? cpName : NewId(),
+        subject: title != "" ? title : NewId(),
         context: context,
       );
       break;
@@ -272,7 +272,7 @@ Future<ReturnFormData> V_callform(
       await FileHandler.downloadFile(
         source: strfrm,
         fileExtension: strparameter,
-        customFileName: cpName,
+        customFileName: cpName != "" ? cpName : NewId(),
         context: context,
       );
       break;
@@ -282,7 +282,7 @@ Future<ReturnFormData> V_callform(
         fileType: strparameter == "pdf"
             ? "pdf"
             : (strparameter == "text" ? "text" : "image"),
-        documentName: cpName,
+        documentName: cpName != "" ? cpName : NewId(),
         context: context,
       );
       break;
