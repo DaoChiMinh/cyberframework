@@ -461,6 +461,25 @@ abstract class CyberForm {
     _clearContext(); // ✅ Clear context reference
   }
 
+  Future<(CyberDataset? ms, bool status)> callApiAndCheck({
+    String? pcp_name,
+    String? pstrparameter,
+    bool showLoading = true,
+    bool showError = true,
+    bool isCheckNullData = true,
+  }) async {
+    pcp_name ??= cp_name;
+    pstrparameter ??= strparameter;
+    var (ds, isOk) = await context.callApiAndCheck(
+      functionName: pcp_name,
+      parameter: pstrparameter,
+    );
+    if (!isOk) return (null, false);
+    if (ds == null) return (null, false);
+
+    return (ds, isOk);
+  }
+
   // ============================================================================
   // OPTIMIZED: IMPLICIT ANIMATIONS (Recommended - No Controllers Needed)
   // ============================================================================
