@@ -11,6 +11,7 @@ import 'package:printing/printing.dart';
 import 'package:http/http.dart' as http;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:file_picker/file_picker.dart'; // ✅ ADDED
 
 enum FileSourceType { base64, path, url }
 
@@ -255,8 +256,8 @@ class FileHandler {
     }
   }
 
-  /// Download file to Downloads folder
-  static Future<String> downloadFile({
+  /// ✅ IMPROVED: Download file with iOS-style file picker
+  static Future<String?> downloadFile({
     required String source,
     required String fileExtension,
     String? customFileName,
@@ -264,26 +265,46 @@ class FileHandler {
   }) async {
     FileData? fileData;
     try {
+      // Load file data
       fileData = await loadFile(source, fileExtension);
 
-      final downloadsDir = await _getDownloadsDirectory();
-
-      final fileName =
+      // Generate default file name
+      final defaultFileName =
           customFileName ??
           'download_${DateTime.now().millisecondsSinceEpoch}$fileExtension';
-      final savePath = '${downloadsDir.path}/$fileName';
 
-      final file = File(savePath);
-      await file.writeAsBytes(fileData.bytes);
+      // ✅ Show native file picker to choose save location
+      final savePath = await FilePicker.platform.saveFile(
+        fileName: defaultFileName,
+        bytes: fileData.bytes,
+        type: _getFileTypeFromExtension(fileExtension),
+        allowedExtensions: fileExtension.isNotEmpty
+            ? [fileExtension.replaceAll('.', '')]
+            : null,
+      );
+
+      // User cancelled
+      if (savePath == null) {
+        if (context != null && context.mounted) {
+          _showInfo(context, 'Đã hủy lưu file');
+        }
+        return null;
+      }
+
+      // ✅ On some platforms, we need to manually write the file
+      if (Platform.isAndroid || Platform.isIOS) {
+        final file = File(savePath);
+        await file.writeAsBytes(fileData.bytes);
+      }
 
       if (context != null && context.mounted) {
-        _showSuccess(context, 'Saved: $savePath');
+        _showSuccess(context, 'Đã lưu: ${_getFileNameFromPath(savePath)}');
       }
 
       return savePath;
     } catch (e) {
       if (context != null && context.mounted) {
-        _showError(context, 'Download error: $e');
+        _showError(context, 'Lỗi khi lưu: $e');
       }
       rethrow;
     } finally {
@@ -292,15 +313,65 @@ class FileHandler {
     }
   }
 
-  static Future<Directory> _getDownloadsDirectory() async {
-    if (Platform.isAndroid) {
-      final dir = Directory('/storage/emulated/0/Download');
-      if (!await dir.exists()) {
-        await dir.create(recursive: true);
-      }
-      return dir;
-    } else {
-      return await getApplicationDocumentsDirectory();
+  /// ✅ Helper: Get file type from extension
+  static FileType _getFileTypeFromExtension(String extension) {
+    final ext = extension.toLowerCase().replaceAll('.', '');
+
+    switch (ext) {
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'gif':
+      case 'bmp':
+      case 'webp':
+        return FileType.image;
+
+      case 'mp4':
+      case 'mov':
+      case 'avi':
+      case 'mkv':
+        return FileType.video;
+
+      case 'mp3':
+      case 'wav':
+      case 'aac':
+      case 'm4a':
+        return FileType.audio;
+
+      default:
+        return FileType.any;
+    }
+  }
+
+  /// ✅ Helper: Extract file name from path
+  static String _getFileNameFromPath(String path) {
+    return path.split('/').last.split('\\').last;
+  }
+
+  static String _getFileExtension(String fileType) {
+    switch (fileType.toLowerCase()) {
+      case 'pdf':
+        return '.pdf';
+      case 'image':
+      case 'img':
+      case 'jpg':
+      case 'jpeg':
+        return '.jpg';
+      case 'png':
+        return '.png';
+      case 'text':
+      case 'txt':
+        return '.txt';
+      case 'excel':
+      case 'xls':
+      case 'xlsx':
+        return '.xlsx';
+      case 'word':
+      case 'doc':
+      case 'docx':
+        return '.docx';
+      default:
+        return '';
     }
   }
 
@@ -342,33 +413,6 @@ class FileHandler {
     } finally {
       // ✅ Cleanup temp file after printing
       await fileData?.cleanup();
-    }
-  }
-
-  static String _getFileExtension(String fileType) {
-    switch (fileType.toLowerCase()) {
-      case 'pdf':
-        return '.pdf';
-      case 'image':
-      case 'img':
-      case 'jpg':
-      case 'jpeg':
-        return '.jpg';
-      case 'png':
-        return '.png';
-      case 'text':
-      case 'txt':
-        return '.txt';
-      case 'excel':
-      case 'xls':
-      case 'xlsx':
-        return '.xlsx';
-      case 'word':
-      case 'doc':
-      case 'docx':
-        return '.docx';
-      default:
-        return '';
     }
   }
 
@@ -432,6 +476,16 @@ class FileHandler {
         content: Text(message),
         backgroundColor: Colors.red,
         duration: const Duration(seconds: 5),
+      ),
+    );
+  }
+
+  static void _showInfo(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.blue,
+        duration: const Duration(seconds: 2),
       ),
     );
   }

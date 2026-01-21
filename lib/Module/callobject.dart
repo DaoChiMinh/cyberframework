@@ -166,6 +166,7 @@ Future<ReturnFormData> V_callform(
       break;
     case "img":
     case "image":
+    case "imgview":
       FrmImageView imageViewer = FrmImageView();
       imageViewer.text = strfrm; // base64, path, or URL
       imageViewer.showToolbar = false;
