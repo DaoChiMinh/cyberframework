@@ -1,6 +1,4 @@
 // lib/Module/exten.dart
-
-import 'dart:nativewrappers/_internal/vm/lib/ffi_native_type_patch.dart';
 //import 'package:flutter_app_badger/flutter_app_badger.dart';
 import 'package:crypto/crypto.dart';
 import 'package:cyberframework/cyberframework.dart';
