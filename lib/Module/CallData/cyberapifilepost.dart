@@ -102,7 +102,7 @@ class CyberAPIFile {
     return _ParsedFilePath(
       fileName: fileName,
       subFolder: subFolder,
-      fileType: fileType,
+      fileType: ".$fileType",
       isView: isViewable,
     );
   }

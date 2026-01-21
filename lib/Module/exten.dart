@@ -1,5 +1,7 @@
 // lib/Module/exten.dart
 //import 'package:flutter_app_badger/flutter_app_badger.dart';
+import 'dart:math';
+
 import 'package:crypto/crypto.dart';
 import 'package:cyberframework/cyberframework.dart';
 import 'package:fluttertoast/fluttertoast.dart';
@@ -194,6 +196,14 @@ String NewId() {
   return Uuid().v4();
 }
 
+String formatBytes(int bytes, {int decimals = 2}) {
+  if (bytes <= 0) return "0 B";
+
+  const suffixes = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
+  var i = (log(bytes) / log(1024)).floor();
+
+  return '${(bytes / pow(1024, i)).toStringAsFixed(decimals)} ${suffixes[i]}';
+}
 // void updatebage(int countbage) async {
 //   if (!await FlutterAppBadger.isAppBadgeSupported()) {
 //     return;

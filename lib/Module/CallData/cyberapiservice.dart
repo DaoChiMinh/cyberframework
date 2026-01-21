@@ -666,13 +666,13 @@ class CyberApiService with WidgetsBindingObserver {
     bool showError = true,
   }) async {
     // ✅ Check if app is paused
-    if (_isAppPaused) {
-      return ReturnData(
-        status: false,
-        message: 'App is in background',
-        isConnect: false,
-      );
-    }
+    // if (_isAppPaused) {
+    //   return ReturnData(
+    //     status: false,
+    //     message: 'App is in background',
+    //     isConnect: false,
+    //   );
+    // }
 
     // ⚡ Internet check with cache
     if (enableInternetCheck) {
@@ -762,10 +762,7 @@ class CyberApiService with WidgetsBindingObserver {
       final returnData = parseResponse(encryptedData);
 
       // ✅ Show server error if needed
-      if (!returnData.isValid() &&
-          showError &&
-          context.mounted &&
-          returnData.isConnect == true) {
+      if (!returnData.isValid() && showError && context.mounted) {
         _showError(
           context,
           returnData.message ?? 'Lỗi từ máy chủ',

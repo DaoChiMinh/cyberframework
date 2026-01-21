@@ -344,7 +344,7 @@ extension CyberApiUploadObjectExtension on BuildContext {
 
     // Parse data to list of CyberAPIFileReturn
     List<CyberAPIFileReturn>? uploadedFiles = _parseUploadedFiles(
-      returnData.data,
+      returnData.cyberObject,
     );
 
     return (uploadedFiles, true);
