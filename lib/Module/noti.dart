@@ -17,7 +17,7 @@ Future<void> initOneSignal(String AppId) async {
 
     final data = event.notification.additionalData!;
     int countbage = data["ios_badgeCount"] ?? 0;
-    updatebage(countbage);
+    //updatebage(countbage);
   });
 }
 

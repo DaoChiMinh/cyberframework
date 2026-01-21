@@ -1,7 +1,7 @@
 // lib/Module/exten.dart
 
 import 'dart:nativewrappers/_internal/vm/lib/ffi_native_type_patch.dart';
-import 'package:flutter_app_badger/flutter_app_badger.dart';
+//import 'package:flutter_app_badger/flutter_app_badger.dart';
 import 'package:crypto/crypto.dart';
 import 'package:cyberframework/cyberframework.dart';
 import 'package:uuid/uuid.dart';
@@ -195,16 +195,16 @@ String NewId() {
   return Uuid().v4();
 }
 
-void updatebage(int countbage) async {
-  if (!await FlutterAppBadger.isAppBadgeSupported()) {
-    return;
-  }
-  if (countbage <= 0) {
-    FlutterAppBadger.removeBadge();
-  } else {
-    FlutterAppBadger.updateBadgeCount(countbage);
-  }
-}
+// void updatebage(int countbage) async {
+//   if (!await FlutterAppBadger.isAppBadgeSupported()) {
+//     return;
+//   }
+//   if (countbage <= 0) {
+//     FlutterAppBadger.removeBadge();
+//   } else {
+//     FlutterAppBadger.updateBadgeCount(countbage);
+//   }
+// }
 
 String _formatNumber(num value, String format) {
   try {
