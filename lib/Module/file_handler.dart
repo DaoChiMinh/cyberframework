@@ -20,13 +20,11 @@ class _TempFileTracker {
   static final Set<String> _tempFiles = {};
   static Timer? _cleanupTimer;
 
-  /// ✅ Register temp file for later cleanup
   static void register(String path) {
     _tempFiles.add(path);
     _startCleanupTimer();
   }
 
-  /// ✅ Remove temp file immediately
   static Future<void> remove(String path) async {
     try {
       final file = File(path);
@@ -39,7 +37,6 @@ class _TempFileTracker {
     }
   }
 
-  /// ✅ Clean up old temp files (older than 1 hour)
   static Future<void> cleanupOldFiles() async {
     final now = DateTime.now();
     final filesToRemove = <String>[];
@@ -55,7 +52,6 @@ class _TempFileTracker {
         final stat = await file.stat();
         final age = now.difference(stat.modified);
 
-        // Remove files older than 1 hour
         if (age.inHours >= 1) {
           await file.delete();
           filesToRemove.add(path);
@@ -69,7 +65,6 @@ class _TempFileTracker {
     _tempFiles.removeAll(filesToRemove);
   }
 
-  /// ✅ Start periodic cleanup
   static void _startCleanupTimer() {
     _cleanupTimer?.cancel();
     _cleanupTimer = Timer.periodic(
@@ -78,7 +73,6 @@ class _TempFileTracker {
     );
   }
 
-  /// ✅ Clean all temp files
   static Future<void> cleanAll() async {
     for (var path in _tempFiles.toList()) {
       await remove(path);
@@ -87,7 +81,6 @@ class _TempFileTracker {
   }
 }
 
-/// ✅ IMPROVED: FileData with cleanup capability
 class FileData {
   final Uint8List bytes;
   final String path;
@@ -100,13 +93,11 @@ class FileData {
     required this.sourceType,
     this.isTemp = false,
   }) {
-    // ✅ Register temp files for cleanup
     if (isTemp) {
       _TempFileTracker.register(path);
     }
   }
 
-  /// ✅ Clean up temp file
   Future<void> cleanup() async {
     if (isTemp) {
       await _TempFileTracker.remove(path);
@@ -115,18 +106,14 @@ class FileData {
 }
 
 class FileHandler {
-  /// Initialize file handler (call in main.dart)
   static void initialize() {
-    // Start cleanup timer
     _TempFileTracker.cleanupOldFiles();
   }
 
-  /// Cleanup on app dispose
   static Future<void> dispose() async {
     await _TempFileTracker.cleanAll();
   }
 
-  /// Detect source type
   static FileSourceType detectSourceType(String input) {
     if (input.startsWith('http://') || input.startsWith('https://')) {
       return FileSourceType.url;
@@ -147,7 +134,6 @@ class FileHandler {
     }
   }
 
-  /// ✅ IMPROVED: Load file with automatic cleanup
   static Future<FileData> loadFile(String source, String fileExtension) async {
     final sourceType = detectSourceType(source);
 
@@ -161,7 +147,6 @@ class FileHandler {
     }
   }
 
-  /// ✅ FIXED: Mark temp files for cleanup
   static Future<FileData> _loadFromBase64(
     String base64String,
     String ext,
@@ -181,7 +166,7 @@ class FileHandler {
       bytes: bytes,
       path: file.path,
       sourceType: FileSourceType.base64,
-      isTemp: true, // ✅ Mark as temp for cleanup
+      isTemp: true,
     );
   }
 
@@ -197,11 +182,10 @@ class FileHandler {
       bytes: bytes,
       path: path,
       sourceType: FileSourceType.path,
-      isTemp: false, // ✅ Not temp - don't cleanup
+      isTemp: false,
     );
   }
 
-  /// ✅ FIXED: Mark downloaded files for cleanup
   static Future<FileData> _loadFromUrl(String url, String ext) async {
     final response = await http.get(Uri.parse(url));
     if (response.statusCode != 200) {
@@ -220,35 +204,140 @@ class FileHandler {
       bytes: bytes,
       path: file.path,
       sourceType: FileSourceType.url,
-      isTemp: true, // ✅ Mark as temp for cleanup
+      isTemp: true,
     );
   }
 
-  /// ✅ IMPROVED: Share file with cleanup
-  static Future<void> shareFile({
+  /// ✅ NEW: Show file options (Share or Save)
+  static Future<void> showFileOptions({
+    required BuildContext context,
+    required String source,
+    required String fileExtension,
+    String? fileName,
+    String? subject,
+    Rect? sharePositionOrigin,
+  }) async {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.share),
+              title: const Text('Chia sẻ'),
+              onTap: () {
+                Navigator.pop(context);
+                shareFile(
+                  source: source,
+                  fileExtension: fileExtension,
+                  fileName: fileName,
+                  subject: subject,
+                  context: context,
+                  sharePositionOrigin: sharePositionOrigin,
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.download),
+              title: const Text('Lưu vào thiết bị'),
+              onTap: () {
+                Navigator.pop(context);
+                downloadFile(
+                  source: source,
+                  fileExtension: fileExtension,
+                  customFileName: fileName,
+                  context: context,
+                );
+              },
+            ),
+            if (fileExtension.toLowerCase() == '.pdf' ||
+                _isImageExtension(fileExtension))
+              ListTile(
+                leading: const Icon(Icons.print),
+                title: const Text('In'),
+                onTap: () {
+                  Navigator.pop(context);
+                  printFile(
+                    source: source,
+                    fileType: _getFileTypeFromExtension(fileExtension),
+                    documentName: fileName,
+                    context: context,
+                  );
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static bool _isImageExtension(String ext) {
+    final imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
+    return imageExts.contains(ext.toLowerCase());
+  }
+
+  static String _getFileTypeFromExtension(String ext) {
+    switch (ext.toLowerCase()) {
+      case '.pdf':
+        return 'pdf';
+      case '.jpg':
+      case '.jpeg':
+      case '.png':
+      case '.gif':
+      case '.webp':
+        return 'image';
+      case '.txt':
+        return 'text';
+      default:
+        return 'file';
+    }
+  }
+
+  /// ✅ Share file (iOS: Share Sheet with "Save to Files", Android: Share Sheet only)
+  static Future<ShareResult?> shareFile({
     required String source,
     required String fileExtension,
     String? fileName,
     String? subject,
     BuildContext? context,
+    Rect? sharePositionOrigin,
   }) async {
     FileData? fileData;
     try {
       fileData = await loadFile(source, fileExtension);
 
-      final params = ShareParams(
-        text: fileName ?? 'Shared file',
-        files: [XFile(fileData.path)],
+      final name =
+          fileName ??
+          'file_${DateTime.now().millisecondsSinceEpoch}$fileExtension';
+
+      final result = await Share.shareXFiles(
+        [XFile(fileData.path, name: name)],
+        subject: subject,
+        sharePositionOrigin: sharePositionOrigin,
       );
 
-      await SharePlus.instance.share(params);
+      if (context != null && context.mounted) {
+        switch (result.status) {
+          case ShareResultStatus.success:
+            _showSuccess(context, 'Đã chia sẻ thành công');
+            break;
+          case ShareResultStatus.dismissed:
+            // Don't show message for dismissed
+            break;
+          case ShareResultStatus.unavailable:
+            _showError(context, 'Không thể chia sẻ file này');
+            break;
+        }
+      }
+
+      return result;
     } catch (e) {
       if (context != null && context.mounted) {
-        _showError(context, 'Share error: $e');
+        _showError(context, 'Lỗi chia sẻ: $e');
       }
       rethrow;
     } finally {
-      // ✅ Cleanup temp file after sharing
       if (fileData != null) {
         await Future.delayed(const Duration(seconds: 5));
         await fileData.cleanup();
@@ -256,7 +345,7 @@ class FileHandler {
     }
   }
 
-  /// ✅ IMPROVED: Download file with iOS-style file picker
+  /// ✅ Download file (Save directly with file picker)
   static Future<String?> downloadFile({
     required String source,
     required String fileExtension,
@@ -265,25 +354,18 @@ class FileHandler {
   }) async {
     FileData? fileData;
     try {
-      // Load file data
       fileData = await loadFile(source, fileExtension);
 
-      // Generate default file name
-      final defaultFileName =
+      final fileName =
           customFileName ??
           'download_${DateTime.now().millisecondsSinceEpoch}$fileExtension';
 
-      // ✅ Show native file picker to choose save location
+      // ✅ Use file picker to choose save location
       final savePath = await FilePicker.platform.saveFile(
-        fileName: defaultFileName,
+        fileName: fileName,
         bytes: fileData.bytes,
-        type: _getFileTypeFromExtension(fileExtension),
-        allowedExtensions: fileExtension.isNotEmpty
-            ? [fileExtension.replaceAll('.', '')]
-            : null,
       );
 
-      // User cancelled
       if (savePath == null) {
         if (context != null && context.mounted) {
           _showInfo(context, 'Đã hủy lưu file');
@@ -291,14 +373,8 @@ class FileHandler {
         return null;
       }
 
-      // ✅ On some platforms, we need to manually write the file
-      if (Platform.isAndroid || Platform.isIOS) {
-        final file = File(savePath);
-        await file.writeAsBytes(fileData.bytes);
-      }
-
       if (context != null && context.mounted) {
-        _showSuccess(context, 'Đã lưu: ${_getFileNameFromPath(savePath)}');
+        _showSuccess(context, 'Đã lưu file thành công');
       }
 
       return savePath;
@@ -308,44 +384,48 @@ class FileHandler {
       }
       rethrow;
     } finally {
-      // ✅ Cleanup temp file after download
       await fileData?.cleanup();
     }
   }
 
-  /// ✅ Helper: Get file type from extension
-  static FileType _getFileTypeFromExtension(String extension) {
-    final ext = extension.toLowerCase().replaceAll('.', '');
-
-    switch (ext) {
-      case 'jpg':
-      case 'jpeg':
-      case 'png':
-      case 'gif':
-      case 'bmp':
-      case 'webp':
-        return FileType.image;
-
-      case 'mp4':
-      case 'mov':
-      case 'avi':
-      case 'mkv':
-        return FileType.video;
-
-      case 'mp3':
-      case 'wav':
-      case 'aac':
-      case 'm4a':
-        return FileType.audio;
-
-      default:
-        return FileType.any;
+  /// ✅ Print file
+  static Future<void> printFile({
+    required String source,
+    required String fileType,
+    String? documentName,
+    BuildContext? context,
+  }) async {
+    FileData? fileData;
+    try {
+      final ext = _getFileExtension(fileType);
+      fileData = await loadFile(source, ext);
+      String _fileType = fileType.replaceAll(".", "").toLowerCase();
+      switch (_fileType.toLowerCase()) {
+        case 'pdf':
+          await _printPdf(fileData.bytes, documentName);
+          break;
+        case 'image':
+        case 'img':
+        case 'jpg':
+        case 'jpeg':
+        case 'png':
+          await _printImage(fileData.bytes, documentName);
+          break;
+        case 'text':
+        case 'txt':
+          await _printText(fileData.bytes, documentName);
+          break;
+        default:
+          throw Exception('Unsupported file type: $fileType');
+      }
+    } catch (e) {
+      if (context != null && context.mounted) {
+        _showError(context, 'Lỗi in: $e');
+      }
+      rethrow;
+    } finally {
+      await fileData?.cleanup();
     }
-  }
-
-  /// ✅ Helper: Extract file name from path
-  static String _getFileNameFromPath(String path) {
-    return path.split('/').last.split('\\').last;
   }
 
   static String _getFileExtension(String fileType) {
@@ -372,47 +452,6 @@ class FileHandler {
         return '.docx';
       default:
         return '';
-    }
-  }
-
-  /// ✅ IMPROVED: Print file with cleanup
-  static Future<void> printFile({
-    required String source,
-    required String fileType,
-    String? documentName,
-    BuildContext? context,
-  }) async {
-    FileData? fileData;
-    try {
-      final ext = _getFileExtension(fileType);
-      fileData = await loadFile(source, ext);
-
-      switch (fileType.toLowerCase()) {
-        case 'pdf':
-          await _printPdf(fileData.bytes, documentName);
-          break;
-        case 'image':
-        case 'img':
-        case 'jpg':
-        case 'jpeg':
-        case 'png':
-          await _printImage(fileData.bytes, documentName);
-          break;
-        case 'text':
-        case 'txt':
-          await _printText(fileData.bytes, documentName);
-          break;
-        default:
-          throw Exception('Unsupported file type: $fileType');
-      }
-    } catch (e) {
-      if (context != null && context.mounted) {
-        _showError(context, 'Print error: $e');
-      }
-      rethrow;
-    } finally {
-      // ✅ Cleanup temp file after printing
-      await fileData?.cleanup();
     }
   }
 
@@ -490,7 +529,6 @@ class FileHandler {
     );
   }
 
-  /// ✅ NEW: Manual cleanup trigger
   static Future<void> cleanupTempFiles() async {
     await _TempFileTracker.cleanupOldFiles();
   }
