@@ -11,9 +11,12 @@ import 'package:printing/printing.dart';
 import 'package:http/http.dart' as http;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:file_picker/file_picker.dart'; // ✅ ADDED
+import 'package:file_picker/file_picker.dart';
+import 'package:gal/gal.dart'; // ✅ NEW
 
 enum FileSourceType { base64, path, url }
+
+enum MediaType { image, video, audio, document }
 
 /// ✅ NEW: Track temp files for cleanup
 class _TempFileTracker {
@@ -134,6 +137,47 @@ class FileHandler {
     }
   }
 
+  /// ✅ Detect media type from extension
+  static MediaType? detectMediaType(String extension) {
+    final ext = extension.toLowerCase().replaceAll('.', '');
+
+    // Image extensions
+    if ([
+      'jpg',
+      'jpeg',
+      'png',
+      'gif',
+      'bmp',
+      'webp',
+      'heic',
+      'heif',
+    ].contains(ext)) {
+      return MediaType.image;
+    }
+
+    // Video extensions
+    if ([
+      'mp4',
+      'mov',
+      'avi',
+      'mkv',
+      'flv',
+      'wmv',
+      'm4v',
+      '3gp',
+    ].contains(ext)) {
+      return MediaType.video;
+    }
+
+    // Audio extensions
+    if (['mp3', 'wav', 'aac', 'm4a', 'flac', 'ogg', 'wma'].contains(ext)) {
+      return MediaType.audio;
+    }
+
+    // Document (non-media)
+    return MediaType.document;
+  }
+
   static Future<FileData> loadFile(String source, String fileExtension) async {
     final sourceType = detectSourceType(source);
 
@@ -208,7 +252,7 @@ class FileHandler {
     );
   }
 
-  /// ✅ NEW: Show file options (Share or Save)
+  /// ✅ Show file options (Share or Save)
   static Future<void> showFileOptions({
     required BuildContext context,
     required String source,
@@ -294,7 +338,7 @@ class FileHandler {
     }
   }
 
-  /// ✅ Share file (iOS: Share Sheet with "Save to Files", Android: Share Sheet only)
+  /// ✅ Share file
   static Future<ShareResult?> shareFile({
     required String source,
     required String fileExtension,
@@ -311,9 +355,16 @@ class FileHandler {
           fileName ??
           'file_${DateTime.now().millisecondsSinceEpoch}$fileExtension';
 
+      final xFile = XFile(
+        fileData.path,
+        name: name,
+        mimeType: _getMimeType(fileExtension),
+      );
+
       final result = await Share.shareXFiles(
-        [XFile(fileData.path, name: name)],
+        [xFile],
         subject: subject,
+        text: name,
         sharePositionOrigin: sharePositionOrigin,
       );
 
@@ -323,7 +374,6 @@ class FileHandler {
             _showSuccess(context, 'Đã chia sẻ thành công');
             break;
           case ShareResultStatus.dismissed:
-            // Don't show message for dismissed
             break;
           case ShareResultStatus.unavailable:
             _showError(context, 'Không thể chia sẻ file này');
@@ -345,8 +395,8 @@ class FileHandler {
     }
   }
 
-  /// ✅ Download file (Save directly with file picker)
-  static Future<String?> downloadFile({
+  /// ✅ IMPROVED: Smart download based on file type and platform
+  static Future<dynamic> downloadFile({
     required String source,
     required String fileExtension,
     String? customFileName,
@@ -354,30 +404,44 @@ class FileHandler {
   }) async {
     FileData? fileData;
     try {
+      // Load file data
       fileData = await loadFile(source, fileExtension);
 
+      // Detect media type
+      final mediaType = detectMediaType(fileExtension);
+
+      // Generate file name
       final fileName =
           customFileName ??
           'download_${DateTime.now().millisecondsSinceEpoch}$fileExtension';
 
-      // ✅ Use file picker to choose save location
-      final savePath = await FilePicker.platform.saveFile(
-        fileName: fileName,
-        bytes: fileData.bytes,
-      );
-
-      if (savePath == null) {
-        if (context != null && context.mounted) {
-          _showInfo(context, 'Đã hủy lưu file');
-        }
-        return null;
+      // ✅ Media files → Save directly to gallery/media folder
+      if (mediaType != MediaType.document) {
+        return await _saveMediaFile(
+          fileData: fileData,
+          fileName: fileName,
+          mediaType: mediaType!,
+          context: context,
+        );
       }
 
-      if (context != null && context.mounted) {
-        _showSuccess(context, 'Đã lưu file thành công');
+      // ✅ Non-media files → Platform-specific handling
+      if (Platform.isIOS) {
+        // iOS: Use Share Sheet (includes "Save to Files" option)
+        return await _saveNonMediaFileIOS(
+          fileData: fileData,
+          fileName: fileName,
+          fileExtension: fileExtension,
+          context: context,
+        );
+      } else {
+        // Android: Use File Picker
+        return await _saveNonMediaFileAndroid(
+          fileData: fileData,
+          fileName: fileName,
+          context: context,
+        );
       }
-
-      return savePath;
     } catch (e) {
       if (context != null && context.mounted) {
         _showError(context, 'Lỗi khi lưu: $e');
@@ -385,6 +449,117 @@ class FileHandler {
       rethrow;
     } finally {
       await fileData?.cleanup();
+    }
+  }
+
+  /// ✅ Save media file to gallery using Gal
+  static Future<void> _saveMediaFile({
+    required FileData fileData,
+    required String fileName,
+    required MediaType mediaType,
+    BuildContext? context,
+  }) async {
+    try {
+      // ✅ Request permission first
+      final hasAccess = await Gal.hasAccess(toAlbum: true);
+      if (!hasAccess) {
+        final granted = await Gal.requestAccess(toAlbum: true);
+        if (!granted) {
+          throw Exception('Không có quyền truy cập thư viện');
+        }
+      }
+
+      // ✅ Save to gallery based on media type
+      if (mediaType == MediaType.image) {
+        await Gal.putImageBytes(fileData.bytes, name: fileName);
+      } else if (mediaType == MediaType.video) {
+        await Gal.putVideo(fileData.path, album: fileName);
+      } else if (mediaType == MediaType.audio) {
+        // Audio files go to Downloads folder
+        final dir = await _getDownloadsDirectory();
+        final savePath = '${dir.path}/$fileName';
+        final file = File(savePath);
+        await file.writeAsBytes(fileData.bytes);
+      }
+
+      if (context != null && context.mounted) {
+        _showSuccess(context, 'Đã lưu vào thư viện');
+      }
+    } catch (e) {
+      debugPrint('Error saving media: $e');
+      if (context != null && context.mounted) {
+        _showError(context, 'Lỗi lưu media: $e');
+      }
+      rethrow;
+    }
+  }
+
+  /// ✅ Save non-media file on iOS (use Share Sheet)
+  static Future<ShareResult> _saveNonMediaFileIOS({
+    required FileData fileData,
+    required String fileName,
+    required String fileExtension,
+    BuildContext? context,
+  }) async {
+    final xFile = XFile(
+      fileData.path,
+      name: fileName,
+      mimeType: _getMimeType(fileExtension),
+    );
+
+    final result = await Share.shareXFiles([xFile], text: fileName);
+
+    if (context != null && context.mounted) {
+      switch (result.status) {
+        case ShareResultStatus.success:
+          _showSuccess(context, 'Đã lưu/chia sẻ thành công');
+          break;
+        case ShareResultStatus.dismissed:
+          _showInfo(context, 'Đã hủy');
+          break;
+        case ShareResultStatus.unavailable:
+          _showError(context, 'Không thể lưu file này');
+          break;
+      }
+    }
+
+    return result;
+  }
+
+  /// ✅ Save non-media file on Android (use File Picker)
+  static Future<String?> _saveNonMediaFileAndroid({
+    required FileData fileData,
+    required String fileName,
+    BuildContext? context,
+  }) async {
+    final savePath = await FilePicker.platform.saveFile(
+      fileName: fileName,
+      bytes: fileData.bytes,
+    );
+
+    if (savePath == null) {
+      if (context != null && context.mounted) {
+        _showInfo(context, 'Đã hủy lưu file');
+      }
+      return null;
+    }
+
+    if (context != null && context.mounted) {
+      _showSuccess(context, 'Đã lưu file thành công');
+    }
+
+    return savePath;
+  }
+
+  static Future<Directory> _getDownloadsDirectory() async {
+    if (Platform.isAndroid) {
+      final dir = Directory('/storage/emulated/0/Download');
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+      return dir;
+    } else {
+      return await getApplicationDocumentsDirectory();
     }
   }
 
@@ -452,6 +627,43 @@ class FileHandler {
         return '.docx';
       default:
         return '';
+    }
+  }
+
+  /// ✅ Get MIME type
+  static String _getMimeType(String extension) {
+    final ext = extension.toLowerCase().replaceAll('.', '');
+
+    switch (ext) {
+      case 'pdf':
+        return 'application/pdf';
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'gif':
+        return 'image/gif';
+      case 'webp':
+        return 'image/webp';
+      case 'txt':
+        return 'text/plain';
+      case 'doc':
+        return 'application/msword';
+      case 'docx':
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      case 'xls':
+        return 'application/vnd.ms-excel';
+      case 'xlsx':
+        return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      case 'zip':
+        return 'application/zip';
+      case 'mp4':
+        return 'video/mp4';
+      case 'mp3':
+        return 'audio/mpeg';
+      default:
+        return 'application/octet-stream';
     }
   }
 
