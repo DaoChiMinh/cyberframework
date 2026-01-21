@@ -24,6 +24,9 @@ class CyberGridRow {
   /// Có cho phép scroll ngang nếu nội dung tràn không
   final bool enableHorizontalScroll;
 
+  /// Khoảng cách giữa các columns
+  final double space;
+
   const CyberGridRow({
     required this.widthColumns,
     required this.children,
@@ -31,6 +34,7 @@ class CyberGridRow {
     this.margin,
     this.backgroundColor,
     this.enableHorizontalScroll = false,
+    this.space = 8,
   });
 }
 
@@ -71,7 +75,7 @@ class CyberGrid extends StatelessWidget {
     this.padding,
     this.margin,
     this.backgroundColor,
-    this.rowSpace = 0,
+    this.rowSpace = 8,
     required this.rows,
   });
 
@@ -226,12 +230,21 @@ class CyberGrid extends StatelessWidget {
     double availableWidth,
     double? rowHeight,
   ) {
-    // Calculate widths
-    final columnWidths = _calculateSizes(widthDefs, availableWidth);
+    // ✅ Tính toán width khả dụng sau khi trừ đi spacing
+    final totalSpacing = row.space * (effectiveChildren.length - 1);
+    final availableForColumns = availableWidth - totalSpacing;
 
-    // Build columns
+    // Calculate widths
+    final columnWidths = _calculateSizes(widthDefs, availableForColumns);
+
+    // Build columns với spacing
     final children = <Widget>[];
     for (int i = 0; i < effectiveChildren.length; i++) {
+      // Thêm spacing trước column (trừ column đầu tiên)
+      if (i > 0 && row.space > 0) {
+        children.add(SizedBox(width: row.space));
+      }
+
       children.add(
         SizedBox(width: columnWidths[i], child: effectiveChildren[i]),
       );

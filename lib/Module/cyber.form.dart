@@ -464,12 +464,13 @@ abstract class CyberForm {
   Future<(CyberDataset? ms, bool status)> callApiAndCheck({
     String? pcp_name,
     String? pstrparameter,
-    bool showLoading = true,
+    bool showLoading = false,
     bool showError = true,
     bool isCheckNullData = true,
   }) async {
     pcp_name ??= cp_name;
     pstrparameter ??= strparameter;
+    print(pstrparameter);
     var (ds, isOk) = await context.callApiAndCheck(
       functionName: pcp_name,
       parameter: pstrparameter,
