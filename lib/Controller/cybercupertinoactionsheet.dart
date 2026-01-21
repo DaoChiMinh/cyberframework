@@ -39,7 +39,6 @@ Future<void> showCyberCupertinoActionSheet(
           ? Text(
               title,
               style: const TextStyle(
-                fontSize: 13,
                 fontWeight: FontWeight.w400,
                 color: CupertinoColors.systemGrey,
               ),
@@ -49,7 +48,6 @@ Future<void> showCyberCupertinoActionSheet(
           ? Text(
               message,
               style: const TextStyle(
-                fontSize: 13,
                 fontWeight: FontWeight.w400,
                 color: CupertinoColors.systemGrey,
               ),
@@ -89,7 +87,7 @@ Future<void> showCyberCupertinoActionSheet(
                           (action.isDestructive
                               ? CupertinoColors.systemRed
                               : CupertinoColors.activeBlue),
-                      fontSize: 20,
+                      fontSize: 14,
                       fontWeight: action.isDefaultAction
                           ? FontWeight.w600
                           : FontWeight.w400,
@@ -104,7 +102,11 @@ Future<void> showCyberCupertinoActionSheet(
         onPressed: () => Navigator.pop(context),
         child: Text(
           cancelLabel ?? 'Cancel',
-          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+          style: const TextStyle(
+            fontSize: 16,
+            color: Colors.red,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     ),
