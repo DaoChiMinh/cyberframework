@@ -12,22 +12,24 @@ import 'package:http/http.dart' as http;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:file_picker/file_picker.dart';
-import 'package:gal/gal.dart'; // ✅ NEW
+import 'package:gal/gal.dart';
 
 enum FileSourceType { base64, path, url }
 
 enum MediaType { image, video, audio, document }
 
-/// ✅ NEW: Track temp files for cleanup
+/// ✅ Track temp files for cleanup
 class _TempFileTracker {
   static final Set<String> _tempFiles = {};
   static Timer? _cleanupTimer;
 
+  /// Register temp file for later cleanup
   static void register(String path) {
     _tempFiles.add(path);
     _startCleanupTimer();
   }
 
+  /// Remove temp file immediately
   static Future<void> remove(String path) async {
     try {
       final file = File(path);
@@ -40,6 +42,7 @@ class _TempFileTracker {
     }
   }
 
+  /// Clean up old temp files (older than 1 hour)
   static Future<void> cleanupOldFiles() async {
     final now = DateTime.now();
     final filesToRemove = <String>[];
@@ -68,6 +71,7 @@ class _TempFileTracker {
     _tempFiles.removeAll(filesToRemove);
   }
 
+  /// Start periodic cleanup
   static void _startCleanupTimer() {
     _cleanupTimer?.cancel();
     _cleanupTimer = Timer.periodic(
@@ -76,6 +80,7 @@ class _TempFileTracker {
     );
   }
 
+  /// Clean all temp files
   static Future<void> cleanAll() async {
     for (var path in _tempFiles.toList()) {
       await remove(path);
@@ -84,6 +89,7 @@ class _TempFileTracker {
   }
 }
 
+/// FileData with cleanup capability
 class FileData {
   final Uint8List bytes;
   final String path;
@@ -101,6 +107,7 @@ class FileData {
     }
   }
 
+  /// Clean up temp file
   Future<void> cleanup() async {
     if (isTemp) {
       await _TempFileTracker.remove(path);
@@ -109,14 +116,17 @@ class FileData {
 }
 
 class FileHandler {
+  /// Initialize file handler (call in main.dart)
   static void initialize() {
     _TempFileTracker.cleanupOldFiles();
   }
 
+  /// Cleanup on app dispose
   static Future<void> dispose() async {
     await _TempFileTracker.cleanAll();
   }
 
+  /// Detect source type (url, base64, or file path)
   static FileSourceType detectSourceType(String input) {
     if (input.startsWith('http://') || input.startsWith('https://')) {
       return FileSourceType.url;
@@ -137,7 +147,7 @@ class FileHandler {
     }
   }
 
-  /// ✅ Detect media type from extension
+  /// Detect media type from file extension
   static MediaType? detectMediaType(String extension) {
     final ext = extension.toLowerCase().replaceAll('.', '');
 
@@ -178,6 +188,7 @@ class FileHandler {
     return MediaType.document;
   }
 
+  /// Load file from source (base64, path, or url)
   static Future<FileData> loadFile(String source, String fileExtension) async {
     final sourceType = detectSourceType(source);
 
@@ -191,6 +202,7 @@ class FileHandler {
     }
   }
 
+  /// Load from base64 string
   static Future<FileData> _loadFromBase64(
     String base64String,
     String ext,
@@ -214,6 +226,7 @@ class FileHandler {
     );
   }
 
+  /// Load from file path
   static Future<FileData> _loadFromPath(String path) async {
     final file = File(path);
     if (!await file.exists()) {
@@ -230,6 +243,7 @@ class FileHandler {
     );
   }
 
+  /// Load from URL
   static Future<FileData> _loadFromUrl(String url, String ext) async {
     final response = await http.get(Uri.parse(url));
     if (response.statusCode != 200) {
@@ -252,7 +266,7 @@ class FileHandler {
     );
   }
 
-  /// ✅ Show file options (Share or Save)
+  /// Show file options bottom sheet (Share, Download, Print)
   static Future<void> showFileOptions({
     required BuildContext context,
     required String source,
@@ -338,7 +352,7 @@ class FileHandler {
     }
   }
 
-  /// ✅ Share file
+  /// Share file using native share sheet
   static Future<ShareResult?> shareFile({
     required String source,
     required String fileExtension,
@@ -371,12 +385,12 @@ class FileHandler {
       if (context != null && context.mounted) {
         switch (result.status) {
           case ShareResultStatus.success:
-            _showSuccess(context, 'Đã chia sẻ thành công');
+            _showSuccessDialog(context, 'Đã chia sẻ thành công');
             break;
           case ShareResultStatus.dismissed:
             break;
           case ShareResultStatus.unavailable:
-            _showError(context, 'Không thể chia sẻ file này');
+            _showErrorDialog(context, 'Không thể chia sẻ file này');
             break;
         }
       }
@@ -384,7 +398,7 @@ class FileHandler {
       return result;
     } catch (e) {
       if (context != null && context.mounted) {
-        _showError(context, 'Lỗi chia sẻ: $e');
+        _showErrorDialog(context, 'Lỗi chia sẻ', detail: e.toString());
       }
       rethrow;
     } finally {
@@ -395,7 +409,11 @@ class FileHandler {
     }
   }
 
-  /// ✅ IMPROVED: Smart download based on file type and platform
+  /// Download file with smart handling based on file type and platform
+  /// - Media files (image/video/audio): Save directly to gallery
+  /// - Documents on iOS: Use Share Sheet (includes "Save to Files")
+  /// - Documents on Android: Use File Picker
+  /// Download file with smart handling based on file type and platform
   static Future<dynamic> downloadFile({
     required String source,
     required String fileExtension,
@@ -417,12 +435,13 @@ class FileHandler {
 
       // ✅ Media files → Save directly to gallery/media folder
       if (mediaType != MediaType.document) {
-        return await _saveMediaFile(
+        await _saveMediaFile(
           fileData: fileData,
           fileName: fileName,
           mediaType: mediaType!,
           context: context,
         );
+        return; // ✅ Exit after saving
       }
 
       // ✅ Non-media files → Platform-specific handling
@@ -444,7 +463,7 @@ class FileHandler {
       }
     } catch (e) {
       if (context != null && context.mounted) {
-        _showError(context, 'Lỗi khi lưu: $e');
+        _showErrorDialog(context, 'Lỗi khi tải xuống', detail: e.toString());
       }
       rethrow;
     } finally {
@@ -452,7 +471,7 @@ class FileHandler {
     }
   }
 
-  /// ✅ Save media file to gallery using Gal
+  /// Save media file to gallery using Gal library
   static Future<void> _saveMediaFile({
     required FileData fileData,
     required String fileName,
@@ -460,7 +479,7 @@ class FileHandler {
     BuildContext? context,
   }) async {
     try {
-      // ✅ Request permission first
+      // Request permission first
       final hasAccess = await Gal.hasAccess(toAlbum: true);
       if (!hasAccess) {
         final granted = await Gal.requestAccess(toAlbum: true);
@@ -469,7 +488,7 @@ class FileHandler {
         }
       }
 
-      // ✅ Save to gallery based on media type
+      // Save to gallery based on media type
       if (mediaType == MediaType.image) {
         await Gal.putImageBytes(fileData.bytes, name: fileName);
       } else if (mediaType == MediaType.video) {
@@ -483,18 +502,22 @@ class FileHandler {
       }
 
       if (context != null && context.mounted) {
-        _showSuccess(context, 'Đã lưu vào thư viện');
+        _showSuccessDialog(
+          context,
+          'Đã tải xuống thành công!',
+          detail: 'File đã được lưu vào thư viện',
+        );
       }
     } catch (e) {
       debugPrint('Error saving media: $e');
       if (context != null && context.mounted) {
-        _showError(context, 'Lỗi lưu media: $e');
+        _showErrorDialog(context, 'Lỗi lưu media', detail: e.toString());
       }
       rethrow;
     }
   }
 
-  /// ✅ Save non-media file on iOS (use Share Sheet)
+  /// Save non-media file on iOS (use Share Sheet)
   static Future<ShareResult> _saveNonMediaFileIOS({
     required FileData fileData,
     required String fileName,
@@ -512,13 +535,13 @@ class FileHandler {
     if (context != null && context.mounted) {
       switch (result.status) {
         case ShareResultStatus.success:
-          _showSuccess(context, 'Đã lưu/chia sẻ thành công');
+          // Success handled by caller
           break;
         case ShareResultStatus.dismissed:
-          _showInfo(context, 'Đã hủy');
+          _showInfoDialog(context, 'Đã hủy');
           break;
         case ShareResultStatus.unavailable:
-          _showError(context, 'Không thể lưu file này');
+          _showErrorDialog(context, 'Không thể lưu file này');
           break;
       }
     }
@@ -526,7 +549,7 @@ class FileHandler {
     return result;
   }
 
-  /// ✅ Save non-media file on Android (use File Picker)
+  /// Save non-media file on Android (use File Picker)
   static Future<String?> _saveNonMediaFileAndroid({
     required FileData fileData,
     required String fileName,
@@ -539,18 +562,15 @@ class FileHandler {
 
     if (savePath == null) {
       if (context != null && context.mounted) {
-        _showInfo(context, 'Đã hủy lưu file');
+        _showInfoDialog(context, 'Đã hủy lưu file');
       }
       return null;
-    }
-
-    if (context != null && context.mounted) {
-      _showSuccess(context, 'Đã lưu file thành công');
     }
 
     return savePath;
   }
 
+  /// Get downloads directory
   static Future<Directory> _getDownloadsDirectory() async {
     if (Platform.isAndroid) {
       final dir = Directory('/storage/emulated/0/Download');
@@ -563,7 +583,7 @@ class FileHandler {
     }
   }
 
-  /// ✅ Print file
+  /// Print file (PDF, Image, or Text)
   static Future<void> printFile({
     required String source,
     required String fileType,
@@ -595,7 +615,7 @@ class FileHandler {
       }
     } catch (e) {
       if (context != null && context.mounted) {
-        _showError(context, 'Lỗi in: $e');
+        _showErrorDialog(context, 'Lỗi in', detail: e.toString());
       }
       rethrow;
     } finally {
@@ -603,6 +623,7 @@ class FileHandler {
     }
   }
 
+  /// Get file extension from file type string
   static String _getFileExtension(String fileType) {
     switch (fileType.toLowerCase()) {
       case 'pdf':
@@ -630,7 +651,7 @@ class FileHandler {
     }
   }
 
-  /// ✅ Get MIME type
+  /// Get MIME type from file extension
   static String _getMimeType(String extension) {
     final ext = extension.toLowerCase().replaceAll('.', '');
 
@@ -667,6 +688,7 @@ class FileHandler {
     }
   }
 
+  /// Print PDF file
   static Future<void> _printPdf(Uint8List pdfBytes, String? name) async {
     await Printing.layoutPdf(
       name: name ?? 'document.pdf',
@@ -674,6 +696,7 @@ class FileHandler {
     );
   }
 
+  /// Print image file (convert to PDF first)
   static Future<void> _printImage(Uint8List imageBytes, String? name) async {
     final pdf = pw.Document();
     final image = pw.MemoryImage(imageBytes);
@@ -692,6 +715,7 @@ class FileHandler {
     );
   }
 
+  /// Print text file (convert to PDF first)
   static Future<void> _printText(Uint8List textBytes, String? name) async {
     final textContent = utf8.decode(textBytes);
     final pdf = pw.Document();
@@ -711,36 +735,70 @@ class FileHandler {
     );
   }
 
-  static void _showSuccess(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.green,
-        duration: const Duration(seconds: 3),
+  /// Show success dialog
+  static void _showSuccessDialog(
+    BuildContext context,
+    String message, {
+    String? detail,
+  }) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        icon: const Icon(Icons.check_circle, color: Colors.green, size: 48),
+        title: Text(message),
+        content: detail != null ? Text(detail) : null,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
       ),
     );
   }
 
-  static void _showError(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-        duration: const Duration(seconds: 5),
+  /// Show error dialog
+  static void _showErrorDialog(
+    BuildContext context,
+    String message, {
+    String? detail,
+  }) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        icon: const Icon(Icons.error, color: Colors.red, size: 48),
+        title: Text(message),
+        content: detail != null
+            ? SingleChildScrollView(child: Text(detail))
+            : null,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Đóng'),
+          ),
+        ],
       ),
     );
   }
 
-  static void _showInfo(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.blue,
-        duration: const Duration(seconds: 2),
+  /// Show info dialog
+  static void _showInfoDialog(BuildContext context, String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        icon: const Icon(Icons.info, color: Colors.blue, size: 48),
+        title: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
       ),
     );
   }
 
+  /// Manual cleanup trigger
   static Future<void> cleanupTempFiles() async {
     await _TempFileTracker.cleanupOldFiles();
   }
