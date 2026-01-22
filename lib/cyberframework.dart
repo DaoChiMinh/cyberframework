@@ -3,6 +3,7 @@ export 'package:cyberframework/Module/save_storage.dart';
 export 'package:cyberframework/Module/exten.dart';
 export 'package:cyberframework/Module/texttemplate.dart';
 export 'package:cyberframework/Page/base_file_viewer.dart';
+export 'package:cyberframework/Page/frmviewfile.dart';
 export 'package:cyberframework/Module/CallData/cyberapiextension.dart';
 export 'package:cyberframework/Module/CallData/cyberapiservice.dart';
 export 'package:cyberframework/Module/CallData/cyberuploadobject.dart';

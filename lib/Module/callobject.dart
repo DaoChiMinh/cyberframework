@@ -209,7 +209,24 @@ Future<ReturnFormData> V_callform(
         ),
       );
       break;
-
+    case "viewfile":
+      Frmviewfile viewfile = Frmviewfile();
+      viewfile.text = strfrm;
+      Navigator.push(
+        context,
+        _buildPageRoute(
+          CyberFormView(
+            title: title.isEmpty
+                ? setText('Xem chi tiết file', 'Viewer')
+                : title,
+            formBuilder: () => viewfile,
+            cp_name: cpName,
+            strparameter: strparameter,
+          ),
+          useHeroAnimation,
+        ),
+      );
+      break;
     // ============================================================================
     // WORD DOCUMENT VIEWER
     // ============================================================================
