@@ -36,7 +36,7 @@ abstract class CyberBaseEdit extends CyberForm {
         ),
       );
     }
-
+    children.add(buildFooter());
     // Phần nút Save
     if (showSaveButton) {
       children.add(
@@ -48,6 +48,12 @@ abstract class CyberBaseEdit extends CyberForm {
     }
 
     return Column(children: children);
+  }
+
+  @override
+  // ignore: override_on_non_overriding_member
+  Widget buildFooter() {
+    return SizedBox.shrink();
   }
 
   @override
