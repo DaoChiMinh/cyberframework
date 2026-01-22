@@ -38,6 +38,7 @@ export 'package:cyberframework/Controller/cyberotpcontroller.dart';
 export 'package:cyberframework/Controller/cyberotp.dart';
 export 'package:cyberframework/Controller/cyberswitchbutton.dart';
 export 'package:cyberframework/Controller/cybercupertinoactionsheet.dart';
+export 'package:cyberframework/Controller/cyberviewfile.dart';
 //cybersignaturecontroller
 export 'package:cyberframework/Controller/cyberfullscreensignatureviewer.dart';
 export 'package:cyberframework/Controller/cybersignaturepad.dart';
