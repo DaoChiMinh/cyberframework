@@ -32,7 +32,7 @@ abstract class CyberFormchklist extends CyberForm {
     if (pageIndex > 1) m_load = "0";
     List<String> _paras = strparameter.split("#");
     String _strparameter = strparameter;
-    if (_paras.length > 3) {
+    if (_paras.length > 7) {
       _paras[0] = m_load;
       _paras[1] = pageIndex.toString();
       _paras[3] = strSearch;
@@ -138,7 +138,7 @@ abstract class CyberFormchklist extends CyberForm {
           cyberActionPadding: EdgeInsets.symmetric(horizontal: 26, vertical: 8),
           //cyberActionCenterHor: true,
           cyberActionBottom: 16,
-          cyberActionRight: 0,
+          cyberActionRight: 16,
           cyberActions: isOne
               ? null
               : [
