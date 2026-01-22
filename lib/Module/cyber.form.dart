@@ -474,6 +474,8 @@ abstract class CyberForm {
     var (ds, isOk) = await context.callApiAndCheck(
       functionName: pcp_name,
       parameter: pstrparameter,
+      showLoading: showLoading,
+      showError: showError,
     );
     if (!isOk) return (null, false);
     if (ds == null) return (null, false);
