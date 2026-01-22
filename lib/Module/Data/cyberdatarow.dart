@@ -275,7 +275,7 @@ class CyberDataRow extends ChangeNotifier implements ICyberIdentifiable {
   void updateRowToRow(
     CyberDataRow sourceRow, {
     bool onlyChangedFields = false,
-    bool preserveOriginal = false,
+    bool preserveOriginal = true,
     List<String>? excludeFields,
     List<String>? includeFields,
   }) {
