@@ -1,7 +1,7 @@
 import 'package:cyberframework/cyberframework.dart';
 
 /// CyberCheckbox - Checkbox control với Internal Controller + Binding
-/// 
+///
 /// Hỗ trợ binding 2 chiều:
 /// ```dart
 /// CyberCheckbox(
@@ -14,10 +14,10 @@ class CyberCheckbox extends StatefulWidget {
   /// Value - có thể binding: dr.bind('is_active')
   /// Hỗ trợ: bool, int (0/1), String ("0"/"1", "true"/"false")
   final dynamic text;
-  
+
   /// Callback khi giá trị thay đổi
   final ValueChanged<bool>? onChanged;
-  
+
   /// Callback khi rời khỏi (blur)
   final Function(dynamic)? onLeaver;
 
@@ -55,11 +55,11 @@ class CyberCheckbox extends StatefulWidget {
 class _CyberCheckboxState extends State<CyberCheckbox> {
   // === INTERNAL CONTROLLER ===
   late final _InternalCheckboxController _controller;
-  
+
   // === BINDING CONTEXT ===
   CyberDataRow? _boundRow;
   String? _boundField;
-  
+
   // === VISIBILITY BINDING ===
   CyberDataRow? _visibilityBoundRow;
   String? _visibilityBoundField;
@@ -70,17 +70,17 @@ class _CyberCheckboxState extends State<CyberCheckbox> {
   @override
   void initState() {
     super.initState();
-    
+
     // Khởi tạo internal controller
     _controller = _InternalCheckboxController();
-    
+
     // Parse bindings
     _parseBinding();
     _parseVisibilityBinding();
-    
+
     // Sync initial value
     _syncFromWidget();
-    
+
     // Listen to controller changes
     _controller.addListener(_onControllerChanged);
   }
@@ -88,7 +88,7 @@ class _CyberCheckboxState extends State<CyberCheckbox> {
   @override
   void didUpdateWidget(CyberCheckbox oldWidget) {
     super.didUpdateWidget(oldWidget);
-    
+
     // Re-parse bindings nếu properties thay đổi
     if (widget.text != oldWidget.text) {
       _parseBinding();
@@ -96,7 +96,7 @@ class _CyberCheckboxState extends State<CyberCheckbox> {
     if (widget.isVisible != oldWidget.isVisible) {
       _parseVisibilityBinding();
     }
-    
+
     // Sync values
     _syncFromWidget();
   }
@@ -105,10 +105,10 @@ class _CyberCheckboxState extends State<CyberCheckbox> {
   void dispose() {
     _controller.removeListener(_onControllerChanged);
     _controller.dispose();
-    
+
     // Cleanup bindings
     _boundRow?.removeListener(_onBindingChanged);
-    
+
     super.dispose();
   }
 
@@ -123,7 +123,7 @@ class _CyberCheckboxState extends State<CyberCheckbox> {
       _boundRow = null;
       _boundField = null;
     }
-    
+
     // Parse new binding
     if (widget.text is CyberBindingExpression) {
       final expr = widget.text as CyberBindingExpression;
@@ -151,14 +151,14 @@ class _CyberCheckboxState extends State<CyberCheckbox> {
   /// Sync từ widget properties vào controller
   void _syncFromWidget() {
     if (_isInternalUpdate) return;
-    
+
     _isInternalUpdate = true;
-    
+
     final value = _extractValue(widget.text);
     if (_controller.value != value) {
       _controller._value = value;
     }
-    
+
     _isInternalUpdate = false;
   }
 
@@ -166,45 +166,47 @@ class _CyberCheckboxState extends State<CyberCheckbox> {
   void _onBindingChanged() {
     if (_isInternalUpdate || !mounted) return;
     if (_boundRow == null || _boundField == null) return;
-    
+
     _isInternalUpdate = true;
-    
+
     final newValue = _parseBool(_boundRow![_boundField!]);
     if (_controller.value != newValue) {
       _controller._value = newValue;
       _controller.notifyListeners();
     }
-    
+
     _isInternalUpdate = false;
   }
 
   /// Sync từ controller vào binding (khi user click checkbox)
   void _syncToBinding(bool newValue) {
     if (_isInternalUpdate) return;
-    
+
     _isInternalUpdate = true;
-    
+
     // Update controller
     _controller._value = newValue;
-    
+
     // Update binding - preserve original type
     if (_boundRow != null && _boundField != null) {
       final originalValue = _boundRow![_boundField!];
-      
+
       // Preserve type: String → "0"/"1", int → 0/1, bool → bool
       if (originalValue is String) {
         _boundRow![_boundField!] = newValue ? "1" : "0";
       } else if (originalValue is int) {
         _boundRow![_boundField!] = newValue ? 1 : 0;
+      } else if (originalValue is double) {
+        _boundRow![_boundField!] = newValue ? 1.0 : 0.0;
       } else {
         _boundRow![_boundField!] = newValue;
       }
     }
-    
+
     // Callbacks
     widget.onChanged?.call(newValue);
     widget.onLeaver?.call(newValue);
-    
+
     _isInternalUpdate = false;
     _controller.notifyListeners();
   }
@@ -236,6 +238,7 @@ class _CyberCheckboxState extends State<CyberCheckbox> {
     if (value == null) return false;
     if (value is bool) return value;
     if (value is int) return value == 1;
+    if (value is double) return value.toInt() == 1;
     if (value is String) {
       final trimmed = value.trim().toLowerCase();
       if (trimmed == "1" || trimmed == "true") return true;
@@ -262,7 +265,7 @@ class _CyberCheckboxState extends State<CyberCheckbox> {
 
   void _toggleValue() {
     if (!widget.enabled) return;
-    
+
     final newValue = !_controller.value;
     _syncToBinding(newValue);
   }
@@ -352,7 +355,6 @@ class _InternalCheckboxController extends ChangeNotifier {
   bool _value = false;
 
   bool get value => _value;
-
 }
 
 // ============================================================================
