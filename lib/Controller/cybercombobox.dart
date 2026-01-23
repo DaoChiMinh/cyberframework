@@ -919,7 +919,10 @@ class _CyberComboBoxState extends State<CyberComboBox> {
                 widget.borderRadius?.toDouble() ?? 4.0,
               ),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 decoration: _buildDecoration(isEnabled),
                 child: Row(
                   children: [
