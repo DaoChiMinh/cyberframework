@@ -1,3 +1,7 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/material.dart';
 import 'package:cyberframework/cyberframework.dart';
 
 // ============================================================================
@@ -7,16 +11,18 @@ import 'package:cyberframework/cyberframework.dart';
 // Sử dụng:
 // ```dart
 // CyberCarInspection(
-//   image: NetworkImage('url') hoặc AssetImage('path'),
-//   dtType: dtLoaiLoi,   // CyberDataTable: Ma_Loi, Ten_Loi, Mau_Sac, Icon
-//   dtData: dtDiemLoi,   // CyberDataTable: Ma_Loi, X, Y, WidthImg, HeightImg
-//   onDataChanged: () => setState(() {}),
+//   image: 'https://example.com/car.png',
+//   dtType: dtLoaiLoi,
+//   dtData: dtDiemLoi,
+//   // Custom column keys
+//   codeField: 'Ma_Loi',
+//   nameField: 'Ten_Loi',
+//   colorField: 'Mau_Sac',
+//   iconField: 'Icon',
+//   // Hoặc custom item builder
+//   itemBuilder: (row, isSelected, onTap) => MyCustomWidget(...),
 // )
 // ```
-//
-// Thao tác:
-// - Chọn loại lỗi → Click vị trí trống → Thêm điểm mới vào dtData
-// - Click vào icon lỗi đã có → Xóa điểm khỏi dtData
 // ============================================================================
 
 /// Controller để quản lý CyberCarInspection
@@ -37,18 +43,79 @@ class CyberCarInspectionController extends ChangeNotifier {
   }
 }
 
+/// Callback để build custom item trong danh sách loại lỗi
+typedef DefectTypeItemBuilder =
+    Widget Function(CyberDataRow row, bool isSelected, VoidCallback onTap);
+
+/// Callback để build custom marker trên hình ảnh
+typedef DefectMarkerBuilder =
+    Widget Function(CyberDataRow dataRow, CyberDataRow? typeRow, double size);
+
 /// Widget chính CyberCarInspection
 class CyberCarInspection extends StatefulWidget {
-  /// Hình ảnh xe (ImageProvider)
-  final ImageProvider? image;
+  /// Hình ảnh xe - hỗ trợ nhiều loại:
+  /// - String: URL, file path, hoặc base64
+  /// - Uint8List: byte array
+  /// - List<int>: byte array
+  /// - ImageProvider: NetworkImage, AssetImage, FileImage, MemoryImage
+  final dynamic image;
 
   /// Bảng loại lỗi
-  /// Columns: Ma_Loi (String), Ten_Loi (String), Mau_Sac (int 0xFFxxxxxx), Icon (String)
   final CyberDataTable dtType;
 
   /// Bảng dữ liệu điểm lỗi
-  /// Columns: Ma_Loi (String), X (double), Y (double), WidthImg (double), HeightImg (double)
   final CyberDataTable dtData;
+
+  // ========================
+  // COLUMN KEYS - dtType
+  // ========================
+
+  /// Tên cột mã lỗi trong dtType (default: 'Ma_Loi')
+  final String codeField;
+
+  /// Tên cột tên lỗi trong dtType (default: 'Ten_Loi')
+  final String nameField;
+
+  /// Tên cột màu sắc trong dtType (default: 'Mau_Sac')
+  final String colorField;
+
+  /// Tên cột icon trong dtType (default: 'Icon')
+  final String iconField;
+  final String iconcolor;
+  // ========================
+  // COLUMN KEYS - dtData
+  // ========================
+
+  /// Tên cột mã lỗi trong dtData (default: 'Ma_Loi')
+  final String dataCodeField;
+
+  /// Tên cột X trong dtData (default: 'X')
+  final String xField;
+
+  /// Tên cột Y trong dtData (default: 'Y')
+  final String yField;
+
+  /// Tên cột chiều rộng ảnh trong dtData (default: 'WidthImg')
+  final String widthField;
+
+  /// Tên cột chiều cao ảnh trong dtData (default: 'HeightImg')
+  final String heightField;
+
+  // ========================
+  // CUSTOM BUILDERS
+  // ========================
+
+  /// Custom builder cho item trong danh sách loại lỗi
+  /// Nếu null, sử dụng default builder
+  final DefectTypeItemBuilder? itemBuilder;
+
+  /// Custom builder cho marker trên hình ảnh
+  /// Nếu null, sử dụng default builder
+  final DefectMarkerBuilder? markerBuilder;
+
+  // ========================
+  // OTHER OPTIONS
+  // ========================
 
   /// Controller (optional)
   final CyberCarInspectionController? controller;
@@ -71,11 +138,39 @@ class CyberCarInspection extends StatefulWidget {
   /// Hiển thị thống kê
   final bool showSummary;
 
+  /// Chiều cao placeholder khi không có ảnh
+  final double placeholderHeight;
+
+  /// Padding cho type selector
+  final EdgeInsets typeSelectorPadding;
+
+  /// Spacing giữa các item trong type selector
+  final double itemSpacing;
+
+  /// Run spacing cho type selector
+  final double itemRunSpacing;
+
   const CyberCarInspection({
     super.key,
     this.image,
     required this.dtType,
     required this.dtData,
+    // Column keys - dtType
+    this.codeField = 'Ma_Loi',
+    this.nameField = 'Ten_Loi',
+    this.colorField = 'backcolor',
+    this.iconField = 'Icon',
+    this.iconcolor = 'textcolor',
+    // Column keys - dtData
+    this.dataCodeField = 'Ma_Loi',
+    this.xField = 'X',
+    this.yField = 'Y',
+    this.widthField = 'WidthImg',
+    this.heightField = 'HeightImg',
+    // Custom builders
+    this.itemBuilder,
+    this.markerBuilder,
+    // Other options
     this.controller,
     this.enabled = true,
     this.iconSize = 28,
@@ -83,6 +178,13 @@ class CyberCarInspection extends StatefulWidget {
     this.borderRadius = 8,
     this.showTypeSelector = true,
     this.showSummary = true,
+    this.placeholderHeight = 300,
+    this.typeSelectorPadding = const EdgeInsets.symmetric(
+      horizontal: 12,
+      vertical: 8,
+    ),
+    this.itemSpacing = 12,
+    this.itemRunSpacing = 8,
   });
 
   @override
@@ -95,14 +197,26 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
   late CyberCarInspectionController _controller;
   bool _isInternalController = false;
 
+  ImageProvider? _imageProvider;
+  dynamic _lastImageInput;
+
   @override
   void initState() {
     super.initState();
     _controller = widget.controller ?? CyberCarInspectionController();
     _isInternalController = widget.controller == null;
     _controller.addListener(_onControllerChanged);
+    _updateImageProvider();
 
     WidgetsBinding.instance.addPostFrameCallback((_) => _updateImageSize());
+  }
+
+  @override
+  void didUpdateWidget(CyberCarInspection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.image != _lastImageInput) {
+      _updateImageProvider();
+    }
   }
 
   @override
@@ -112,6 +226,82 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
       _controller.dispose();
     }
     super.dispose();
+  }
+
+  void _updateImageProvider() {
+    _lastImageInput = widget.image;
+    _imageProvider = _resolveImageProvider(widget.image);
+  }
+
+  ImageProvider? _resolveImageProvider(dynamic image) {
+    if (image == null) return null;
+
+    if (image is ImageProvider) return image;
+
+    if (image is Uint8List) return MemoryImage(image);
+
+    if (image is List<int>) return MemoryImage(Uint8List.fromList(image));
+
+    if (image is String) {
+      final str = image.trim();
+      if (str.isEmpty) return null;
+
+      // Base64 với data URI prefix
+      if (str.startsWith('data:image')) {
+        try {
+          final base64Str = str.split(',').last;
+          return MemoryImage(base64Decode(base64Str));
+        } catch (e) {
+          debugPrint('❌ Error decoding data URI: $e');
+          return null;
+        }
+      }
+
+      // URL
+      if (str.startsWith('http://') || str.startsWith('https://')) {
+        return NetworkImage(str);
+      }
+
+      // File path
+      if (str.startsWith('/') ||
+          str.contains(':\\') ||
+          str.startsWith('file://')) {
+        final filePath = str.startsWith('file://') ? str.substring(7) : str;
+        final file = File(filePath);
+        if (file.existsSync()) return FileImage(file);
+        return null;
+      }
+
+      // Asset path
+      if (str.startsWith('assets/') || str.startsWith('asset/')) {
+        return AssetImage(str);
+      }
+
+      // Base64 thuần
+      if (_isValidBase64(str)) {
+        try {
+          return MemoryImage(base64Decode(str));
+        } catch (e) {
+          debugPrint('❌ Error decoding base64: $e');
+          return null;
+        }
+      }
+
+      return AssetImage(str);
+    }
+
+    return null;
+  }
+
+  bool _isValidBase64(String str) {
+    final cleaned = str.replaceAll(RegExp(r'\s'), '');
+    if (cleaned.isEmpty || cleaned.length < 20) return false;
+
+    final base64Regex = RegExp(r'^[A-Za-z0-9+/]*={0,2}$');
+    if (!base64Regex.hasMatch(cleaned)) return false;
+
+    final imagePatterns = ['iVBOR', '/9j/', 'R0lGOD', 'UklGR', 'Qk0'];
+    return imagePatterns.any((p) => cleaned.startsWith(p));
   }
 
   void _onControllerChanged() {
@@ -126,7 +316,6 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
     }
   }
 
-  /// Xử lý tap trên hình ảnh
   void _handleTap(TapDownDetails details) {
     if (!widget.enabled) return;
 
@@ -134,20 +323,15 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
     if (_imageSize == null) return;
 
     final tapPosition = details.localPosition;
-
-    // Kiểm tra tap vào điểm lỗi đã có không
     final tappedIndex = _findTappedPointIndex(tapPosition);
 
     if (tappedIndex != null) {
-      // Click vào điểm lỗi → Xóa
       _removePoint(tappedIndex);
     } else if (_controller.selectedDefectCode != null) {
-      // Click vị trí trống + đã chọn loại lỗi → Thêm mới
       _addPoint(tapPosition);
     }
   }
 
-  /// Tìm index của điểm lỗi tại vị trí tap
   int? _findTappedPointIndex(Offset tapPosition) {
     if (_imageSize == null) return null;
 
@@ -156,31 +340,27 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
     for (int i = 0; i < widget.dtData.rowCount; i++) {
       final row = widget.dtData[i];
 
-      final x = row.getDouble('X');
-      final y = row.getDouble('Y');
-      final widthImg = row.getDouble('WidthImg');
-      final heightImg = row.getDouble('HeightImg');
+      final x = row.getDouble(widget.xField);
+      final y = row.getDouble(widget.yField);
+      final widthImg = row.getDouble(widget.widthField);
+      final heightImg = row.getDouble(widget.heightField);
 
-      // Tính vị trí thực tế
       final actualX = widthImg > 0 ? (x / widthImg) * _imageSize!.width : x;
       final actualY = heightImg > 0 ? (y / heightImg) * _imageSize!.height : y;
 
       final distance = (Offset(actualX, actualY) - tapPosition).distance;
-      if (distance <= hitRadius) {
-        return i;
-      }
+      if (distance <= hitRadius) return i;
     }
     return null;
   }
 
-  /// Thêm điểm lỗi mới
   void _addPoint(Offset position) {
     final newRow = widget.dtData.newRow();
-    newRow['Ma_Loi'] = _controller.selectedDefectCode;
-    newRow['X'] = position.dx;
-    newRow['Y'] = position.dy;
-    newRow['WidthImg'] = _imageSize!.width;
-    newRow['HeightImg'] = _imageSize!.height;
+    newRow[widget.dataCodeField] = _controller.selectedDefectCode;
+    newRow[widget.xField] = position.dx;
+    newRow[widget.yField] = position.dy;
+    newRow[widget.widthField] = _imageSize!.width;
+    newRow[widget.heightField] = _imageSize!.height;
 
     widget.dtData.addRow(newRow);
 
@@ -188,17 +368,16 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
     widget.onDataChanged?.call();
   }
 
-  /// Xóa điểm lỗi
   void _removePoint(int index) {
     widget.dtData.removeAt(index);
-
     setState(() {});
     widget.onDataChanged?.call();
   }
 
-  /// Lấy thông tin loại lỗi từ dtType
   CyberDataRow? _getDefectType(String code) {
-    return widget.dtType.findRow((row) => row.getString('Ma_Loi') == code);
+    return widget.dtType.findRow(
+      (row) => row.getString(widget.codeField) == code,
+    );
   }
 
   @override
@@ -207,16 +386,11 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Selector loại lỗi
         if (widget.enabled && widget.showTypeSelector) ...[
           _buildDefectTypeSelector(),
           const SizedBox(height: 8),
         ],
-
-        // Hình ảnh với các điểm lỗi
         _buildImageWithDefects(),
-
-        // Thống kê
         if (widget.showSummary && widget.dtData.rowCount > 0) ...[
           const SizedBox(height: 12),
           _buildSummary(),
@@ -227,59 +401,76 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
 
   Widget _buildDefectTypeSelector() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: widget.typeSelectorPadding,
       decoration: BoxDecoration(
         color: Colors.grey[100],
         borderRadius: BorderRadius.circular(8),
       ),
       child: Wrap(
-        spacing: 12,
-        runSpacing: 8,
+        spacing: widget.itemSpacing,
+        runSpacing: widget.itemRunSpacing,
         children: widget.dtType.rows.map((row) {
-          final code = row.getString('Ma_Loi');
-          final name = row.getString('Ten_Loi');
-          final color = row.getInt('Mau_Sac');
-          final icon = row.getString('Icon');
+          final code = row.getString(widget.codeField);
           final isSelected = _controller.selectedDefectCode == code;
 
-          return InkWell(
-            onTap: () {
-              _controller.selectedDefectCode = isSelected ? null : code;
-            },
-            borderRadius: BorderRadius.circular(8),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: isSelected ? Colors.blue.withOpacity(0.1) : null,
-                borderRadius: BorderRadius.circular(8),
-                border: isSelected
-                    ? Border.all(color: Colors.blue, width: 1.5)
-                    : null,
+          // Sử dụng custom itemBuilder nếu có
+          if (widget.itemBuilder != null) {
+            return widget.itemBuilder!(
+              row,
+              isSelected,
+              () => _controller.selectedDefectCode = isSelected ? null : code,
+            );
+          }
+
+          // Default item builder
+          return _buildDefaultTypeItem(row, isSelected, code);
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildDefaultTypeItem(CyberDataRow row, bool isSelected, String code) {
+    final name = row.getString(widget.nameField);
+    final _color = widget.colorField;
+    final _iconcolor = widget.iconcolor;
+    final icon = row.getString(widget.iconField);
+
+    return InkWell(
+      onTap: () => _controller.selectedDefectCode = isSelected ? null : code,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.blue.withOpacity(0.1) : null,
+          borderRadius: BorderRadius.circular(8),
+          border: isSelected
+              ? Border.all(color: Colors.blue, width: 1.5)
+              : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            DefectIcon(
+              color: row[_color].toString().parseColor(
+                defaultColor: Colors.grey,
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _DefectIcon(
-                    color: color != 0 ? Color(color) : Colors.grey,
-                    icon: icon,
-                    size: 24,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    name,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: isSelected
-                          ? FontWeight.w600
-                          : FontWeight.normal,
-                      color: isSelected ? Colors.blue[700] : Colors.black87,
-                    ),
-                  ),
-                ],
+              iconcolor: row[_iconcolor].toString().parseColor(
+                defaultColor: Colors.grey,
+              ),
+              icon: icon,
+              size: 24,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              name,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                color: isSelected ? Colors.blue[700] : Colors.black87,
               ),
             ),
-          );
-        }).toList(),
+          ],
+        ),
       ),
     );
   }
@@ -300,21 +491,28 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
               borderRadius: BorderRadius.circular(widget.borderRadius),
               child: Stack(
                 children: [
-                  // Hình ảnh
-                  if (widget.image != null)
+                  if (_imageProvider != null)
                     Image(
-                      image: widget.image!,
+                      image: _imageProvider!,
                       fit: BoxFit.contain,
                       width: double.infinity,
-                      errorBuilder: (_, __, ___) => _buildPlaceholder(),
+                      errorBuilder: (_, __, ___) =>
+                          _buildPlaceholder(error: true),
+                      frameBuilder:
+                          (context, child, frame, wasSynchronouslyLoaded) {
+                            if (frame != null) {
+                              WidgetsBinding.instance.addPostFrameCallback(
+                                (_) => _updateImageSize(),
+                              );
+                            }
+                            return child;
+                          },
                     )
                   else
                     _buildPlaceholder(),
 
-                  // Các điểm lỗi
                   if (_imageSize != null) ..._buildDefectMarkers(),
 
-                  // Hướng dẫn
                   if (widget.enabled && _controller.selectedDefectCode != null)
                     Positioned(
                       top: 8,
@@ -358,17 +556,24 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
     );
   }
 
-  Widget _buildPlaceholder() {
+  Widget _buildPlaceholder({bool error = false}) {
     return Container(
       width: double.infinity,
-      height: 300,
+      height: widget.placeholderHeight,
       color: Colors.grey[200],
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.directions_car, size: 64, color: Colors.grey[400]),
+          Icon(
+            error ? Icons.broken_image : Icons.directions_car,
+            size: 64,
+            color: Colors.grey[400],
+          ),
           const SizedBox(height: 8),
-          Text('Chưa có hình ảnh', style: TextStyle(color: Colors.grey[500])),
+          Text(
+            error ? 'Không thể tải hình ảnh' : 'Chưa có hình ảnh',
+            style: TextStyle(color: Colors.grey[500]),
+          ),
         ],
       ),
     );
@@ -380,22 +585,17 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
     for (int i = 0; i < widget.dtData.rowCount; i++) {
       final row = widget.dtData[i];
 
-      final code = row.getString('Ma_Loi');
-      final x = row.getDouble('X');
-      final y = row.getDouble('Y');
-      final widthImg = row.getDouble('WidthImg');
-      final heightImg = row.getDouble('HeightImg');
+      final code = row.getString(widget.dataCodeField);
+      final x = row.getDouble(widget.xField);
+      final y = row.getDouble(widget.yField);
+      final widthImg = row.getDouble(widget.widthField);
+      final heightImg = row.getDouble(widget.heightField);
 
-      // Tính vị trí thực tế
       final actualX = widthImg > 0 ? (x / widthImg) * _imageSize!.width : x;
       final actualY = heightImg > 0 ? (y / heightImg) * _imageSize!.height : y;
 
-      // Lấy thông tin loại lỗi
       final defectType = _getDefectType(code);
-      final color = defectType?.getInt('Mau_Sac') ?? 0xFF888888;
-      final icon = defectType?.getString('Icon') ?? '';
 
-      // Điều chỉnh để icon nằm giữa điểm
       final adjustedX = (actualX - widget.iconSize / 2).clamp(
         0.0,
         _imageSize!.width - widget.iconSize,
@@ -405,30 +605,40 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
         _imageSize!.height - widget.iconSize,
       );
 
-      markers.add(
-        Positioned(
-          left: adjustedX,
-          top: adjustedY,
-          child: _DefectIcon(
-            color: Color(color),
-            icon: icon,
-            size: widget.iconSize,
+      Widget marker;
+
+      // Sử dụng custom markerBuilder nếu có
+      if (widget.markerBuilder != null) {
+        marker = widget.markerBuilder!(row, defectType, widget.iconSize);
+      } else {
+        // Default marker
+        final _color = defectType?.getString(widget.colorField) ?? '';
+        final _iconcolor = defectType?.getString(widget.iconcolor) ?? '';
+        final icon = defectType?.getString(widget.iconField) ?? '';
+
+        marker = DefectIcon(
+          color: _color.toString().parseColor(defaultColor: Colors.grey),
+          iconcolor: _iconcolor.toString().parseColor(
+            defaultColor: Colors.grey,
           ),
-        ),
-      );
+          icon: icon,
+          size: 24,
+        );
+      }
+
+      markers.add(Positioned(left: adjustedX, top: adjustedY, child: marker));
     }
 
     return markers;
   }
 
   Widget _buildSummary() {
-    // Nhóm theo loại lỗi
     final summary = <String, int>{};
     for (int i = 0; i < widget.dtData.rowCount; i++) {
       final row = widget.dtData[i];
-      final code = row.getString('Ma_Loi');
+      final code = row.getString(widget.dataCodeField);
       final defectType = _getDefectType(code);
-      final name = defectType?.getString('Ten_Loi') ?? code;
+      final name = defectType?.getString(widget.nameField) ?? code;
       summary[name] = (summary[name] ?? 0) + 1;
     }
 
@@ -476,13 +686,19 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
   }
 }
 
-/// Widget hiển thị icon loại lỗi
-class _DefectIcon extends StatelessWidget {
+/// Widget hiển thị icon loại lỗi - Public để có thể reuse
+class DefectIcon extends StatelessWidget {
   final Color color;
   final String icon;
   final double size;
-
-  const _DefectIcon({required this.color, required this.icon, this.size = 28});
+  final Color iconcolor;
+  const DefectIcon({
+    super.key,
+    required this.color,
+    required this.icon,
+    required this.iconcolor,
+    this.size = 28,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -507,78 +723,58 @@ class _DefectIcon extends StatelessWidget {
   Widget _buildIconContent() {
     final isLight = color.computeLuminance() > 0.5;
     final iconColor = isLight ? Colors.black87 : Colors.white;
+    return CyberLabel(
+      text: icon,
+      isIcon: true,
+      style: TextStyle(fontSize: size * 0.65, color: iconColor),
+    );
+  }
+}
 
-    switch (icon.toLowerCase()) {
-      case 'loi_lom':
-      case 'circle':
-        return Container(
-          width: size * 0.55,
-          height: size * 0.55,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: iconColor, width: 2),
-          ),
-        );
+// ============================================================================
+// HELPER
+// ============================================================================
 
-      case 'troc_rop':
-      case 'dots':
-        return SizedBox(
-          width: size * 0.6,
-          height: size * 0.6,
-          child: GridView.count(
-            crossAxisCount: 3,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 2,
-            crossAxisSpacing: 2,
-            children: List.generate(
-              9,
-              (_) => Container(
-                decoration: BoxDecoration(
-                  color: iconColor,
-                  borderRadius: BorderRadius.circular(1),
-                ),
-              ),
-            ),
-          ),
-        );
+class CyberImageHelper {
+  static String bytesToBase64(Uint8List bytes) => base64Encode(bytes);
 
-      case 'bien_mau':
-      case 'lines':
-        return Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(
-            3,
-            (i) => Container(
-              width: size * 0.55,
-              height: 2.5,
-              margin: EdgeInsets.only(bottom: i < 2 ? 2 : 0),
-              color: iconColor,
-            ),
-          ),
-        );
+  static String bytesToDataUri(
+    Uint8List bytes, {
+    String mimeType = 'image/png',
+  }) {
+    return 'data:$mimeType;base64,${base64Encode(bytes)}';
+  }
 
-      case 'vet_xuoc':
-      case 'star':
-        return Icon(Icons.star, color: iconColor, size: size * 0.6);
+  static Uint8List base64ToBytes(String base64Str) {
+    String cleaned = base64Str;
+    if (base64Str.startsWith('data:image')) {
+      cleaned = base64Str.split(',').last;
+    }
+    return base64Decode(cleaned);
+  }
 
-      case 'bui_son':
-      case 'plus':
-        return Icon(Icons.add, color: iconColor, size: size * 0.65);
+  static Future<Uint8List?> fileToBytes(String filePath) async {
+    try {
+      final file = File(filePath);
+      if (await file.exists()) return await file.readAsBytes();
+    } catch (e) {
+      debugPrint('❌ Error reading file: $e');
+    }
+    return null;
+  }
 
-      case 'khac':
-      case 'hash':
-        return Text(
-          '#',
-          style: TextStyle(
-            color: iconColor,
-            fontSize: size * 0.5,
-            fontWeight: FontWeight.bold,
-          ),
-        );
+  static Future<String?> fileToBase64(String filePath) async {
+    final bytes = await fileToBytes(filePath);
+    return bytes != null ? bytesToBase64(bytes) : null;
+  }
 
-      default:
-        return Icon(Icons.circle, color: iconColor, size: size * 0.5);
+  static Future<bool> bytesToFile(Uint8List bytes, String filePath) async {
+    try {
+      await File(filePath).writeAsBytes(bytes);
+      return true;
+    } catch (e) {
+      debugPrint('❌ Error writing file: $e');
+      return false;
     }
   }
 }
