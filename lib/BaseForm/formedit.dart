@@ -13,7 +13,10 @@ abstract class CyberBaseEdit extends CyberForm {
       EdgeInsets.symmetric(vertical: 24, horizontal: 16);
 
   /// Override để xử lý khi chuyển tab
-  void onTabChanged(int index) {}
+  @override
+  void onTabChanged(int index) {
+    print("aaaaaaaaaaaaaaaaa");
+  }
 
   @override
   Widget buildBody(BuildContext context) {

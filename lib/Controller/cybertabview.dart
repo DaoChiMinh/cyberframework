@@ -17,6 +17,11 @@ class CyberTab {
   final Color? badgeColor; // ✅ Màu badge
   final Widget? child; // ✅ View/Screen widget (thay thế viewName)
 
+  // ✅ NEW: Scroll options per tab
+  final bool scrollable; // Cho phép scroll content (false nếu có ListView)
+  final ScrollPhysics? scrollPhysics;
+  final EdgeInsets? contentPadding;
+
   const CyberTab({
     required this.label,
     this.viewName, // ✅ Optional
@@ -26,7 +31,10 @@ class CyberTab {
     this.icon,
     this.badgeCount,
     this.badgeColor,
-    this.child, // ✅ NEW: Direct widget view
+    this.child,
+    this.scrollable = false, // ✅ NEW: Mặc định có scroll
+    this.scrollPhysics,
+    this.contentPadding,
   }) : assert(
          viewName != null || child != null,
          'Either viewName or child must be provided',
@@ -113,13 +121,8 @@ class CyberTabView extends StatefulWidget {
   // ✅ Performance options
   final int maxCachedViews; // ✅ Limit cache size
 
-  // ✅ NEW: Ẩn/hiện thanh tab
+  // ✅ Ẩn/hiện thanh tab
   final bool showTabBar;
-
-  // ✅ NEW: Content scroll options
-  final bool contentScrollable; // Cho phép scroll content
-  final ScrollPhysics? contentScrollPhysics;
-  final EdgeInsets? contentPadding;
 
   const CyberTabView({
     super.key,
@@ -139,10 +142,7 @@ class CyberTabView extends StatefulWidget {
     this.animationDuration,
     this.animationCurve = Curves.easeInOut,
     this.maxCachedViews = 3,
-    this.showTabBar = true, // ✅ NEW: Mặc định hiện thanh tab
-    this.contentScrollable = true, // ✅ NEW: Mặc định có scroll
-    this.contentScrollPhysics,
-    this.contentPadding,
+    this.showTabBar = true,
   });
 
   @override
@@ -161,11 +161,13 @@ class _CyberTabViewState extends State<CyberTabView>
   final Map<int, double> _tabWidthCache = {};
 
   int _currentIndex = 0;
+  int _previousIndex = 0; // ✅ Track previous index for proper comparison
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
+    _previousIndex = widget.initialIndex;
     _scrollController = ScrollController();
 
     _tabController = TabController(
@@ -214,7 +216,7 @@ class _CyberTabViewState extends State<CyberTabView>
     return width;
   }
 
-  /// ✅ Handle animation changes during swipe
+  /// ✅ Handle animation changes during swipe (chỉ xử lý UI)
   void _handleAnimationChange() {
     if (!mounted) return;
 
@@ -290,6 +292,7 @@ class _CyberTabViewState extends State<CyberTabView>
         _tabController.dispose();
 
         _currentIndex = widget.initialIndex.clamp(0, widget.tabs.length - 1);
+        _previousIndex = _currentIndex;
         _tabController = TabController(
           length: widget.tabs.length,
           vsync: this,
@@ -305,6 +308,7 @@ class _CyberTabViewState extends State<CyberTabView>
     }
   }
 
+  /// ✅ FIXED: Handle tab change completed (xử lý dispose và callback)
   void _handleTabChange() {
     if (!mounted) return;
 
@@ -312,15 +316,20 @@ class _CyberTabViewState extends State<CyberTabView>
     if (_tabController.indexIsChanging) return;
 
     final newIndex = _tabController.index;
-    if (newIndex != _currentIndex) {
+
+    // ✅ So sánh với _previousIndex thay vì _currentIndex
+    if (newIndex != _previousIndex) {
       // ✅ Dispose old view if not keeping alive
-      if (!widget.keepAlive && _viewCache.containsKey(_currentIndex)) {
-        _viewCache[_currentIndex]?.dispose();
-        _viewCache.remove(_currentIndex);
+      if (!widget.keepAlive && _viewCache.containsKey(_previousIndex)) {
+        _viewCache[_previousIndex]?.dispose();
+        _viewCache.remove(_previousIndex);
       }
 
       // ✅ Notify callback
       widget.onTabChanged?.call(newIndex);
+
+      // ✅ Update previousIndex sau khi xử lý xong
+      _previousIndex = newIndex;
     }
   }
 
@@ -398,14 +407,15 @@ class _CyberTabViewState extends State<CyberTabView>
 
   /// ✅ OPTIMIZED: Build tab content with unified caching and auto scroll
   Widget _buildTabContent(int index) {
+    final tab = widget.tabs[index];
+
     // ✅ Return cached view if available
     final cachedWidget = _getFromCache(index);
     if (cachedWidget != null) {
-      return _wrapWithScroll(cachedWidget);
+      return _wrapWithScroll(cachedWidget, tab);
     }
 
     // ✅ Lazy load view
-    final tab = widget.tabs[index];
     final view =
         tab.child ??
         (tab.viewName != null
@@ -424,17 +434,18 @@ class _CyberTabViewState extends State<CyberTabView>
     // ✅ Cache if keepAlive
     if (widget.keepAlive) {
       _addToCache(index, view);
-      return _wrapWithScroll(_getFromCache(index)!);
+      return _wrapWithScroll(_getFromCache(index)!, tab);
     }
 
-    return _wrapWithScroll(view);
+    return _wrapWithScroll(view, tab);
   }
 
-  /// ✅ NEW: Wrap content với SingleChildScrollView để tránh overflow
-  Widget _wrapWithScroll(Widget child) {
-    if (!widget.contentScrollable) {
-      return widget.contentPadding != null
-          ? Padding(padding: widget.contentPadding!, child: child)
+  /// ✅ UPDATED: Wrap content với scroll dựa trên CyberTab.scrollable
+  Widget _wrapWithScroll(Widget child, CyberTab tab) {
+    // ✅ Không scroll nếu tab có ListView hoặc scrollable = false
+    if (!tab.scrollable) {
+      return tab.contentPadding != null
+          ? Padding(padding: tab.contentPadding!, child: child)
           : child;
     }
 
@@ -442,7 +453,7 @@ class _CyberTabViewState extends State<CyberTabView>
       builder: (context, constraints) {
         return SingleChildScrollView(
           physics:
-              widget.contentScrollPhysics ??
+              tab.scrollPhysics ??
               const AlwaysScrollableScrollPhysics(
                 parent: BouncingScrollPhysics(),
               ),
@@ -451,8 +462,8 @@ class _CyberTabViewState extends State<CyberTabView>
               minHeight: constraints.maxHeight,
               minWidth: constraints.maxWidth,
             ),
-            child: widget.contentPadding != null
-                ? Padding(padding: widget.contentPadding!, child: child)
+            child: tab.contentPadding != null
+                ? Padding(padding: tab.contentPadding!, child: child)
                 : child,
           ),
         );
@@ -571,12 +582,15 @@ class _CyberTabViewState extends State<CyberTabView>
     );
   }
 
-  /// ✅ NEW: Public method để chuyển tab programmatically
+  /// ✅ Public method để chuyển tab programmatically
   void switchToTab(int index) {
     if (index >= 0 && index < widget.tabs.length) {
       _tabController.animateTo(index);
     }
   }
+
+  /// ✅ Get current tab index
+  int get currentIndex => _currentIndex;
 }
 
 // ============================================================================
