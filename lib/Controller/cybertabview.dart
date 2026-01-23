@@ -111,7 +111,15 @@ class CyberTabView extends StatefulWidget {
   final Curve? animationCurve;
 
   // ✅ Performance options
-  final int maxCachedViews; // ✅ NEW: Limit cache size
+  final int maxCachedViews; // ✅ Limit cache size
+
+  // ✅ NEW: Ẩn/hiện thanh tab
+  final bool showTabBar;
+
+  // ✅ NEW: Content scroll options
+  final bool contentScrollable; // Cho phép scroll content
+  final ScrollPhysics? contentScrollPhysics;
+  final EdgeInsets? contentPadding;
 
   const CyberTabView({
     super.key,
@@ -130,7 +138,11 @@ class CyberTabView extends StatefulWidget {
     this.isScrollable = true,
     this.animationDuration,
     this.animationCurve = Curves.easeInOut,
-    this.maxCachedViews = 3, // ✅ NEW: Default 3 cached views
+    this.maxCachedViews = 3,
+    this.showTabBar = true, // ✅ NEW: Mặc định hiện thanh tab
+    this.contentScrollable = true, // ✅ NEW: Mặc định có scroll
+    this.contentScrollPhysics,
+    this.contentPadding,
   });
 
   @override
@@ -220,7 +232,7 @@ class _CyberTabViewState extends State<CyberTabView>
       _ensureViewLoaded(newIndex);
 
       // ✅ Auto scroll tab bar to show active tab
-      if (widget.isScrollable) {
+      if (widget.isScrollable && widget.showTabBar) {
         _scrollToTab(newIndex);
       }
     }
@@ -384,12 +396,12 @@ class _CyberTabViewState extends State<CyberTabView>
     _viewCache.clear();
   }
 
-  /// ✅ OPTIMIZED: Build tab content with unified caching
+  /// ✅ OPTIMIZED: Build tab content with unified caching and auto scroll
   Widget _buildTabContent(int index) {
     // ✅ Return cached view if available
     final cachedWidget = _getFromCache(index);
     if (cachedWidget != null) {
-      return cachedWidget;
+      return _wrapWithScroll(cachedWidget);
     }
 
     // ✅ Lazy load view
@@ -412,10 +424,40 @@ class _CyberTabViewState extends State<CyberTabView>
     // ✅ Cache if keepAlive
     if (widget.keepAlive) {
       _addToCache(index, view);
-      return _getFromCache(index)!;
+      return _wrapWithScroll(_getFromCache(index)!);
     }
 
-    return view;
+    return _wrapWithScroll(view);
+  }
+
+  /// ✅ NEW: Wrap content với SingleChildScrollView để tránh overflow
+  Widget _wrapWithScroll(Widget child) {
+    if (!widget.contentScrollable) {
+      return widget.contentPadding != null
+          ? Padding(padding: widget.contentPadding!, child: child)
+          : child;
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          physics:
+              widget.contentScrollPhysics ??
+              const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
+              ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: constraints.maxHeight,
+              minWidth: constraints.maxWidth,
+            ),
+            child: widget.contentPadding != null
+                ? Padding(padding: widget.contentPadding!, child: child)
+                : child,
+          ),
+        );
+      },
+    );
   }
 
   Widget _buildErrorWidget(CyberTab tab) {
@@ -509,14 +551,16 @@ class _CyberTabViewState extends State<CyberTabView>
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // ✅ Segmented Tab Bar
-        _buildTabBar(),
+        // ✅ Segmented Tab Bar (có thể ẩn/hiện)
+        if (widget.showTabBar) _buildTabBar(),
 
         // ✅ Tab Content
         Expanded(
           child: TabBarView(
             controller: _tabController,
-            physics: const BouncingScrollPhysics(),
+            physics: widget.showTabBar
+                ? const BouncingScrollPhysics()
+                : const NeverScrollableScrollPhysics(), // ✅ Disable swipe khi ẩn tab
             children: List.generate(
               widget.tabs.length,
               (index) => _buildTabContent(index),
@@ -525,6 +569,13 @@ class _CyberTabViewState extends State<CyberTabView>
         ),
       ],
     );
+  }
+
+  /// ✅ NEW: Public method để chuyển tab programmatically
+  void switchToTab(int index) {
+    if (index >= 0 && index < widget.tabs.length) {
+      _tabController.animateTo(index);
+    }
   }
 }
 
