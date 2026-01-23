@@ -243,6 +243,8 @@ class _CyberCheckboxState extends State<CyberCheckbox> {
       final trimmed = value.trim().toLowerCase();
       if (trimmed == "1" || trimmed == "true") return true;
       if (trimmed == "0" || trimmed == "false") return false;
+      if (trimmed == "1.0" || trimmed == "true") return true;
+      if (trimmed == "0.0" || trimmed == "false") return false;
       return false;
     }
     return false;
