@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:cyberframework/cyberframework.dart';
@@ -513,40 +514,40 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
 
                   if (_imageSize != null) ..._buildDefectMarkers(),
 
-                  if (widget.enabled && _controller.selectedDefectCode != null)
-                    Positioned(
-                      top: 8,
-                      left: 8,
-                      right: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.withOpacity(0.9),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.touch_app,
-                              color: Colors.white,
-                              size: 16,
-                            ),
-                            SizedBox(width: 6),
-                            Text(
-                              'Chạm vào vị trí lỗi trên hình',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                  // if (widget.enabled && _controller.selectedDefectCode != null)
+                  //   Positioned(
+                  //     top: 8,
+                  //     left: 8,
+                  //     right: 8,
+                  //     child: Container(
+                  //       padding: const EdgeInsets.symmetric(
+                  //         horizontal: 12,
+                  //         vertical: 6,
+                  //       ),
+                  //       decoration: BoxDecoration(
+                  //         color: Colors.blue.withOpacity(0.9),
+                  //         borderRadius: BorderRadius.circular(20),
+                  //       ),
+                  //       child: const Row(
+                  //         mainAxisSize: MainAxisSize.min,
+                  //         children: [
+                  //           Icon(
+                  //             Icons.touch_app,
+                  //             color: Colors.white,
+                  //             size: 16,
+                  //           ),
+                  //           SizedBox(width: 6),
+                  //           Text(
+                  //             'Chạm vào vị trí lỗi trên hình',
+                  //             style: TextStyle(
+                  //               color: Colors.white,
+                  //               fontSize: 12,
+                  //             ),
+                  //           ),
+                  //         ],
+                  //       ),
+                  //     ),
+                  //   ),
                 ],
               ),
             ),
@@ -596,14 +597,13 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
 
       final defectType = _getDefectType(code);
 
-      final adjustedX = (actualX - widget.iconSize / 2).clamp(
-        0.0,
-        _imageSize!.width - widget.iconSize,
-      );
-      final adjustedY = (actualY - widget.iconSize / 2).clamp(
-        0.0,
-        _imageSize!.height - widget.iconSize,
-      );
+      // FIX: Đảm bảo upper bound không bao giờ nhỏ hơn 0
+      // Tránh lỗi ArgumentError khi imageSize nhỏ hơn iconSize
+      final maxX = math.max(0.0, _imageSize!.width - widget.iconSize);
+      final maxY = math.max(0.0, _imageSize!.height - widget.iconSize);
+
+      final adjustedX = (actualX - widget.iconSize / 2).clamp(0.0, maxX);
+      final adjustedY = (actualY - widget.iconSize / 2).clamp(0.0, maxY);
 
       Widget marker;
 
@@ -622,7 +622,7 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
             defaultColor: Colors.grey,
           ),
           icon: icon,
-          size: 24,
+          size: widget.iconSize,
         );
       }
 
