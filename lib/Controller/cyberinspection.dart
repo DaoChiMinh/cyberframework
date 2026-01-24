@@ -45,8 +45,14 @@ class CyberCarInspectionController extends ChangeNotifier {
 }
 
 /// Callback để build custom item trong danh sách loại lỗi
+/// [count] là số lượng điểm lỗi của loại này
 typedef DefectTypeItemBuilder =
-    Widget Function(CyberDataRow row, bool isSelected, VoidCallback onTap);
+    Widget Function(
+      CyberDataRow row,
+      bool isSelected,
+      int count,
+      VoidCallback onTap,
+    );
 
 /// Callback để build custom marker trên hình ảnh
 typedef DefectMarkerBuilder =
@@ -136,9 +142,6 @@ class CyberCarInspection extends StatefulWidget {
   /// Hiển thị phần chọn loại lỗi
   final bool showTypeSelector;
 
-  /// Hiển thị thống kê
-  final bool showSummary;
-
   /// Chiều cao placeholder khi không có ảnh
   final double placeholderHeight;
 
@@ -178,7 +181,6 @@ class CyberCarInspection extends StatefulWidget {
     this.onDataChanged,
     this.borderRadius = 8,
     this.showTypeSelector = true,
-    this.showSummary = true,
     this.placeholderHeight = 300,
     this.typeSelectorPadding = const EdgeInsets.symmetric(
       horizontal: 12,
@@ -336,7 +338,8 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
   int? _findTappedPointIndex(Offset tapPosition) {
     if (_imageSize == null) return null;
 
-    final hitRadius = widget.iconSize / 2 + 8;
+    // Chỉ xóa khi click vào trong phạm vi icon
+    final hitRadius = widget.iconSize / 2;
 
     for (int i = 0; i < widget.dtData.rowCount; i++) {
       final row = widget.dtData[i];
@@ -381,6 +384,17 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
     );
   }
 
+  /// Đếm số lượng điểm lỗi theo mã
+  int _countDefectsByCode(String code) {
+    int count = 0;
+    for (int i = 0; i < widget.dtData.rowCount; i++) {
+      if (widget.dtData[i].getString(widget.dataCodeField) == code) {
+        count++;
+      }
+    }
+    return count;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -392,49 +406,110 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
           const SizedBox(height: 8),
         ],
         _buildImageWithDefects(),
-        if (widget.showSummary && widget.dtData.rowCount > 0) ...[
-          const SizedBox(height: 12),
-          _buildSummary(),
-        ],
       ],
     );
   }
 
   Widget _buildDefectTypeSelector() {
+    final totalDefects = widget.dtData.rowCount;
+    final hasSelection = _controller.selectedDefectCode != null;
+
     return Container(
       padding: widget.typeSelectorPadding,
       decoration: BoxDecoration(
         color: Colors.grey[100],
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Wrap(
-        spacing: widget.itemSpacing,
-        runSpacing: widget.itemRunSpacing,
-        children: widget.dtType.rows.map((row) {
-          final code = row.getString(widget.codeField);
-          final isSelected = _controller.selectedDefectCode == code;
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Tổng số điểm lỗi
+          Row(
+            children: [
+              Icon(Icons.error_outline, size: 18, color: Colors.grey[700]),
+              const SizedBox(width: 6),
+              Text(
+                'Tổng: $totalDefects điểm lỗi',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color: Colors.grey[700],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
 
-          // Sử dụng custom itemBuilder nếu có
-          if (widget.itemBuilder != null) {
-            return widget.itemBuilder!(
-              row,
-              isSelected,
-              () => _controller.selectedDefectCode = isSelected ? null : code,
-            );
-          }
+          // Danh sách loại lỗi
+          Wrap(
+            spacing: widget.itemSpacing,
+            runSpacing: widget.itemRunSpacing,
+            children: widget.dtType.rows.map((row) {
+              final code = row.getString(widget.codeField);
+              final isSelected = _controller.selectedDefectCode == code;
+              final count = _countDefectsByCode(code);
 
-          // Default item builder
-          return _buildDefaultTypeItem(row, isSelected, code);
-        }).toList(),
+              // Sử dụng custom itemBuilder nếu có
+              if (widget.itemBuilder != null) {
+                return widget.itemBuilder!(
+                  row,
+                  isSelected,
+                  count,
+                  () =>
+                      _controller.selectedDefectCode = isSelected ? null : code,
+                );
+              }
+
+              // Default item builder
+              return _buildDefaultTypeItem(row, isSelected, code, count);
+            }).toList(),
+          ),
+
+          // Hướng dẫn khi đã chọn loại lỗi
+          if (hasSelection) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.blue.withOpacity(0.3)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.touch_app, size: 16, color: Colors.blue[700]),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Chạm vào vị trí lỗi trên hình',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.blue[700],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
 
-  Widget _buildDefaultTypeItem(CyberDataRow row, bool isSelected, String code) {
+  Widget _buildDefaultTypeItem(
+    CyberDataRow row,
+    bool isSelected,
+    String code,
+    int count,
+  ) {
     final name = row.getString(widget.nameField);
     final _color = widget.colorField;
     final _iconcolor = widget.iconcolor;
     final icon = row.getString(widget.iconField);
+
+    // Hiển thị tên với số lượng nếu count > 0
+    final displayName = count > 0 ? '$name ($count)' : name;
 
     return InkWell(
       onTap: () => _controller.selectedDefectCode = isSelected ? null : code,
@@ -463,10 +538,12 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
             ),
             const SizedBox(width: 6),
             Text(
-              name,
+              displayName,
               style: TextStyle(
                 fontSize: 13,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                fontWeight: isSelected || count > 0
+                    ? FontWeight.w600
+                    : FontWeight.normal,
                 color: isSelected ? Colors.blue[700] : Colors.black87,
               ),
             ),
@@ -513,41 +590,6 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
                     _buildPlaceholder(),
 
                   if (_imageSize != null) ..._buildDefectMarkers(),
-
-                  // if (widget.enabled && _controller.selectedDefectCode != null)
-                  //   Positioned(
-                  //     top: 8,
-                  //     left: 8,
-                  //     right: 8,
-                  //     child: Container(
-                  //       padding: const EdgeInsets.symmetric(
-                  //         horizontal: 12,
-                  //         vertical: 6,
-                  //       ),
-                  //       decoration: BoxDecoration(
-                  //         color: Colors.blue.withOpacity(0.9),
-                  //         borderRadius: BorderRadius.circular(20),
-                  //       ),
-                  //       child: const Row(
-                  //         mainAxisSize: MainAxisSize.min,
-                  //         children: [
-                  //           Icon(
-                  //             Icons.touch_app,
-                  //             color: Colors.white,
-                  //             size: 16,
-                  //           ),
-                  //           SizedBox(width: 6),
-                  //           Text(
-                  //             'Chạm vào vị trí lỗi trên hình',
-                  //             style: TextStyle(
-                  //               color: Colors.white,
-                  //               fontSize: 12,
-                  //             ),
-                  //           ),
-                  //         ],
-                  //       ),
-                  //     ),
-                  //   ),
                 ],
               ),
             ),
@@ -630,59 +672,6 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
     }
 
     return markers;
-  }
-
-  Widget _buildSummary() {
-    final summary = <String, int>{};
-    for (int i = 0; i < widget.dtData.rowCount; i++) {
-      final row = widget.dtData[i];
-      final code = row.getString(widget.dataCodeField);
-      final defectType = _getDefectType(code);
-      final name = defectType?.getString(widget.nameField) ?? code;
-      summary[name] = (summary[name] ?? 0) + 1;
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey[200]!),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.analytics_outlined, size: 18, color: Colors.grey[700]),
-              const SizedBox(width: 6),
-              Text(
-                'Tổng: ${widget.dtData.rowCount} điểm lỗi',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey[700],
-                ),
-              ),
-            ],
-          ),
-          if (summary.isNotEmpty) ...[
-            const Divider(height: 16),
-            Wrap(
-              spacing: 16,
-              runSpacing: 4,
-              children: summary.entries
-                  .map(
-                    (e) => Text(
-                      '${e.key}: ${e.value}',
-                      style: const TextStyle(fontSize: 13),
-                    ),
-                  )
-                  .toList(),
-            ),
-          ],
-        ],
-      ),
-    );
   }
 }
 
