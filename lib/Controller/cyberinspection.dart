@@ -28,6 +28,10 @@ import 'package:cyberframework/cyberframework.dart';
 //   // Show download/share buttons
 //   showDownload: true,
 //   showShare: true,
+//   // Hỏi trước khi xóa
+//   isQuestDel: true,
+//   // Hiển thị nút xóa tất cả
+//   isClearAll: true,
 //   // Hoặc custom item builder
 //   itemBuilder: (row, isSelected, count, onTap) => MyCustomWidget(...),
 // )
@@ -75,6 +79,16 @@ class CyberCarInspectionController extends ChangeNotifier {
   /// Share hình ảnh
   Future<void> share(BuildContext context) async {
     await _state?._shareImage(context);
+  }
+
+  /// Xóa tất cả điểm lỗi
+  Future<void> clearAll(BuildContext context) async {
+    await _state?._clearAllPoints(context);
+  }
+
+  /// Xóa tất cả điểm lỗi theo mã loại
+  Future<void> clearByCode(BuildContext context, String code) async {
+    await _state?._clearDefectsByCode(context, code);
   }
 }
 
@@ -209,6 +223,16 @@ class CyberCarInspection extends StatefulWidget {
   /// Tên file khi export (không có extension)
   final String exportFileName;
 
+  // ========================
+  // DELETE OPTIONS
+  // ========================
+
+  /// Hỏi xác nhận trước khi xóa điểm lỗi
+  final bool isQuestDel;
+
+  /// Hiển thị nút xóa tất cả điểm lỗi (ở dòng tổng bên phải)
+  final bool isClearAll;
+
   const CyberCarInspection({
     super.key,
     this.image,
@@ -249,6 +273,9 @@ class CyberCarInspection extends StatefulWidget {
     this.strBase64,
     this.onExported,
     this.exportFileName = 'car_inspection',
+    // Delete options
+    this.isQuestDel = false,
+    this.isClearAll = false,
   });
 
   @override
@@ -394,7 +421,7 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
     final tappedIndex = _findTappedPointIndex(tapPosition);
 
     if (tappedIndex != null) {
-      _removePoint(tappedIndex);
+      _removePointWithConfirm(tappedIndex);
     } else if (_controller.selectedDefectCode != null) {
       _addPoint(tapPosition);
     }
@@ -437,10 +464,71 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
     widget.onDataChanged?.call();
   }
 
+  /// Xóa điểm lỗi với xác nhận (nếu isQuestDel = true)
+  Future<void> _removePointWithConfirm(int index) async {
+    if (widget.isQuestDel) {
+      // Lấy thông tin điểm lỗi để hiển thị
+      final row = widget.dtData[index];
+      final code = row.getString(widget.dataCodeField);
+      final defectType = _getDefectType(code);
+      final defectName = defectType?.getString(widget.nameField) ?? code;
+
+      final confirmed =
+          await setText(
+            'Bạn có chắc muốn xóa điểm lỗi "$defectName"?',
+            'Are you sure you want to delete "$defectName" defect?',
+          ).V_MsgBox(
+            context,
+            type: CyberMsgBoxType.warning,
+            confirmText: setText('Xóa', 'Delete'),
+            cancelText: setText('Hủy', 'Cancel'),
+          );
+
+      if (!confirmed) return;
+    }
+
+    _removePoint(index);
+  }
+
   void _removePoint(int index) {
     widget.dtData.removeAt(index);
     setState(() {});
     widget.onDataChanged?.call();
+  }
+
+  /// Xóa tất cả điểm lỗi
+  Future<void> _clearAllPoints(BuildContext context) async {
+    if (widget.dtData.rowCount == 0) {
+      setText(
+        'Không có điểm lỗi nào để xóa',
+        'No defects to clear',
+      ).showToast(toastType: CyberToastType.info);
+      return;
+    }
+
+    final confirmed =
+        await setText(
+          'Bạn có chắc muốn xóa tất cả ${widget.dtData.rowCount} điểm lỗi?',
+          'Are you sure you want to clear all ${widget.dtData.rowCount} defects?',
+        ).V_MsgBox(
+          context,
+          type: CyberMsgBoxType.warning,
+          confirmText: setText('Xóa tất cả', 'Clear All'),
+          cancelText: setText('Hủy', 'Cancel'),
+        );
+
+    if (!confirmed) return;
+
+    widget.dtData.clear();
+    setState(() {});
+    widget.onDataChanged?.call();
+
+    if (context.mounted) {
+      setText(
+        'Đã xóa tất cả điểm lỗi',
+        'All defects cleared',
+      ).showToast(toastType: CyberToastType.success);
+    }
   }
 
   CyberDataRow? _getDefectType(String code) {
@@ -638,7 +726,7 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
   /// Build export buttons (Download & Share)
   Widget _buildExportButtons(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
@@ -721,21 +809,26 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
+        spacing: 6,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Tổng số điểm lỗi
+          // Tổng số điểm lỗi + nút Clear All
           Row(
             children: [
               Icon(Icons.error_outline, size: 18, color: Colors.grey[700]),
               const SizedBox(width: 6),
               Text(
-                'Tổng: $totalDefects điểm lỗi',
+                '${setText('Tổng', 'Total')}: $totalDefects ${setText('điểm lỗi', 'defects')}',
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 13,
                   color: Colors.grey[700],
                 ),
               ),
+              const Spacer(),
+              // Nút Clear All
+              if (widget.isClearAll && widget.enabled && totalDefects > 0)
+                _buildClearAllButton(),
             ],
           ),
           const SizedBox(height: 8),
@@ -765,36 +858,166 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
             }).toList(),
           ),
 
-          // Hướng dẫn khi đã chọn loại lỗi
+          // Hướng dẫn khi đã chọn loại lỗi + nút xóa theo loại
           if (hasSelection) ...[
             const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.blue.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: Colors.blue.withOpacity(0.3)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.touch_app, size: 16, color: Colors.blue[700]),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Chạm vào vị trí lỗi trên hình',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.blue[700],
-                      fontWeight: FontWeight.w500,
-                    ),
+            Row(
+              children: [
+                // Hướng dẫn chạm
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
                   ),
-                ],
-              ),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.touch_app, size: 16, color: Colors.blue[700]),
+                      const SizedBox(width: 6),
+                      Text(
+                        setText(
+                          'Chạm vào vị trí lỗi trên hình',
+                          'Tap on defect location on image',
+                        ),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.blue[700],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Spacer(),
+                // Nút xóa tất cả theo loại đang chọn
+                _buildClearByTypeButton(),
+              ],
             ),
           ],
         ],
       ),
     );
+  }
+
+  /// Build nút Clear All
+  Widget _buildClearAllButton() {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _clearAllPoints(context),
+        borderRadius: BorderRadius.circular(6),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          // decoration: BoxDecoration(
+          //   color: Colors.red.withOpacity(0.1),
+          //   borderRadius: BorderRadius.circular(6),
+          //   border: Border.all(color: Colors.red.withOpacity(0.3)),
+          // ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.delete_sweep, size: 16, color: Colors.red[700]),
+              const SizedBox(width: 4),
+              Text(
+                setText('Xóa tất cả', 'Clear All'),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.red[700],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Build nút xóa tất cả theo loại đang chọn
+  Widget _buildClearByTypeButton() {
+    final selectedCode = _controller.selectedDefectCode;
+    if (selectedCode == null) return const SizedBox.shrink();
+
+    final count = _countDefectsByCode(selectedCode);
+    if (count == 0) return const SizedBox.shrink();
+
+    final defectType = _getDefectType(selectedCode);
+    final defectName = defectType?.getString(widget.nameField) ?? selectedCode;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _clearDefectsByCode(context, selectedCode),
+        borderRadius: BorderRadius.circular(6),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          // decoration: BoxDecoration(
+          //   color: Colors.orange.withOpacity(0.1),
+          //   borderRadius: BorderRadius.circular(6),
+          //   border: Border.all(color: Colors.orange.withOpacity(0.3)),
+          // ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.delete_outline, size: 16, color: Colors.orange[700]),
+              const SizedBox(width: 4),
+              Text(
+                '${setText('Xóa', 'Clear')} $defectName ($count)',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.orange[700],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Xóa tất cả điểm lỗi theo mã loại
+  Future<void> _clearDefectsByCode(BuildContext context, String code) async {
+    final count = _countDefectsByCode(code);
+    if (count == 0) return;
+
+    final defectType = _getDefectType(code);
+    final defectName = defectType?.getString(widget.nameField) ?? code;
+
+    final confirmed =
+        await setText(
+          'Bạn có chắc muốn xóa tất cả $count điểm lỗi "$defectName"?',
+          'Are you sure you want to clear all $count "$defectName" defects?',
+        ).V_MsgBox(
+          context,
+          type: CyberMsgBoxType.warning,
+          confirmText: setText('Xóa', 'Delete'),
+          cancelText: setText('Hủy', 'Cancel'),
+        );
+
+    if (!confirmed) return;
+
+    // Xóa từ cuối lên để tránh index bị lệch
+    for (int i = widget.dtData.rowCount - 1; i >= 0; i--) {
+      if (widget.dtData[i].getString(widget.dataCodeField) == code) {
+        widget.dtData.removeAt(i);
+      }
+    }
+
+    setState(() {});
+    widget.onDataChanged?.call();
+
+    if (context.mounted) {
+      setText(
+        'Đã xóa $count điểm lỗi "$defectName"',
+        'Cleared $count "$defectName" defects',
+      ).showToast(toastType: CyberToastType.success);
+    }
   }
 
   Widget _buildDefaultTypeItem(
@@ -914,7 +1137,9 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
           ),
           const SizedBox(height: 8),
           Text(
-            error ? 'Không thể tải hình ảnh' : 'Chưa có hình ảnh',
+            error
+                ? setText('Không thể tải hình ảnh', 'Cannot load image')
+                : setText('Chưa có hình ảnh', 'No image'),
             style: TextStyle(color: Colors.grey[500]),
           ),
         ],
