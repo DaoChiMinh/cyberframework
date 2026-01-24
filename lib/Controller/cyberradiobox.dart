@@ -3,16 +3,22 @@
 import 'package:cyberframework/cyberframework.dart';
 import 'package:flutter/material.dart';
 
-/// CyberRadioBox - Single radio button widget (Traditional Pattern)
+/// CyberRadioBox - Single radio button widget với multi-column hoặc single-column binding
 ///
-/// Triết lý:
+/// **Single-column mode (default - Traditional Pattern):**
 /// - Một binding cho cả group (text)
 /// - Mỗi radio có value riêng
 /// - Khi chọn: text = value của radio được chọn
 ///
+/// **Multi-column mode:**
+/// - Mỗi radio bind vào 1 column riêng trong CyberDataRow
+/// - Khi chọn: column = selectedValue (default: 1)
+/// - Khi không chọn: column = unselectedValue (default: 0)
+/// - Các radio cùng group sẽ tự động exclusive với nhau
+///
 /// Usage:
 /// ```dart
-/// // Sử dụng riêng lẻ
+/// // Single-column mode (default) - Traditional Pattern
 /// CyberRadioBox(
 ///   text: drEdit.bind("gender"),
 ///   group: "gender_group",
@@ -26,15 +32,33 @@ import 'package:flutter/material.dart';
 ///   value: "female",
 ///   label: "Nữ",
 /// )
+///
+/// // Multi-column mode - Mỗi radio bind column riêng
+/// // QUAN TRỌNG: Phải có cùng group để exclusive với nhau
+/// CyberRadioBox(
+///   text: drEdit.bind("is_car"),
+///   group: "vehicle_type",  // ← Cùng group
+///   isSingleColumn: false,
+///   label: "Ô tô",
+/// )
+///
+/// CyberRadioBox(
+///   text: drEdit.bind("is_motorcycle"),
+///   group: "vehicle_type",  // ← Cùng group
+///   isSingleColumn: false,
+///   label: "Xe máy",
+/// )
 /// ```
 class CyberRadioBox extends StatefulWidget {
   /// Binding đến field chứa giá trị được chọn (data binding)
   final dynamic text;
 
-  /// Tên nhóm để group các radio buttons với nhau (có thể binding)
+  /// Tên nhóm để group các radio buttons với nhau
+  /// QUAN TRỌNG: Trong multi-column mode, các radio cùng group sẽ exclusive với nhau
   final dynamic group;
 
-  /// Giá trị của radio này (khi được chọn, text sẽ = value) (có thể binding)
+  /// Giá trị của radio này (khi được chọn, text sẽ = value)
+  /// Chỉ dùng cho single-column mode (có thể binding)
   final dynamic value;
 
   /// Label hiển thị bên cạnh radio
@@ -64,11 +88,26 @@ class CyberRadioBox extends StatefulWidget {
   /// Visible binding
   final dynamic isVisible;
 
+  /// Chế độ single-column (tất cả radios bind vào 1 cột)
+  /// - true (default): Single-column mode - giống traditional radio pattern
+  /// - false: Multi-column mode - mỗi radio bind column riêng
+  final bool isSingleColumn;
+
+  /// Value khi được chọn (chỉ dùng cho multi-column mode, default: 1)
+  final dynamic selectedValue;
+
+  /// Value khi không được chọn (chỉ dùng cho multi-column mode, default: 0)
+  final dynamic unselectedValue;
+
+  /// Cho phép toggle (click lần nữa sẽ unselect)
+  /// Chỉ có tác dụng với multi-column mode khi không có group
+  final bool allowToggle;
+
   const CyberRadioBox({
     super.key,
     required this.text,
-    required this.group,
-    required this.value,
+    this.group,
+    this.value,
     this.label,
     this.labelStyle,
     this.enabled = true,
@@ -78,6 +117,10 @@ class CyberRadioBox extends StatefulWidget {
     this.activeColor,
     this.fillColor,
     this.size,
+    this.isSingleColumn = true,
+    this.selectedValue = 1,
+    this.unselectedValue = 0,
+    this.allowToggle = false,
   });
 
   @override
@@ -85,11 +128,18 @@ class CyberRadioBox extends StatefulWidget {
 }
 
 class _CyberRadioBoxState extends State<CyberRadioBox> {
+  // ============================================================================
+  // STATIC GROUP REGISTRY
+  // Để các radio trong cùng group biết về nhau (cho multi-column mode)
+  // ============================================================================
+  static final Map<String, Set<_CyberRadioBoxState>> _groupRegistry = {};
+
   CyberDataRow? _boundRow;
   String? _boundField;
   CyberDataRow? _visibilityBoundRow;
   String? _visibilityBoundField;
   bool _isUpdating = false;
+  String? _currentGroupKey;
 
   @override
   void initState() {
@@ -97,6 +147,7 @@ class _CyberRadioBoxState extends State<CyberRadioBox> {
     _parseBinding();
     _parseVisibilityBinding();
     _registerListeners();
+    _registerToGroup();
   }
 
   @override
@@ -112,13 +163,91 @@ class _CyberRadioBoxState extends State<CyberRadioBox> {
     if (widget.isVisible != oldWidget.isVisible) {
       _parseVisibilityBinding();
     }
+
+    // Re-register nếu group thay đổi
+    if (_getGroupKey() != _currentGroupKey) {
+      _unregisterFromGroup();
+      _registerToGroup();
+    }
   }
 
   @override
   void dispose() {
     _unregisterListeners();
+    _unregisterFromGroup();
     super.dispose();
   }
+
+  // ============================================================================
+  // GROUP REGISTRY MANAGEMENT
+  // ============================================================================
+
+  String? _getGroupKey() {
+    if (widget.group == null) return null;
+
+    // Support binding cho group
+    if (widget.group is CyberBindingExpression) {
+      final expr = widget.group as CyberBindingExpression;
+      try {
+        return expr.row[expr.fieldName]?.toString();
+      } catch (e) {
+        return null;
+      }
+    }
+    return widget.group.toString();
+  }
+
+  void _registerToGroup() {
+    _currentGroupKey = _getGroupKey();
+    if (_currentGroupKey == null) return;
+
+    _groupRegistry.putIfAbsent(_currentGroupKey!, () => {});
+    _groupRegistry[_currentGroupKey!]!.add(this);
+  }
+
+  void _unregisterFromGroup() {
+    if (_currentGroupKey == null) return;
+
+    _groupRegistry[_currentGroupKey!]?.remove(this);
+    if (_groupRegistry[_currentGroupKey!]?.isEmpty ?? false) {
+      _groupRegistry.remove(_currentGroupKey!);
+    }
+    _currentGroupKey = null;
+  }
+
+  /// Unselect tất cả các radio khác trong cùng group (multi-column mode)
+  void _unselectOthersInGroup() {
+    final groupKey = _getGroupKey();
+    if (groupKey == null) return;
+
+    final siblings = _groupRegistry[groupKey];
+    if (siblings == null) return;
+
+    for (final sibling in siblings) {
+      if (sibling != this && sibling.mounted) {
+        sibling._unselectSelf();
+      }
+    }
+  }
+
+  /// Unselect bản thân (được gọi bởi radio khác trong group)
+  void _unselectSelf() {
+    if (_isUpdating) return;
+    if (_boundRow == null || _boundField == null) return;
+
+    _isUpdating = true;
+    try {
+      final currentValue = _boundRow![_boundField!];
+      _setFieldValue(currentValue, widget.unselectedValue);
+      setState(() {});
+    } finally {
+      _isUpdating = false;
+    }
+  }
+
+  // ============================================================================
+  // BINDING MANAGEMENT
+  // ============================================================================
 
   void _parseBinding() {
     if (widget.text is CyberBindingExpression) {
@@ -165,6 +294,10 @@ class _CyberRadioBoxState extends State<CyberRadioBox> {
     setState(() {});
   }
 
+  // ============================================================================
+  // HELPERS
+  // ============================================================================
+
   bool _parseBool(dynamic value) {
     if (value == null) return true;
     if (value is bool) return value;
@@ -185,7 +318,17 @@ class _CyberRadioBoxState extends State<CyberRadioBox> {
     return _parseBool(widget.isVisible);
   }
 
-  dynamic _getCurrentGroupValue() {
+  /// So sánh 2 giá trị
+  bool _compareValue(dynamic a, dynamic b) {
+    if (a == null && b == null) return true;
+    if (a == null || b == null) return false;
+    if (a is num && b is num) return a == b;
+    if (a is bool && b is bool) return a == b;
+    return a.toString() == b.toString();
+  }
+
+  /// Get current value from binding
+  dynamic _getCurrentBindingValue() {
     if (widget.text is CyberBindingExpression) {
       final expr = widget.text as CyberBindingExpression;
       if (_boundRow != expr.row || _boundField != expr.fieldName) {
@@ -194,24 +337,19 @@ class _CyberRadioBoxState extends State<CyberRadioBox> {
       }
     }
 
-    dynamic rawValue;
-
     if (_boundRow != null && _boundField != null) {
       try {
-        rawValue = _boundRow![_boundField!];
+        return _boundRow![_boundField!];
       } catch (e) {
         return null;
       }
     } else if (widget.text != null && widget.text is! CyberBindingExpression) {
-      rawValue = widget.text;
-    } else {
-      return null;
+      return widget.text;
     }
-
-    return rawValue;
+    return null;
   }
 
-  /// Get current value (support binding)
+  /// Get current value (support binding) - for single-column mode
   dynamic _getValue() {
     if (widget.value is CyberBindingExpression) {
       final expr = widget.value as CyberBindingExpression;
@@ -225,35 +363,69 @@ class _CyberRadioBoxState extends State<CyberRadioBox> {
   }
 
   bool _isSelected() {
-    final groupValue = _getCurrentGroupValue();
-    final myValue = _getValue();
+    final currentValue = _getCurrentBindingValue();
 
-    // So sánh theo string để tránh lỗi type mismatch
-    return groupValue?.toString() == myValue?.toString();
+    if (widget.isSingleColumn) {
+      // Single-column mode: so sánh với value
+      final myValue = _getValue();
+      return _compareValue(currentValue, myValue);
+    } else {
+      // Multi-column mode: so sánh với selectedValue
+      return _compareValue(currentValue, widget.selectedValue);
+    }
+  }
+
+  /// Helper: Set field value với type preservation
+  void _setFieldValue(dynamic currentValue, dynamic newValue) {
+    if (_boundRow == null || _boundField == null) return;
+
+    if (currentValue is String && newValue != null) {
+      _boundRow![_boundField!] = newValue.toString();
+    } else if (currentValue is int && newValue is num) {
+      _boundRow![_boundField!] = newValue.toInt();
+    } else if (currentValue is double && newValue is num) {
+      _boundRow![_boundField!] = newValue.toDouble();
+    } else if (currentValue is bool && newValue is bool) {
+      _boundRow![_boundField!] = newValue;
+    } else {
+      _boundRow![_boundField!] = newValue;
+    }
   }
 
   void _updateValue() {
     if (!widget.enabled) return;
 
-    final newValue = _getValue();
-
     _isUpdating = true;
 
     try {
-      // Update binding
-      if (_boundRow != null && _boundField != null) {
-        final originalValue = _boundRow![_boundField!];
+      final currentValue = _getCurrentBindingValue();
+      final isCurrentlySelected = _isSelected();
+      dynamic newValue;
 
-        // Preserve original type
-        if (originalValue is String && newValue != null) {
-          _boundRow![_boundField!] = newValue.toString();
-        } else if (originalValue is int && newValue is int) {
-          _boundRow![_boundField!] = newValue;
-        } else if (originalValue is double && newValue is num) {
-          _boundRow![_boundField!] = newValue.toDouble();
+      if (widget.isSingleColumn) {
+        // Single-column mode: set = value của radio này
+        newValue = _getValue();
+        _setFieldValue(currentValue, newValue);
+      } else {
+        // Multi-column mode
+        final hasGroup = _getGroupKey() != null;
+
+        if (isCurrentlySelected && widget.allowToggle && !hasGroup) {
+          // Toggle off nếu đang selected, cho phép toggle, và không có group
+          newValue = widget.unselectedValue;
+        } else if (isCurrentlySelected && hasGroup) {
+          // Đã selected và có group → không làm gì (radio behavior)
+          return;
         } else {
-          _boundRow![_boundField!] = newValue;
+          // Select
+          newValue = widget.selectedValue;
+
+          // Unselect các radio khác trong cùng group
+          if (hasGroup) {
+            _unselectOthersInGroup();
+          }
         }
+        _setFieldValue(currentValue, newValue);
       }
 
       // Callbacks
@@ -265,6 +437,10 @@ class _CyberRadioBoxState extends State<CyberRadioBox> {
       _isUpdating = false;
     }
   }
+
+  // ============================================================================
+  // BUILD
+  // ============================================================================
 
   @override
   Widget build(BuildContext context) {
