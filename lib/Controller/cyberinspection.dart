@@ -2,7 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'dart:ui' as ui;
+import 'package:cyberframework/Module/file_handler.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:cyberframework/cyberframework.dart';
 
 // ============================================================================
@@ -20,8 +23,13 @@ import 'package:cyberframework/cyberframework.dart';
 //   nameField: 'Ten_Loi',
 //   colorField: 'Mau_Sac',
 //   iconField: 'Icon',
+//   // Binding base64 to CyberDataRow
+//   strBase64: drEdit.bind('hinh_anh'),
+//   // Show download/share buttons
+//   showDownload: true,
+//   showShare: true,
 //   // Hoặc custom item builder
-//   itemBuilder: (row, isSelected, onTap) => MyCustomWidget(...),
+//   itemBuilder: (row, isSelected, count, onTap) => MyCustomWidget(...),
 // )
 // ```
 // ============================================================================
@@ -29,6 +37,7 @@ import 'package:cyberframework/cyberframework.dart';
 /// Controller để quản lý CyberCarInspection
 class CyberCarInspectionController extends ChangeNotifier {
   String? _selectedDefectCode;
+  _CyberCarInspectionState? _state;
 
   String? get selectedDefectCode => _selectedDefectCode;
 
@@ -41,6 +50,31 @@ class CyberCarInspectionController extends ChangeNotifier {
 
   void clearSelection() {
     selectedDefectCode = null;
+  }
+
+  /// Attach state (internal use)
+  void _attachState(_CyberCarInspectionState state) {
+    _state = state;
+  }
+
+  /// Detach state (internal use)
+  void _detachState() {
+    _state = null;
+  }
+
+  /// Export hình ảnh thành base64
+  Future<String?> exportToBase64() async {
+    return await _state?.exportToBase64();
+  }
+
+  /// Download hình ảnh
+  Future<void> download(BuildContext context) async {
+    await _state?._downloadImage(context);
+  }
+
+  /// Share hình ảnh
+  Future<void> share(BuildContext context) async {
+    await _state?._shareImage(context);
   }
 }
 
@@ -154,6 +188,27 @@ class CyberCarInspection extends StatefulWidget {
   /// Run spacing cho type selector
   final double itemRunSpacing;
 
+  // ========================
+  // EXPORT OPTIONS
+  // ========================
+
+  /// Hiển thị nút tải xuống
+  final bool showDownload;
+
+  /// Hiển thị nút chia sẻ
+  final bool showShare;
+
+  /// Binding base64 vào CyberDataRow
+  /// Hỗ trợ: CyberBindingExpression, String
+  /// Khi capture hình sẽ tự động cập nhật giá trị base64
+  final dynamic strBase64;
+
+  /// Callback khi export thành công
+  final void Function(String base64)? onExported;
+
+  /// Tên file khi export (không có extension)
+  final String exportFileName;
+
   const CyberCarInspection({
     super.key,
     this.image,
@@ -188,6 +243,12 @@ class CyberCarInspection extends StatefulWidget {
     ),
     this.itemSpacing = 12,
     this.itemRunSpacing = 8,
+    // Export options
+    this.showDownload = false,
+    this.showShare = false,
+    this.strBase64,
+    this.onExported,
+    this.exportFileName = 'car_inspection',
   });
 
   @override
@@ -196,9 +257,11 @@ class CyberCarInspection extends StatefulWidget {
 
 class _CyberCarInspectionState extends State<CyberCarInspection> {
   final GlobalKey _imageKey = GlobalKey();
+  final GlobalKey _captureKey = GlobalKey(); // Key để capture toàn bộ widget
   Size? _imageSize;
   late CyberCarInspectionController _controller;
   bool _isInternalController = false;
+  bool _isExporting = false;
 
   ImageProvider? _imageProvider;
   dynamic _lastImageInput;
@@ -209,6 +272,7 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
     _controller = widget.controller ?? CyberCarInspectionController();
     _isInternalController = widget.controller == null;
     _controller.addListener(_onControllerChanged);
+    _controller._attachState(this); // Attach state vào controller
     _updateImageProvider();
 
     WidgetsBinding.instance.addPostFrameCallback((_) => _updateImageSize());
@@ -225,6 +289,7 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
   @override
   void dispose() {
     _controller.removeListener(_onControllerChanged);
+    _controller._detachState(); // Detach state từ controller
     if (_isInternalController) {
       _controller.dispose();
     }
@@ -395,6 +460,160 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
     return count;
   }
 
+  // ============================================================================
+  // EXPORT METHODS
+  // ============================================================================
+
+  /// Capture widget thành hình ảnh PNG bytes
+  Future<Uint8List?> _captureImage() async {
+    try {
+      final boundary =
+          _captureKey.currentContext?.findRenderObject()
+              as RenderRepaintBoundary?;
+
+      if (boundary == null) {
+        debugPrint('❌ Cannot find RenderRepaintBoundary');
+        return null;
+      }
+
+      // Đợi render hoàn tất
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      final image = await boundary.toImage(pixelRatio: 3.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+
+      if (byteData == null) {
+        debugPrint('❌ Cannot convert image to bytes');
+        return null;
+      }
+
+      return byteData.buffer.asUint8List();
+    } catch (e) {
+      debugPrint('❌ Capture error: $e');
+      return null;
+    }
+  }
+
+  /// Cập nhật base64 vào binding
+  void _updateBase64Binding(String base64) {
+    if (widget.strBase64 != null) {
+      if (widget.strBase64 is CyberBindingExpression) {
+        (widget.strBase64 as CyberBindingExpression).value = base64;
+      }
+    }
+    widget.onExported?.call(base64);
+  }
+
+  /// Export và trả về base64
+  Future<String?> exportToBase64() async {
+    if (_isExporting) return null;
+
+    setState(() => _isExporting = true);
+
+    try {
+      final bytes = await _captureImage();
+      if (bytes == null) return null;
+
+      final base64 = base64Encode(bytes);
+      _updateBase64Binding(base64);
+
+      return base64;
+    } finally {
+      setState(() => _isExporting = false);
+    }
+  }
+
+  /// Download hình ảnh
+  Future<void> _downloadImage(BuildContext context) async {
+    if (_isExporting) return;
+
+    setState(() => _isExporting = true);
+
+    try {
+      final bytes = await _captureImage();
+      if (bytes == null) {
+        if (context.mounted) {
+          setText(
+            'Không thể xuất hình ảnh',
+            'Cannot export image',
+          ).showToast(toastType: CyberToastType.error);
+        }
+        return;
+      }
+
+      // Cập nhật base64 binding
+      final base64 = base64Encode(bytes);
+      _updateBase64Binding(base64);
+
+      // Download file
+      if (context.mounted) {
+        await FileHandler.downloadFile(
+          source: base64,
+          fileExtension: '.png',
+          customFileName:
+              '${widget.exportFileName}_${DateTime.now().millisecondsSinceEpoch}.png',
+          context: context,
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ Download error: $e');
+      if (context.mounted) {
+        setText(
+          'Lỗi tải xuống',
+          'Download error',
+        ).showToast(toastType: CyberToastType.error);
+      }
+    } finally {
+      setState(() => _isExporting = false);
+    }
+  }
+
+  /// Share hình ảnh
+  Future<void> _shareImage(BuildContext context) async {
+    if (_isExporting) return;
+
+    setState(() => _isExporting = true);
+
+    try {
+      final bytes = await _captureImage();
+      if (bytes == null) {
+        if (context.mounted) {
+          setText(
+            'Không thể xuất hình ảnh',
+            'Cannot export image',
+          ).showToast(toastType: CyberToastType.error);
+        }
+        return;
+      }
+
+      // Cập nhật base64 binding
+      final base64 = base64Encode(bytes);
+      _updateBase64Binding(base64);
+
+      // Share file
+      if (context.mounted) {
+        await FileHandler.shareFile(
+          source: base64,
+          fileExtension: '.png',
+          fileName:
+              '${widget.exportFileName}_${DateTime.now().millisecondsSinceEpoch}.png',
+          subject: setText('Hình ảnh kiểm tra xe', 'Car Inspection Image'),
+          context: context,
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ Share error: $e');
+      if (context.mounted) {
+        setText(
+          'Lỗi chia sẻ',
+          'Share error',
+        ).showToast(toastType: CyberToastType.error);
+      }
+    } finally {
+      setState(() => _isExporting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -405,8 +624,89 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
           _buildDefectTypeSelector(),
           const SizedBox(height: 8),
         ],
-        _buildImageWithDefects(),
+        // Wrap với RepaintBoundary để capture
+        RepaintBoundary(key: _captureKey, child: _buildImageWithDefects()),
+        // Export buttons
+        if (widget.showDownload || widget.showShare) ...[
+          const SizedBox(height: 8),
+          _buildExportButtons(context),
+        ],
       ],
+    );
+  }
+
+  /// Build export buttons (Download & Share)
+  Widget _buildExportButtons(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          if (widget.showDownload)
+            _buildExportButton(
+              icon: Icons.download,
+              label: setText('Tải xuống', 'Download'),
+              onTap: () => _downloadImage(context),
+            ),
+          if (widget.showDownload && widget.showShare) const SizedBox(width: 8),
+          if (widget.showShare)
+            _buildExportButton(
+              icon: Icons.share,
+              label: setText('Chia sẻ', 'Share'),
+              onTap: () => _shareImage(context),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExportButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _isExporting ? null : onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: _isExporting
+                ? Colors.grey[200]
+                : Colors.blue.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: _isExporting
+                  ? Colors.grey[300]!
+                  : Colors.blue.withOpacity(0.3),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_isExporting)
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                Icon(icon, size: 18, color: Colors.blue[700]),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: _isExporting ? Colors.grey : Colors.blue[700],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
