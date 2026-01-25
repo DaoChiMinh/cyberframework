@@ -14,9 +14,7 @@ abstract class CyberBaseEdit extends CyberForm {
 
   /// Override để xử lý khi chuyển tab
   @override
-  void onTabChanged(int index) {
-    print("aaaaaaaaaaaaaaaaa");
-  }
+  void onTabChanged(int index) {}
 
   @override
   Widget buildBody(BuildContext context) {

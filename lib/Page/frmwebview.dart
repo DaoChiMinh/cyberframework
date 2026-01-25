@@ -18,7 +18,6 @@ class Frmwebview extends CyberForm {
 
   @override
   Widget buildBody(BuildContext context) {
-    debugPrint("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
     return CyberWebView(key: _webViewKey, url: Url, clearCacheOnDispose: true);
   }
 
@@ -31,7 +30,7 @@ class Frmwebview extends CyberForm {
       // Trigger GC bằng cách clear các references
       Url = null;
     });
-    debugPrint("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+
     // Gọi super để dispose resources khác
     super.onDispose();
   }
