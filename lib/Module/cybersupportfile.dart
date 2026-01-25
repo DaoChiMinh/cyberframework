@@ -57,6 +57,7 @@ extension CyberFilePickerExtension on BuildContext {
   /// [uploadFilePath]: Đường dẫn lưu file trên server (optional)
   /// [title]: Tiêu đề của ActionSheet
   /// [cancelLabel]: Text của nút Cancel
+  /// [isChangeName]: true = hiển thị dialog đổi tên trước khi upload
   ///
   /// Returns: CyberFilePickerResult chứa thông tin file đã chọn/upload
   Future<CyberFilePickerResult?> showFilePickerActionSheet({
@@ -66,6 +67,7 @@ extension CyberFilePickerExtension on BuildContext {
     String? uploadFilePath,
     String? title,
     String? cancelLabel,
+    bool isChangeName = false,
   }) async {
     // Validate input
     if (actions.isEmpty || types.isEmpty) {
@@ -79,61 +81,44 @@ extension CyberFilePickerExtension on BuildContext {
       );
     }
 
-    // Tạo Completer để đợi kết quả
-    final completer = Completer<CyberFilePickerResult?>();
-    bool hasCompleted = false;
-
-    // Tạo list CyberActionSheet
-    List<CyberActionSheet> actionSheetItems = [];
-
-    for (int i = 0; i < actions.length; i++) {
-      final action = actions[i];
-      final type = types[i];
-
-      actionSheetItems.add(
-        CyberActionSheet(
-          label: action,
-          icon: _getIconForType(type),
-          onclick: () async {
-            // Kiểm tra đã complete chưa
-            if (hasCompleted) return;
-
-            try {
-              // Xử lý chọn file
-              final result = await _handleFilePicker(
-                this,
-                type,
-                autoUpload,
-                uploadFilePath,
-              );
-
-              // Complete completer nếu chưa complete
-              if (!hasCompleted && !completer.isCompleted) {
-                hasCompleted = true;
-                completer.complete(result);
-              }
-            } catch (e) {
-              debugPrint('❌ Error in onclick: $e');
-              if (!hasCompleted && !completer.isCompleted) {
-                hasCompleted = true;
-                completer.complete(null);
-              }
-            }
-          },
-        ),
-      );
-    }
-
-    // Hiển thị ActionSheet
-    showCyberCupertinoActionSheet(
-      this,
-      actionSheetItems,
-      title: title ?? 'Chọn tệp tin',
-      cancelLabel: cancelLabel ?? 'Hủy',
+    // Hiển thị Bottom Sheet và lấy index được chọn
+    final selectedIndex = await showModalBottomSheet<int>(
+      context: this,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => _FilePickerOptionsSheet(
+        title: title ?? 'Chọn tệp tin',
+        actions: actions,
+        types: types,
+        onOptionSelected: (index) {
+          // Trả về index và đóng bottom sheet
+          Navigator.pop(context, index);
+        },
+        onClose: () {
+          Navigator.pop(context, null);
+        },
+      ),
     );
 
-    // Đợi kết quả từ completer
-    return completer.future;
+    // Nếu user không chọn gì (đóng bottom sheet)
+    if (selectedIndex == null) {
+      return null;
+    }
+
+    // Xử lý chọn file SAU KHI bottom sheet đã đóng
+    try {
+      final result = await _handleFilePicker(
+        this,
+        types[selectedIndex],
+        autoUpload,
+        uploadFilePath,
+        isChangeName,
+      );
+      return result;
+    } catch (e) {
+      debugPrint('❌ Error in showFilePickerActionSheet: $e');
+      return null;
+    }
   }
 
   /// Xử lý chọn file theo loại
@@ -142,29 +127,55 @@ extension CyberFilePickerExtension on BuildContext {
     FilePickerType type,
     bool autoUpload,
     String? uploadFilePath,
+    bool isChangeName,
   ) async {
     try {
       CyberFilePickerResult? result;
 
       switch (type) {
         case FilePickerType.pdf:
-          result = await _pickPdfFile(context, autoUpload, uploadFilePath);
+          result = await _pickPdfFile(
+            context,
+            autoUpload,
+            uploadFilePath,
+            isChangeName,
+          );
           break;
 
         case FilePickerType.image:
-          result = await _pickImageFile(context, autoUpload, uploadFilePath);
+          result = await _pickImageFile(
+            context,
+            autoUpload,
+            uploadFilePath,
+            isChangeName,
+          );
           break;
 
         case FilePickerType.doc:
-          result = await _pickDocFile(context, autoUpload, uploadFilePath);
+          result = await _pickDocFile(
+            context,
+            autoUpload,
+            uploadFilePath,
+            isChangeName,
+          );
           break;
 
         case FilePickerType.camera:
-          result = await _pickFromCamera(context, autoUpload, uploadFilePath);
+          result = await _pickFromCamera(
+            context,
+            autoUpload,
+            uploadFilePath,
+            isChangeName,
+          );
           break;
 
         case FilePickerType.file:
-          result = await _pickAnyFile(context, autoUpload, uploadFilePath);
+          result = await _pickAnyFile(
+            context,
+            autoUpload,
+            uploadFilePath,
+            isChangeName,
+          );
           break;
       }
 
@@ -203,6 +214,7 @@ extension CyberFilePickerExtension on BuildContext {
     BuildContext context,
     bool autoUpload,
     String? uploadFilePath,
+    bool isChangeName,
   ) async {
     try {
       final result = await FilePicker.platform.pickFiles(
@@ -217,6 +229,7 @@ extension CyberFilePickerExtension on BuildContext {
         result.files.first,
         autoUpload,
         uploadFilePath,
+        isChangeName,
       );
     } catch (e) {
       debugPrint('❌ Error picking PDF: $e');
@@ -224,25 +237,65 @@ extension CyberFilePickerExtension on BuildContext {
     }
   }
 
-  /// Chọn file ảnh từ thư viện
+  /// Chọn file ảnh từ thư viện - Dùng ImagePicker giống CyberImage
   Future<CyberFilePickerResult?> _pickImageFile(
     BuildContext context,
     bool autoUpload,
     String? uploadFilePath,
+    bool isChangeName,
   ) async {
     try {
-      final result = await FilePicker.platform.pickFiles(type: FileType.image);
+      final ImagePicker picker = ImagePicker();
 
-      if (result == null || result.files.isEmpty) return null;
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+      );
 
-      return await _processPickedFile(
+      if (image == null) return null;
+
+      // Convert XFile sang File
+      final file = File(image.path);
+
+      // Kiểm tra file có tồn tại không
+      if (!await file.exists()) {
+        throw Exception('File không tồn tại sau khi chọn ảnh');
+      }
+
+      final bytes = await file.readAsBytes();
+      final fileSize = bytes.length;
+      final fileName = image.name.isNotEmpty
+          ? image.name
+          : 'image_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final fileType = fileName.split('.').last.toLowerCase();
+
+      // Tạo CyberFilePickerResult
+      return await _processFileData(
         context,
-        result.files.first,
-        autoUpload,
-        uploadFilePath,
+        fileName: fileName,
+        fileType: fileType,
+        fileSize: fileSize,
+        fileBytes: bytes,
+        fileObject: file,
+        autoUpload: autoUpload,
+        uploadFilePath: uploadFilePath,
+        isChangeName: isChangeName,
       );
     } catch (e) {
       debugPrint('❌ Error picking image: $e');
+
+      if (context.mounted) {
+        if (e.toString().contains('background') ||
+            e.toString().contains('permission')) {
+          await _showPermissionError(context);
+        } else {
+          await 'Không thể chọn ảnh. Vui lòng thử lại.'.V_MsgBox(
+            context,
+            type: CyberMsgBoxType.error,
+          );
+        }
+      }
+
       return null;
     }
   }
@@ -252,6 +305,7 @@ extension CyberFilePickerExtension on BuildContext {
     BuildContext context,
     bool autoUpload,
     String? uploadFilePath,
+    bool isChangeName,
   ) async {
     try {
       final result = await FilePicker.platform.pickFiles(
@@ -266,6 +320,7 @@ extension CyberFilePickerExtension on BuildContext {
         result.files.first,
         autoUpload,
         uploadFilePath,
+        isChangeName,
       );
     } catch (e) {
       debugPrint('❌ Error picking doc: $e');
@@ -278,6 +333,7 @@ extension CyberFilePickerExtension on BuildContext {
     BuildContext context,
     bool autoUpload,
     String? uploadFilePath,
+    bool isChangeName,
   ) async {
     try {
       final ImagePicker picker = ImagePicker();
@@ -315,6 +371,7 @@ extension CyberFilePickerExtension on BuildContext {
         fileObject: file,
         autoUpload: autoUpload,
         uploadFilePath: uploadFilePath,
+        isChangeName: isChangeName,
       );
     } on Exception catch (e) {
       debugPrint('❌ Camera error: $e');
@@ -340,6 +397,7 @@ extension CyberFilePickerExtension on BuildContext {
     BuildContext context,
     bool autoUpload,
     String? uploadFilePath,
+    bool isChangeName,
   ) async {
     try {
       final result = await FilePicker.platform.pickFiles(type: FileType.any);
@@ -351,6 +409,7 @@ extension CyberFilePickerExtension on BuildContext {
         result.files.first,
         autoUpload,
         uploadFilePath,
+        isChangeName,
       );
     } catch (e) {
       debugPrint('❌ Error picking file: $e');
@@ -364,6 +423,7 @@ extension CyberFilePickerExtension on BuildContext {
     PlatformFile platformFile,
     bool autoUpload,
     String? uploadFilePath,
+    bool isChangeName,
   ) async {
     try {
       final fileName = platformFile.name;
@@ -392,6 +452,7 @@ extension CyberFilePickerExtension on BuildContext {
         fileObject: fileObject,
         autoUpload: autoUpload,
         uploadFilePath: uploadFilePath,
+        isChangeName: isChangeName,
       );
     } catch (e) {
       debugPrint('❌ Error processing file: $e');
@@ -409,15 +470,47 @@ extension CyberFilePickerExtension on BuildContext {
     File? fileObject,
     required bool autoUpload,
     String? uploadFilePath,
+    bool isChangeName = false,
   }) async {
     try {
       // Convert sang base64
       final strBase64 = base64Encode(fileBytes);
 
+      // Lấy tên file (không có extension)
+      String fileNameWithoutExt = fileName;
+      String extension = fileType;
+
+      if (fileName.contains('.')) {
+        final lastDotIndex = fileName.lastIndexOf('.');
+        fileNameWithoutExt = fileName.substring(0, lastDotIndex);
+        extension = fileName.substring(lastDotIndex + 1);
+      }
+
+      // Nếu isChangeName = true, hiển thị dialog đổi tên
+      String finalFileName = fileName;
+      if (isChangeName && context.mounted) {
+        final newName = await _showChangeNameDialog(
+          context,
+          fileNameWithoutExt,
+          extension,
+        );
+
+        // Nếu user cancel dialog
+        if (newName == null) {
+          return null;
+        }
+
+        finalFileName = newName;
+        // Cập nhật fileType nếu extension thay đổi
+        if (finalFileName.contains('.')) {
+          fileType = finalFileName.split('.').last.toLowerCase();
+        }
+      }
+
       // Nếu không auto upload, trả về thông tin file
       if (!autoUpload) {
         return CyberFilePickerResult(
-          fileName: fileName,
+          fileName: finalFileName,
           fileType: fileType,
           fileSize: fileSize,
           strBase64: strBase64,
@@ -429,8 +522,8 @@ extension CyberFilePickerExtension on BuildContext {
       try {
         // Tạo upload path
         final finalUploadPath = uploadFilePath != null
-            ? '$uploadFilePath$fileName'
-            : '/$fileName';
+            ? '$uploadFilePath$finalFileName'
+            : '/$finalFileName';
 
         debugPrint('🚀 Starting upload: $finalUploadPath');
 
@@ -438,7 +531,7 @@ extension CyberFilePickerExtension on BuildContext {
         if (!context.mounted) {
           debugPrint('❌ Context not mounted, cannot upload');
           return CyberFilePickerResult(
-            fileName: fileName,
+            fileName: finalFileName,
             fileType: fileType,
             fileSize: fileSize,
             strBase64: strBase64,
@@ -466,7 +559,7 @@ extension CyberFilePickerExtension on BuildContext {
 
           // Trả về kết quả không có URL
           return CyberFilePickerResult(
-            fileName: fileName,
+            fileName: finalFileName,
             fileType: fileType,
             fileSize: fileSize,
             strBase64: strBase64,
@@ -477,11 +570,10 @@ extension CyberFilePickerExtension on BuildContext {
         debugPrint('✅ Upload success: ${uploadedFile.url}');
 
         // Trả về kết quả với URL
+        // Luôn dùng finalFileName (tên mới nếu isChangeName = true)
         return CyberFilePickerResult(
-          fileName: uploadedFile.name.isNotEmpty ? uploadedFile.name : fileName,
-          fileType: uploadedFile.fileType.isNotEmpty
-              ? uploadedFile.fileType
-              : fileType,
+          fileName: finalFileName,
+          fileType: fileType,
           fileSize: fileSize,
           strBase64: strBase64,
           urlFile: uploadedFile.url,
@@ -500,7 +592,7 @@ extension CyberFilePickerExtension on BuildContext {
 
         // Trả về kết quả không có URL
         return CyberFilePickerResult(
-          fileName: fileName,
+          fileName: finalFileName,
           fileType: fileType,
           fileSize: fileSize,
           strBase64: strBase64,
@@ -513,13 +605,164 @@ extension CyberFilePickerExtension on BuildContext {
     }
   }
 
+  /// Hiển thị dialog đổi tên file
+  Future<String?> _showChangeNameDialog(
+    BuildContext context,
+    String currentName,
+    String extension,
+  ) async {
+    return await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => _ChangeFileNameSheet(
+        currentName: currentName,
+        extension: extension,
+        onConfirm: (newName) {
+          Navigator.pop(context, newName);
+        },
+        onCancel: () {
+          Navigator.pop(context, null);
+        },
+      ),
+    );
+  }
+}
+
+/// ============================================================================
+/// File Picker Options Bottom Sheet - Giao diện giống CyberImage
+/// ============================================================================
+
+class _FilePickerOptionsSheet extends StatelessWidget {
+  final String title;
+  final List<String> actions;
+  final List<FilePickerType> types;
+  final void Function(int index) onOptionSelected;
+  final VoidCallback onClose;
+
+  const _FilePickerOptionsSheet({
+    required this.title,
+    required this.actions,
+    required this.types,
+    required this.onOptionSelected,
+    required this.onClose,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Thanh kéo
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Header với title và nút close
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(icon: const Icon(Icons.close), onPressed: onClose),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            // Danh sách options
+            ...List.generate(actions.length, (index) {
+              final type = types[index];
+              final action = actions[index];
+
+              return _buildOption(
+                icon: _getIconForType(type),
+                iconColor: _getColorForType(type),
+                label: action,
+                subtitle: _getSubtitleForType(type),
+                onTap: () => onOptionSelected(index),
+              );
+            }),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOption({
+    required IconData icon,
+    required Color iconColor,
+    required String label,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: iconColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: iconColor, size: 28),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]),
+          ],
+        ),
+      ),
+    );
+  }
+
   /// Lấy icon tương ứng với loại file
   IconData _getIconForType(FilePickerType type) {
     switch (type) {
       case FilePickerType.pdf:
         return Icons.picture_as_pdf;
       case FilePickerType.image:
-        return Icons.image;
+        return Icons.photo_library;
       case FilePickerType.doc:
         return Icons.description;
       case FilePickerType.camera:
@@ -527,5 +770,316 @@ extension CyberFilePickerExtension on BuildContext {
       case FilePickerType.file:
         return Icons.attach_file;
     }
+  }
+
+  /// Lấy màu tương ứng với loại file
+  Color _getColorForType(FilePickerType type) {
+    switch (type) {
+      case FilePickerType.pdf:
+        return Colors.red;
+      case FilePickerType.image:
+        return Colors.green;
+      case FilePickerType.doc:
+        return Colors.blue;
+      case FilePickerType.camera:
+        return Colors.blue;
+      case FilePickerType.file:
+        return Colors.orange;
+    }
+  }
+
+  /// Lấy subtitle tương ứng với loại file
+  String _getSubtitleForType(FilePickerType type) {
+    switch (type) {
+      case FilePickerType.pdf:
+        return 'Chọn file PDF';
+      case FilePickerType.image:
+        return 'Từ thư viện ảnh';
+      case FilePickerType.doc:
+        return 'Chọn file Word';
+      case FilePickerType.camera:
+        return 'Sử dụng camera';
+      case FilePickerType.file:
+        return 'Chọn bất kỳ file nào';
+    }
+  }
+}
+
+/// ============================================================================
+/// Change File Name Bottom Sheet - Dialog đổi tên file
+/// ============================================================================
+
+class _ChangeFileNameSheet extends StatefulWidget {
+  final String currentName;
+  final String extension;
+  final void Function(String newName) onConfirm;
+  final VoidCallback onCancel;
+
+  const _ChangeFileNameSheet({
+    required this.currentName,
+    required this.extension,
+    required this.onConfirm,
+    required this.onCancel,
+  });
+
+  @override
+  State<_ChangeFileNameSheet> createState() => _ChangeFileNameSheetState();
+}
+
+class _ChangeFileNameSheetState extends State<_ChangeFileNameSheet> {
+  late TextEditingController _controller;
+  late FocusNode _focusNode;
+  String? _errorText;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.currentName);
+    _focusNode = FocusNode();
+
+    // Auto focus và select all text
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _focusNode.requestFocus();
+      _controller.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: _controller.text.length,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _validateAndConfirm() {
+    final newName = _controller.text.trim();
+
+    if (newName.isEmpty) {
+      setState(() {
+        _errorText = 'Tên file không được để trống';
+      });
+      return;
+    }
+
+    // Kiểm tra ký tự không hợp lệ
+    final invalidChars = RegExp(r'[<>:"/\\|?*]');
+    if (invalidChars.hasMatch(newName)) {
+      setState(() {
+        _errorText = 'Tên file chứa ký tự không hợp lệ';
+      });
+      return;
+    }
+
+    // Thêm extension nếu có
+    final finalName = widget.extension.isNotEmpty
+        ? '$newName.${widget.extension}'
+        : newName;
+
+    widget.onConfirm(finalName);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      // Thêm padding khi keyboard hiện lên
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Thanh kéo
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              // Header
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                child: Row(
+                  children: [
+                    const Text(
+                      'Đổi tên file',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: widget.onCancel,
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              // Content
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Icon và thông tin file
+                    Row(
+                      children: [
+                        Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.edit_document,
+                            color: Colors.blue,
+                            size: 28,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Nhập tên file mới',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                widget.extension.isNotEmpty
+                                    ? 'Extension: .${widget.extension}'
+                                    : 'Không có extension',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    // Text field
+                    TextField(
+                      controller: _controller,
+                      focusNode: _focusNode,
+                      decoration: InputDecoration(
+                        labelText: 'Tên file',
+                        hintText: 'Nhập tên file',
+                        errorText: _errorText,
+                        suffixText: widget.extension.isNotEmpty
+                            ? '.${widget.extension}'
+                            : null,
+                        suffixStyle: TextStyle(
+                          color: Colors.grey[600],
+                          fontWeight: FontWeight.w500,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: Colors.blue,
+                            width: 2,
+                          ),
+                        ),
+                        errorBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: Colors.red,
+                            width: 1,
+                          ),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                      ),
+                      onChanged: (_) {
+                        if (_errorText != null) {
+                          setState(() => _errorText = null);
+                        }
+                      },
+                      onSubmitted: (_) => _validateAndConfirm(),
+                    ),
+                    const SizedBox(height: 20),
+                    // Buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: widget.onCancel,
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              side: BorderSide(color: Colors.grey[400]!),
+                            ),
+                            child: const Text(
+                              'Hủy',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: _validateAndConfirm,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              elevation: 0,
+                            ),
+                            child: const Text(
+                              'Xác nhận',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

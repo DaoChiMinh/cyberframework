@@ -14,19 +14,30 @@ import 'package:cyberframework/cyberframework.dart';
 ///
 /// CÁCH DÙNG:
 ///
-/// // Cách 1: Chỉ binding (không cần controller)
+/// // Cách 1: Chỉ binding (không cần controller) - Lưu base64
 /// CyberImage(
-///   text: drEdit.bind("image_url"),
+///   text: drEdit.bind("image_base64"),
 ///   label: "Ảnh đại diện",
 ///   isUpload: true,
 /// )
 ///
-/// // Cách 2: Có controller để điều khiển
+/// // Cách 2: Auto upload lên server - Lưu URL
+/// CyberImage(
+///   text: drEdit.bind("image_url"),
+///   label: "Ảnh đại diện",
+///   isUpload: true,
+///   autoUpload: true,
+///   uploadFilePath: '/avatars/',
+///   onUploadSuccess: (url) => print('Uploaded: $url'),
+/// )
+///
+/// // Cách 3: Có controller để điều khiển
 /// final imageCtrl = CyberImageController();
 /// CyberImage(
 ///   controller: imageCtrl,
-///   text: drEdit.bind("image_url"), // Vẫn binding được
+///   text: drEdit.bind("image_url"),
 ///   label: "Ảnh đại diện",
+///   autoUpload: true,
 /// )
 /// imageCtrl.triggerUpload(); // Trigger action
 ///
@@ -73,6 +84,21 @@ class CyberImage extends StatefulWidget {
   final IconData? deleteIcon;
   final bool isCircle;
 
+  /// Auto upload file lên server sau khi chọn
+  /// Nếu true: upload và lưu URL vào binding
+  /// Nếu false: chỉ lưu base64 vào binding (default)
+  final bool autoUpload;
+
+  /// Đường dẫn folder lưu file trên server (optional)
+  /// Ví dụ: '/images/' hoặc '/avatars/'
+  final String? uploadFilePath;
+
+  /// Callback khi upload thành công, trả về URL
+  final ValueChanged<String>? onUploadSuccess;
+
+  /// Callback khi upload thất bại
+  final ValueChanged<String>? onUploadError;
+
   const CyberImage({
     super.key,
     this.controller,
@@ -107,6 +133,10 @@ class CyberImage extends StatefulWidget {
     this.viewIcon,
     this.deleteIcon,
     this.isCircle = false,
+    this.autoUpload = false,
+    this.uploadFilePath,
+    this.onUploadSuccess,
+    this.onUploadError,
   });
 
   @override
@@ -615,14 +645,14 @@ class _CyberImageState extends State<CyberImage> {
       );
 
       if (image != null) {
-        final base64 = await _fileToBase64(File(image.path));
-        _updateValue(base64);
+        await _processAndUploadImage(File(image.path), image.name);
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Lỗi khi chụp ảnh: $e')));
+        widget.onUploadError?.call(e.toString());
       }
     } finally {
       if (mounted) {
@@ -650,18 +680,105 @@ class _CyberImageState extends State<CyberImage> {
       );
 
       if (image != null) {
-        final base64 = await _fileToBase64(File(image.path));
-        _updateValue(base64);
+        await _processAndUploadImage(File(image.path), image.name);
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Lỗi khi chọn ảnh: $e')));
+        widget.onUploadError?.call(e.toString());
       }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  /// ============================================================================
+  /// PROCESS AND UPLOAD IMAGE
+  /// ============================================================================
+
+  /// Xử lý và upload ảnh (nếu autoUpload = true)
+  Future<void> _processAndUploadImage(File file, String fileName) async {
+    if (!mounted) return;
+
+    try {
+      final bytes = await file.readAsBytes();
+      final fileSize = bytes.length;
+      final fileType = fileName.split('.').last.toLowerCase();
+
+      // Nếu không auto upload, chỉ lưu base64
+      if (!widget.autoUpload) {
+        final base64 = 'data:image/$fileType;base64,${base64Encode(bytes)}';
+        _updateValue(base64);
+        return;
+      }
+
+      // Auto upload lên server
+      debugPrint('🚀 Starting auto upload image...');
+
+      // Tạo upload path
+      final uploadPath = widget.uploadFilePath != null
+          ? '${widget.uploadFilePath}$fileName'
+          : '/$fileName';
+
+      debugPrint('📁 Upload path: $uploadPath');
+
+      // Upload sử dụng uploadSingleObjectAndCheck
+      final (uploadedFile, status) = await context.uploadSingleObjectAndCheck(
+        object: bytes,
+        filePath: uploadPath,
+        showLoading: true,
+        showError: false,
+      );
+
+      if (!status || uploadedFile == null) {
+        debugPrint('❌ Upload failed: status=$status');
+
+        // Upload thất bại - fallback lưu base64
+        if (mounted) {
+          await 'Upload ảnh thất bại. Đã lưu ảnh tạm thời.'.V_MsgBox(
+            context,
+            type: CyberMsgBoxType.warning,
+          );
+
+          // Lưu base64 như fallback
+          final base64 = 'data:image/$fileType;base64,${base64Encode(bytes)}';
+          _updateValue(base64);
+
+          widget.onUploadError?.call('Upload failed');
+        }
+        return;
+      }
+
+      debugPrint('✅ Upload success: ${uploadedFile.url}');
+
+      // Upload thành công - lưu URL
+      _updateValue(uploadedFile.url);
+
+      // Callback success
+      widget.onUploadSuccess?.call(uploadedFile.url);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Upload ảnh thành công!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ Process/Upload error: $e');
+
+      if (mounted) {
+        await 'Lỗi xử lý ảnh: $e'.V_MsgBox(
+          context,
+          type: CyberMsgBoxType.error,
+        );
+        widget.onUploadError?.call(e.toString());
       }
     }
   }
@@ -894,7 +1011,7 @@ class _CyberImageState extends State<CyberImage> {
         );
       }
 
-      // Network image
+      // Network image (URL từ server)
       if (imageValue.startsWith('http://') ||
           imageValue.startsWith('https://')) {
         return CachedNetworkImage(
