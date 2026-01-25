@@ -916,7 +916,7 @@ class _ChangeFileNameSheetState extends State<_ChangeFileNameSheet> {
                 child: Row(
                   children: [
                     const Text(
-                      'Đổi tên file',
+                      setText('Đổi tên file', "Rename files"),
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -959,7 +959,10 @@ class _ChangeFileNameSheetState extends State<_ChangeFileNameSheet> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const Text(
-                                'Nhập tên file mới',
+                                setText(
+                                  'Nhập tên file mới',
+                                  "Enter a new file name",
+                                ),
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600,
@@ -986,8 +989,8 @@ class _ChangeFileNameSheetState extends State<_ChangeFileNameSheet> {
                       controller: _controller,
                       focusNode: _focusNode,
                       decoration: InputDecoration(
-                        labelText: 'Tên file',
-                        hintText: 'Nhập tên file',
+                        labelText: setText('Tên file', 'File name'),
+                        hintText: setText('Nhập tên file', "Enter file name"),
                         errorText: _errorText,
                         suffixText: widget.extension.isNotEmpty
                             ? '.${widget.extension}'
@@ -1040,7 +1043,7 @@ class _ChangeFileNameSheetState extends State<_ChangeFileNameSheet> {
                               side: BorderSide(color: Colors.grey[400]!),
                             ),
                             child: const Text(
-                              'Hủy',
+                              setText('Hủy', 'Cancel'),
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
@@ -1062,7 +1065,7 @@ class _ChangeFileNameSheetState extends State<_ChangeFileNameSheet> {
                               elevation: 0,
                             ),
                             child: const Text(
-                              'Xác nhận',
+                              setText('Xác nhận', 'Confirm'),
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
