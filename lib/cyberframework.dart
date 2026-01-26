@@ -46,7 +46,8 @@ export 'package:cyberframework/Controller/cyberfullscreensignatureviewer.dart';
 export 'package:cyberframework/Controller/cybersignaturepad.dart';
 export 'package:cyberframework/Controller/cybersignaturecontroller.dart';
 export 'package:cyberframework/Controller/CyberSignature.dart';
-//cybertimelineschedule
+//cybertime
+export 'package:cyberframework/Controller/cybertime.dart';
 export 'package:cyberframework/Controller/cybertimelineschedule.dart';
 export 'package:cyberframework/Controller/cybercamerarecognitiontext.dart';
 export 'package:cyberframework/Controller/cybercheckboxcontroller.dart';
