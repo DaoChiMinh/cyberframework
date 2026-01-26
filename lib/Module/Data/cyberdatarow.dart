@@ -651,7 +651,7 @@ class CyberDataRow extends ChangeNotifier implements ICyberIdentifiable {
   String _formatDateTime(DateTime date, String format) {
     try {
       if (format.isEmpty) return date.toString();
-
+      if (date == DateTime(1900, 1, 1)) return "";
       // Standard shortcuts
       switch (format) {
         case 'd':
