@@ -192,7 +192,17 @@ class _CyberNumericState extends State<CyberNumeric> {
   }
 
   void _onFocusChanged() {
-    if (!_focusNode.hasFocus) {
+    if (_focusNode.hasFocus) {
+      // ✅ Focus: Select all text (bôi đen tất cả)
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _focusNode.hasFocus && _textController.text.isNotEmpty) {
+          _textController.selection = TextSelection(
+            baseOffset: 0,
+            extentOffset: _textController.text.length,
+          );
+        }
+      });
+    } else {
       // Blur: validate và format đầy đủ
       final text = _textController.text.trim().replaceAll(
         _thousandsSeparator,
