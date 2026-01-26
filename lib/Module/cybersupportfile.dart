@@ -1,8 +1,5 @@
-import 'dart:io';
 import 'package:cyberframework/cyberframework.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:flutter/material.dart';
 
 /// Enum định nghĩa các loại file có thể chọn
 enum FilePickerType { pdf, image, doc, camera, file }
@@ -915,7 +912,7 @@ class _ChangeFileNameSheetState extends State<_ChangeFileNameSheet> {
                 ),
                 child: Row(
                   children: [
-                    const Text(
+                    Text(
                       setText('Đổi tên file', "Rename files"),
                       style: TextStyle(
                         fontSize: 18,
@@ -958,7 +955,7 @@ class _ChangeFileNameSheetState extends State<_ChangeFileNameSheet> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
+                              Text(
                                 setText(
                                   'Nhập tên file mới',
                                   "Enter a new file name",
@@ -1042,7 +1039,7 @@ class _ChangeFileNameSheetState extends State<_ChangeFileNameSheet> {
                               ),
                               side: BorderSide(color: Colors.grey[400]!),
                             ),
-                            child: const Text(
+                            child: Text(
                               setText('Hủy', 'Cancel'),
                               style: TextStyle(
                                 fontSize: 16,
@@ -1064,7 +1061,7 @@ class _ChangeFileNameSheetState extends State<_ChangeFileNameSheet> {
                               ),
                               elevation: 0,
                             ),
-                            child: const Text(
+                            child: Text(
                               setText('Xác nhận', 'Confirm'),
                               style: TextStyle(
                                 fontSize: 16,
