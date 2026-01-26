@@ -1,11 +1,15 @@
 // ignore_for_file: file_names, non_constant_identifier_names
 
+import 'dart:async';
 import 'package:cyberframework/cyberframework.dart';
 
 // ============================================================================
 // CyberTimelineSchedule - Timeline Schedule View Widget
 // Tích hợp với CyberFramework
 // ============================================================================
+
+/// Callback load data cho timeline
+typedef TimelineLoadDataCallback = Future<CyberDataTable> Function();
 
 /// Chip builder callback type
 /// [dr] - CyberDataRow chứa dữ liệu của chip
@@ -19,6 +23,18 @@ typedef OnEmptyTapCallback = void Function(TimeOfDay time);
 
 /// Callback khi tap vào chip
 typedef OnChipTapCallback = void Function(CyberDataRow dr, int index);
+
+/// Vị trí của time label so với vạch kẻ
+enum TimeLabelAlignment {
+  /// Giờ nằm ngay tại vạch (căn giữa với vạch) - Recommended
+  onLine,
+
+  /// Giờ nằm dưới vạch (bên trong ô)
+  belowLine,
+
+  /// Giờ nằm trên vạch (phía trên ô)
+  aboveLine,
+}
 
 /// Thông tin chip đã tính toán
 class CyberChipInfo {
@@ -129,6 +145,8 @@ class _ChipData {
 /// - Scroll để xem toàn bộ timeline
 /// - Current time indicator
 /// - Reactive với CyberDataTable changes
+/// - RefreshKey để reload khi đổi tab/datasource
+/// - Pull to refresh
 ///
 /// Example:
 /// ```dart
@@ -140,15 +158,15 @@ class _ChipData {
 ///   dataSource: tbSchedule,
 ///   startTimeColumn: 'gio_bat_dau',
 ///   endTimeColumn: 'gio_ket_thuc',
+///   refreshKey: selectedKhoang, // Reload khi đổi khoang
+///   onLoadData: () async {
+///     return await api.getSchedule(selectedKhoang);
+///   },
 ///   chipBuilder: (dr, index, info) => CyberScheduleChip(
 ///     dr: dr,
 ///     chipInfo: info,
 ///     titleColumn: 'bien_so',
-///     codeColumn: 'ma_phieu',
-///     assigneeColumn: 'nhan_vien',
-///     descriptionColumn: 'noi_dung',
 ///   ),
-///   onChipTap: (dr, index) => print('Tapped: ${dr['bien_so']}'),
 /// )
 /// ```
 class CyberTimelineSchedule extends StatefulWidget {
@@ -184,6 +202,9 @@ class CyberTimelineSchedule extends StatefulWidget {
   /// DataSource chứa danh sách các chip
   final CyberDataTable? dataSource;
 
+  /// Hàm load dữ liệu - Dùng cho load đầu và refresh
+  final TimelineLoadDataCallback? onLoadData;
+
   /// Tên column chứa giờ bắt đầu của chip (format: "HH:mm")
   /// Default: 'start_time'
   final String startTimeColumn;
@@ -191,6 +212,10 @@ class CyberTimelineSchedule extends StatefulWidget {
   /// Tên column chứa giờ kết thúc của chip (format: "HH:mm")
   /// Default: 'end_time'
   final String endTimeColumn;
+
+  /// RefreshKey - Khi thay đổi sẽ trigger reload data
+  /// Ví dụ: dùng khi đổi tab, đổi filter
+  final Object? refreshKey;
 
   // ============================================================================
   // CHIP BUILDER
@@ -228,6 +253,9 @@ class CyberTimelineSchedule extends StatefulWidget {
   /// Default: 100
   final double minChipWidth;
 
+  /// Padding cho toàn bộ timeline
+  final EdgeInsets? padding;
+
   // ============================================================================
   // STYLING PROPERTIES
   // ============================================================================
@@ -245,6 +273,17 @@ class CyberTimelineSchedule extends StatefulWidget {
   /// Style cho time label
   final TextStyle? timeLabelStyle;
 
+  /// Vị trí của time label so với vạch kẻ
+  /// - [TimeLabelAlignment.onLine]: Giờ nằm ngay tại vạch (căn giữa với vạch)
+  /// - [TimeLabelAlignment.belowLine]: Giờ nằm dưới vạch (trong ô)
+  /// Default: onLine
+  final TimeLabelAlignment timeLabelAlignment;
+
+  /// Offset dọc của time label (pixels)
+  /// Dùng để fine-tune vị trí giờ
+  /// Default: 0
+  final double timeLabelVerticalOffset;
+
   // ============================================================================
   // CURRENT TIME INDICATOR
   // ============================================================================
@@ -253,6 +292,10 @@ class CyberTimelineSchedule extends StatefulWidget {
   /// Default: true
   final bool showCurrentTimeIndicator;
 
+  /// Hiển thị giờ thực tế trên dòng kẻ current time
+  /// Default: true
+  final bool showCurrentTimeLabel;
+
   /// Color của current time indicator
   /// Default: Colors.red
   final Color? currentTimeIndicatorColor;
@@ -260,6 +303,11 @@ class CyberTimelineSchedule extends StatefulWidget {
   /// Thickness của current time line
   /// Default: 2
   final double currentTimeIndicatorThickness;
+
+  /// Interval cập nhật current time (giây)
+  /// Default: 60 (mỗi phút)
+  /// Set thấp hơn nếu muốn cập nhật nhanh hơn (VD: 1 = mỗi giây)
+  final int currentTimeUpdateInterval;
 
   // ============================================================================
   // CALLBACKS
@@ -294,6 +342,10 @@ class CyberTimelineSchedule extends StatefulWidget {
   /// Physics cho scroll
   final ScrollPhysics? physics;
 
+  /// Bật pull to refresh
+  /// Default: true
+  final bool enablePullToRefresh;
+
   // ============================================================================
   // ADDITIONAL WIDGETS
   // ============================================================================
@@ -307,6 +359,9 @@ class CyberTimelineSchedule extends StatefulWidget {
   /// Widget hiển thị khi không có data
   final Widget? emptyWidget;
 
+  /// Widget hiển thị khi đang loading
+  final Widget? loadingWidget;
+
   const CyberTimelineSchedule({
     super.key,
     required this.startTime,
@@ -314,20 +369,27 @@ class CyberTimelineSchedule extends StatefulWidget {
     this.intervalMinutes = 30,
     this.rowHeight = 60,
     this.dataSource,
+    this.onLoadData,
     this.startTimeColumn = 'start_time',
     this.endTimeColumn = 'end_time',
+    this.refreshKey,
     this.chipBuilder,
     this.timeLabelWidth = 60,
     this.chipHorizontalPadding = 8,
     this.chipOverlapGap = 4,
     this.minChipWidth = 100,
+    this.padding,
     this.backgroundColor,
     this.dividerColor,
     this.dividerThickness = 0.5,
     this.timeLabelStyle,
+    this.timeLabelAlignment = TimeLabelAlignment.onLine,
+    this.timeLabelVerticalOffset = 0,
     this.showCurrentTimeIndicator = true,
+    this.showCurrentTimeLabel = true,
     this.currentTimeIndicatorColor,
     this.currentTimeIndicatorThickness = 2,
+    this.currentTimeUpdateInterval = 60,
     this.onChipTap,
     this.onChipLongPress,
     this.onChipDoubleTap,
@@ -336,39 +398,101 @@ class CyberTimelineSchedule extends StatefulWidget {
     this.scrollController,
     this.autoScrollToCurrentTime = false,
     this.physics,
+    this.enablePullToRefresh = true,
     this.header,
     this.footer,
     this.emptyWidget,
+    this.loadingWidget,
   });
 
   @override
-  State<CyberTimelineSchedule> createState() => _CyberTimelineScheduleState();
+  State<CyberTimelineSchedule> createState() => CyberTimelineScheduleState();
 }
 
-class _CyberTimelineScheduleState extends State<CyberTimelineSchedule> {
+class CyberTimelineScheduleState extends State<CyberTimelineSchedule> {
   late ScrollController _scrollController;
   late List<TimeOfDay> _timeSlots;
   late TimeOfDay _startTimeOfDay;
   late TimeOfDay _endTimeOfDay;
 
+  // Loading state
+  bool _isLoading = false;
+
+  // Version tracking for cache invalidation
+  int _dataSourceVersion = 0;
+
   // Processed chip data with overlap info
   List<_ChipData> _processedChips = [];
+
+  // Cache
+  List<_ChipData>? _cachedProcessedChips;
+  int _cachedDataVersion = -1;
+
+  // 🎯 Timer để cập nhật current time indicator
+  Timer? _currentTimeTimer;
+  TimeOfDay _currentTime = TimeOfDay.now();
 
   @override
   void initState() {
     super.initState();
     _scrollController = widget.scrollController ?? ScrollController();
     _initTimeSlots();
-    _processChipData();
 
     // Listen to dataSource changes
     widget.dataSource?.addListener(_onDataSourceChanged);
 
+    // 🎯 Start timer để cập nhật current time
+    if (widget.showCurrentTimeIndicator) {
+      _startCurrentTimeTimer();
+    }
+
+    // Initial load
+    if (widget.onLoadData != null && widget.dataSource != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _loadData();
+      });
+    } else {
+      _processChipData();
+    }
+
+    // Auto scroll to current time
     if (widget.autoScrollToCurrentTime) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _scrollToCurrentTime();
       });
     }
+  }
+
+  /// 🎯 Start timer cập nhật current time mỗi phút
+  void _startCurrentTimeTimer() {
+    _currentTime = TimeOfDay.now();
+
+    // Tính thời gian còn lại đến lần cập nhật tiếp theo
+    final now = DateTime.now();
+    final interval = widget.currentTimeUpdateInterval;
+    final secondsUntilNext = interval - (now.second % interval);
+
+    // Đợi đến lần cập nhật tiếp theo
+    Future.delayed(Duration(seconds: secondsUntilNext), () {
+      if (!mounted) return;
+
+      _updateCurrentTime();
+
+      // Sau đó cập nhật theo interval
+      _currentTimeTimer = Timer.periodic(
+        Duration(seconds: widget.currentTimeUpdateInterval),
+        (_) => _updateCurrentTime(),
+      );
+    });
+  }
+
+  /// 🎯 Cập nhật current time và rebuild UI
+  void _updateCurrentTime() {
+    if (!mounted) return;
+
+    setState(() {
+      _currentTime = TimeOfDay.now();
+    });
   }
 
   @override
@@ -380,12 +504,14 @@ class _CyberTimelineScheduleState extends State<CyberTimelineSchedule> {
         oldWidget.endTime != widget.endTime ||
         oldWidget.intervalMinutes != widget.intervalMinutes) {
       _initTimeSlots();
+      _processChipData();
     }
 
     // Check if dataSource changed
     if (oldWidget.dataSource != widget.dataSource) {
       oldWidget.dataSource?.removeListener(_onDataSourceChanged);
       widget.dataSource?.addListener(_onDataSourceChanged);
+      _incrementDataVersion();
       _processChipData();
     }
 
@@ -394,14 +520,142 @@ class _CyberTimelineScheduleState extends State<CyberTimelineSchedule> {
         oldWidget.endTimeColumn != widget.endTimeColumn) {
       _processChipData();
     }
+
+    // 🎯 CRITICAL: Check refreshKey changed - trigger reload
+    if (widget.refreshKey != oldWidget.refreshKey) {
+      _incrementDataVersion();
+      _invalidateCache();
+
+      if (widget.onLoadData != null) {
+        // Có onLoadData -> reload từ server
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _loadData();
+        });
+      } else {
+        // Không có onLoadData -> reprocess data
+        _processChipData();
+        if (mounted) {
+          setState(() {});
+        }
+      }
+    }
   }
 
+  @override
+  void dispose() {
+    // 🎯 Cancel current time timer
+    _currentTimeTimer?.cancel();
+
+    widget.dataSource?.removeListener(_onDataSourceChanged);
+    if (widget.scrollController == null) {
+      _scrollController.dispose();
+    }
+    _invalidateCache();
+    super.dispose();
+  }
+
+  // ============================================================================
+  // VERSION & CACHE MANAGEMENT
+  // ============================================================================
+
+  void _incrementDataVersion() {
+    _dataSourceVersion++;
+  }
+
+  void _invalidateCache() {
+    _cachedProcessedChips = null;
+    _cachedDataVersion = -1;
+  }
+
+  // ============================================================================
+  // DATA SOURCE LISTENER
+  // ============================================================================
+
   void _onDataSourceChanged() {
+    if (!mounted) return;
+
+    _incrementDataVersion();
+    _invalidateCache();
     _processChipData();
+
     if (mounted) {
       setState(() {});
     }
   }
+
+  // ============================================================================
+  // LOAD DATA
+  // ============================================================================
+
+  /// Load data từ onLoadData callback
+  Future<void> _loadData() async {
+    if (!mounted) return;
+    if (widget.onLoadData == null) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final newDataTable = await widget.onLoadData!();
+
+      if (!mounted) return;
+
+      // Update dataSource
+      if (widget.dataSource != null) {
+        widget.dataSource!.clear();
+        widget.dataSource!.loadDatafromTb(newDataTable);
+      }
+
+      _incrementDataVersion();
+      _invalidateCache();
+      _processChipData();
+
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+
+      // Auto scroll sau khi load xong
+      if (widget.autoScrollToCurrentTime) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scrollToCurrentTime();
+        });
+      }
+    } catch (e) {
+      debugPrint('❌ CyberTimelineSchedule: Error loading data: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  /// Public method để refresh data
+  Future<void> refresh() async {
+    if (widget.onLoadData != null) {
+      await _loadData();
+    } else {
+      // Nếu không có onLoadData, chỉ reprocess
+      _incrementDataVersion();
+      _invalidateCache();
+      _processChipData();
+      if (mounted) {
+        setState(() {});
+      }
+    }
+  }
+
+  /// Public method để reload data (alias của refresh)
+  Future<void> reload() async {
+    await refresh();
+  }
+
+  // ============================================================================
+  // TIME SLOTS INITIALIZATION
+  // ============================================================================
 
   void _initTimeSlots() {
     _startTimeOfDay = _parseTime(widget.startTime);
@@ -441,6 +695,10 @@ class _CyberTimelineScheduleState extends State<CyberTimelineSchedule> {
     return slots;
   }
 
+  // ============================================================================
+  // SCROLL METHODS
+  // ============================================================================
+
   void _scrollToCurrentTime() {
     if (!_scrollController.hasClients) return;
 
@@ -460,7 +718,7 @@ class _CyberTimelineScheduleState extends State<CyberTimelineSchedule> {
     }
   }
 
-  /// Scroll đến thời gian chỉ định
+  /// Public method: Scroll đến thời gian chỉ định
   void scrollToTime(TimeOfDay time, {bool animate = true}) {
     if (!_scrollController.hasClients) return;
 
@@ -484,11 +742,44 @@ class _CyberTimelineScheduleState extends State<CyberTimelineSchedule> {
     }
   }
 
+  /// Public method: Scroll đến chip theo index
+  void scrollToChip(int index, {bool animate = true}) {
+    if (index < 0 || index >= _processedChips.length) return;
+
+    final chipInfo = _processedChips[index].info;
+    final offset = chipInfo.top;
+
+    if (animate) {
+      _scrollController.animateTo(
+        offset.clamp(0.0, _scrollController.position.maxScrollExtent),
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    } else {
+      _scrollController.jumpTo(
+        offset.clamp(0.0, _scrollController.position.maxScrollExtent),
+      );
+    }
+  }
+
+  // ============================================================================
+  // CHIP DATA PROCESSING
+  // ============================================================================
+
   /// Process chip data và tính overlap
   void _processChipData() {
-    _processedChips.clear();
+    // Check cache
+    if (_cachedProcessedChips != null &&
+        _cachedDataVersion == _dataSourceVersion) {
+      _processedChips = _cachedProcessedChips!;
+      return;
+    }
+
+    _processedChips = [];
 
     if (widget.dataSource == null || widget.dataSource!.rowCount == 0) {
+      _cachedProcessedChips = _processedChips;
+      _cachedDataVersion = _dataSourceVersion;
       return;
     }
 
@@ -507,6 +798,10 @@ class _CyberTimelineScheduleState extends State<CyberTimelineSchedule> {
 
     // Step 3: Calculate overlap columns
     _calculateOverlapColumns();
+
+    // Cache
+    _cachedProcessedChips = _processedChips;
+    _cachedDataVersion = _dataSourceVersion;
   }
 
   /// Tính toán vị trí và chiều cao cơ bản của chip
@@ -522,11 +817,15 @@ class _CyberTimelineScheduleState extends State<CyberTimelineSchedule> {
 
       final timelineStartMinutes =
           _startTimeOfDay.hour * 60 + _startTimeOfDay.minute;
+      final timelineEndMinutes = _endTimeOfDay.hour * 60 + _endTimeOfDay.minute;
       final chipStartMinutes = chipStart.hour * 60 + chipStart.minute;
       final chipEndMinutes = chipEnd.hour * 60 + chipEnd.minute;
 
       // Validate: chip phải nằm trong timeline range
-      if (chipStartMinutes < timelineStartMinutes) return null;
+      if (chipStartMinutes < timelineStartMinutes ||
+          chipStartMinutes > timelineEndMinutes) {
+        return null;
+      }
 
       // Tính vị trí top
       final minutesFromStart = chipStartMinutes - timelineStartMinutes;
@@ -611,12 +910,15 @@ class _CyberTimelineScheduleState extends State<CyberTimelineSchedule> {
     }
   }
 
+  // ============================================================================
+  // CURRENT TIME INDICATOR
+  // ============================================================================
+
   /// Tính vị trí của current time indicator
   double? _getCurrentTimeOffset() {
     if (!widget.showCurrentTimeIndicator) return null;
 
-    final now = TimeOfDay.now();
-    final nowMinutes = now.hour * 60 + now.minute;
+    final nowMinutes = _currentTime.hour * 60 + _currentTime.minute;
     final startMinutes = _startTimeOfDay.hour * 60 + _startTimeOfDay.minute;
     final endMinutes = _endTimeOfDay.hour * 60 + _endTimeOfDay.minute;
 
@@ -625,6 +927,10 @@ class _CyberTimelineScheduleState extends State<CyberTimelineSchedule> {
     return ((nowMinutes - startMinutes) / widget.intervalMinutes) *
         widget.rowHeight;
   }
+
+  // ============================================================================
+  // TAP HANDLERS
+  // ============================================================================
 
   TimeOfDay _getTapTime(double tapY) {
     final minutesFromStart = (tapY / widget.rowHeight) * widget.intervalMinutes;
@@ -647,10 +953,56 @@ class _CyberTimelineScheduleState extends State<CyberTimelineSchedule> {
     widget.onEmptyLongPress!(_getTapTime(details.localPosition.dy));
   }
 
+  // ============================================================================
+  // BUILD METHODS
+  // ============================================================================
+
   @override
   Widget build(BuildContext context) {
+    // Show loading
+    if (_isLoading) {
+      return _buildLoading();
+    }
+
     final totalHeight = _timeSlots.length * widget.rowHeight.toDouble();
     final currentTimeOffset = _getCurrentTimeOffset();
+
+    Widget timelineContent = GestureDetector(
+      onTapDown: _handleEmptyTap,
+      onLongPressStart: _handleEmptyLongPress,
+      child: Container(
+        color: widget.backgroundColor ?? Colors.grey[200],
+        child: Stack(
+          children: [
+            // Time rows (background)
+            _buildTimeRows(totalHeight),
+
+            // Chips layer
+            _buildChipsLayer(totalHeight),
+
+            // Current time indicator
+            if (currentTimeOffset != null)
+              _buildCurrentTimeIndicator(currentTimeOffset),
+          ],
+        ),
+      ),
+    );
+
+    // Wrap với SingleChildScrollView
+    Widget scrollableContent = SingleChildScrollView(
+      controller: _scrollController,
+      physics: widget.physics,
+      padding: widget.padding,
+      child: timelineContent,
+    );
+
+    // Add pull to refresh
+    if (widget.enablePullToRefresh) {
+      scrollableContent = RefreshIndicator(
+        onRefresh: refresh,
+        child: scrollableContent,
+      );
+    }
 
     return Column(
       children: [
@@ -658,32 +1010,7 @@ class _CyberTimelineScheduleState extends State<CyberTimelineSchedule> {
         if (widget.header != null) widget.header!,
 
         // Timeline content
-        Expanded(
-          child: SingleChildScrollView(
-            controller: _scrollController,
-            physics: widget.physics,
-            child: GestureDetector(
-              onTapDown: _handleEmptyTap,
-              onLongPressStart: _handleEmptyLongPress,
-              child: Container(
-                color: widget.backgroundColor ?? Colors.grey[200],
-                child: Stack(
-                  children: [
-                    // Time rows (background)
-                    _buildTimeRows(totalHeight),
-
-                    // Chips layer
-                    _buildChipsLayer(totalHeight),
-
-                    // Current time indicator
-                    if (currentTimeOffset != null)
-                      _buildCurrentTimeIndicator(currentTimeOffset),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
+        Expanded(child: scrollableContent),
 
         // Footer (nếu có)
         if (widget.footer != null) widget.footer!,
@@ -691,44 +1018,69 @@ class _CyberTimelineScheduleState extends State<CyberTimelineSchedule> {
     );
   }
 
+  Widget _buildLoading() {
+    return widget.loadingWidget ??
+        const Center(child: CircularProgressIndicator());
+  }
+
   Widget _buildTimeRows(double totalHeight) {
     return SizedBox(
       height: totalHeight,
       child: Column(
-        children: _timeSlots.map((time) {
-          return _buildTimeRow(time);
-        }).toList(),
+        children: _timeSlots.map((time) => _buildTimeRow(time)).toList(),
       ),
     );
   }
 
   Widget _buildTimeRow(TimeOfDay time) {
+    // Tính offset dựa vào alignment
+    double verticalOffset = widget.timeLabelVerticalOffset;
+
+    switch (widget.timeLabelAlignment) {
+      case TimeLabelAlignment.onLine:
+        // Giờ nằm ngay tại vạch (dịch lên để căn giữa với vạch)
+        verticalOffset += -8;
+        break;
+      case TimeLabelAlignment.belowLine:
+        // Giờ nằm dưới vạch (trong ô)
+        verticalOffset += 4;
+        break;
+      case TimeLabelAlignment.aboveLine:
+        // Giờ nằm trên vạch
+        verticalOffset += -16;
+        break;
+    }
+
     return Container(
       height: widget.rowHeight.toDouble(),
       decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(
+          top: BorderSide(
             color: widget.dividerColor ?? Colors.grey[400]!,
             width: widget.dividerThickness,
           ),
         ),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Time label
           SizedBox(
             width: widget.timeLabelWidth,
-            child: Padding(
-              padding: const EdgeInsets.only(left: 8, top: 4),
-              child: Text(
-                _formatTime(time),
-                style:
-                    widget.timeLabelStyle ??
-                    TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey[600],
-                      fontWeight: FontWeight.w500,
-                    ),
+            child: Transform.translate(
+              offset: Offset(0, verticalOffset),
+              child: Padding(
+                padding: const EdgeInsets.only(left: 8),
+                child: Text(
+                  _formatTime(time),
+                  style:
+                      widget.timeLabelStyle ??
+                      TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
+                      ),
+                ),
               ),
             ),
           ),
@@ -883,18 +1235,41 @@ class _CyberTimelineScheduleState extends State<CyberTimelineSchedule> {
   }
 
   Widget _buildCurrentTimeIndicator(double offset) {
+    final timeStr = _formatTime(_currentTime);
+    final indicatorColor = widget.currentTimeIndicatorColor ?? Colors.red;
+
     return Positioned(
       left: 0,
       right: 0,
       top: offset,
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          // 🎯 Hiển thị giờ thực tế (nếu bật)
+          if (widget.showCurrentTimeLabel)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              decoration: BoxDecoration(
+                color: indicatorColor,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                timeStr,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+
           // Circle indicator
           Container(
-            width: 10,
-            height: 10,
+            width: 8,
+            height: 8,
+            margin: EdgeInsets.only(left: widget.showCurrentTimeLabel ? 2 : 0),
             decoration: BoxDecoration(
-              color: widget.currentTimeIndicatorColor ?? Colors.red,
+              color: indicatorColor,
               shape: BoxShape.circle,
             ),
           ),
@@ -903,7 +1278,7 @@ class _CyberTimelineScheduleState extends State<CyberTimelineSchedule> {
           Expanded(
             child: Container(
               height: widget.currentTimeIndicatorThickness,
-              color: widget.currentTimeIndicatorColor ?? Colors.red,
+              color: indicatorColor,
             ),
           ),
         ],
@@ -911,14 +1286,19 @@ class _CyberTimelineScheduleState extends State<CyberTimelineSchedule> {
     );
   }
 
-  @override
-  void dispose() {
-    widget.dataSource?.removeListener(_onDataSourceChanged);
-    if (widget.scrollController == null) {
-      _scrollController.dispose();
-    }
-    super.dispose();
-  }
+  // ============================================================================
+  // PUBLIC GETTERS
+  // ============================================================================
+
+  /// Lấy danh sách chips đã xử lý
+  List<CyberChipInfo> get chipInfos =>
+      _processedChips.map((c) => c.info).toList();
+
+  /// Lấy số lượng chips
+  int get chipCount => _processedChips.length;
+
+  /// Kiểm tra đang loading
+  bool get isLoading => _isLoading;
 }
 
 // ============================================================================
@@ -1072,5 +1452,41 @@ class CyberScheduleChip extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+// ============================================================================
+// Extension để dễ dàng tạo chip colors
+// ============================================================================
+
+extension CyberScheduleChipColors on CyberScheduleChip {
+  /// Predefined color schemes
+  static const Color blue = Color(0xFF42A5F5);
+  static const Color green = Color(0xFF66BB6A);
+  static const Color orange = Color(0xFFFF9800);
+  static const Color red = Color(0xFFEF5350);
+  static const Color purple = Color(0xFFAB47BC);
+  static const Color teal = Color(0xFF26A69A);
+  static const Color indigo = Color(0xFF5C6BC0);
+  static const Color pink = Color(0xFFEC407A);
+
+  /// Get color by status
+  static Color getColorByStatus(String status) {
+    switch (status.toLowerCase()) {
+      case 'pending':
+      case 'chờ':
+        return orange;
+      case 'in_progress':
+      case 'đang xử lý':
+        return blue;
+      case 'completed':
+      case 'hoàn thành':
+        return green;
+      case 'cancelled':
+      case 'hủy':
+        return red;
+      default:
+        return blue;
+    }
   }
 }
