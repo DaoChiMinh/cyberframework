@@ -8,6 +8,10 @@ abstract class CyberBaseEdit extends CyberForm {
   bool get showSaveButton => true;
   final ReturnFormData _formData = ReturnFormData(isOk: false);
 
+  bool? _showBar = true;
+  bool? get showBar => _showBar;
+  set showBar(bool? value) => _showBar = value;
+
   /// Padding cho nút Save
   EdgeInsets get saveButtonPadding =>
       EdgeInsets.symmetric(vertical: 24, horizontal: 16);
@@ -33,6 +37,7 @@ abstract class CyberBaseEdit extends CyberForm {
             initialIndex: initialTabIndex,
             tabs: tabList,
             onTabChanged: onTabChanged,
+            showTabBar: showBar!,
           ),
         ),
       );
