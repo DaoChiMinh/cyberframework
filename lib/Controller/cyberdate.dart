@@ -37,6 +37,12 @@ import 'package:intl/intl.dart';
 ///   nullValue: DateTime(1900, 1, 1), // Mặc định, có thể không cần khai báo
 ///   showClearButton: true, // Hiển thị nút Clear
 /// )
+///
+/// // Cách 5: Giữ nguyên giờ phút giây khi chọn ngày mới
+/// CyberDate(
+///   text: dr.bind("Ngay_BD"),
+///   isResetTime: false, // Giữ nguyên time part
+/// )
 /// ```
 class CyberDate extends StatefulWidget {
   /// ⚠️ KHÔNG dùng cả text VÀ controller cùng lúc
@@ -59,6 +65,12 @@ class CyberDate extends StatefulWidget {
 
   /// Icon code hiển thị bên trái (VD: "e935")
   final String? prefixIcon;
+
+  /// Hiển thị prefix icon hay không (mặc định: true)
+  final bool showprefixIcon;
+
+  /// Hiển thị suffix icon (dropdown) hay không (mặc định: true)
+  final bool showSuffixIcon;
 
   /// Kích thước border (đơn vị: pixel)
   final int? borderSize;
@@ -101,7 +113,10 @@ class CyberDate extends StatefulWidget {
 
   /// Hiển thị nút Clear để xóa giá trị (set về nullValue)
   final bool showClearButton;
-  final bool showprefixIcon;
+
+  /// Reset time về 00:00:00 khi chọn ngày mới (mặc định: true)
+  /// Nếu false: giữ nguyên giờ:phút:giây từ giá trị cũ
+  final bool isResetTime;
 
   /// Default null value: 01/01/1900
   static final DateTime defaultNullValue = DateTime(1900, 1, 1);
@@ -115,6 +130,7 @@ class CyberDate extends StatefulWidget {
     this.format = "dd/MM/yyyy",
     this.prefixIcon,
     this.showprefixIcon = true,
+    this.showSuffixIcon = true,
     this.borderSize = 1,
     this.borderRadius,
     this.enabled = true,
@@ -136,6 +152,7 @@ class CyberDate extends StatefulWidget {
     this.errorText,
     this.nullValue,
     this.showClearButton = false,
+    this.isResetTime = true,
   }) : assert(
          controller == null || text == null,
          'CyberDate: không được dùng cả text và controller cùng lúc',
@@ -414,6 +431,17 @@ class _CyberDateState extends State<CyberDate> {
     return _isNullValue(parsed) ? null : parsed;
   }
 
+  /// ✅ Lấy raw DateTime từ binding (bao gồm cả time part)
+  DateTime? _getRawBindingValue() {
+    if (_boundRow != null && _boundField != null) {
+      return _parseDateTime(_boundRow![_boundField!]);
+    }
+    if (widget.text != null && widget.text is! CyberBindingExpression) {
+      return _parseDateTime(widget.text);
+    }
+    return null;
+  }
+
   /// ✅ Parse dynamic value sang DateTime?
   DateTime? _parseDateTime(dynamic rawValue) {
     if (rawValue is DateTime) return rawValue;
@@ -553,23 +581,52 @@ class _CyberDateState extends State<CyberDate> {
   void _updateValue(DateTime newDate) {
     _isUpdating = true;
 
+    DateTime finalDateTime;
+
+    // ✅ Nếu isResetTime = false, giữ nguyên time part từ giá trị cũ
+    if (!widget.isResetTime) {
+      final oldValue = _getRawBindingValue();
+      if (oldValue != null) {
+        finalDateTime = DateTime(
+          newDate.year,
+          newDate.month,
+          newDate.day,
+          oldValue.hour,
+          oldValue.minute,
+          oldValue.second,
+        );
+      } else {
+        finalDateTime = newDate;
+      }
+    } else {
+      // Reset time về 00:00:00
+      finalDateTime = DateTime(newDate.year, newDate.month, newDate.day);
+    }
+
     // ✅ Update controller/binding
     if (widget.controller == null) {
-      _internalController!.value = newDate;
+      _internalController!.value = finalDateTime;
     }
 
     if (_boundRow != null && _boundField != null) {
-      _boundRow![_boundField!] = newDate;
+      final originalValue = _boundRow![_boundField!];
+
+      // ✅ Nếu binding value là ISO string, giữ nguyên format
+      if (originalValue is String) {
+        _boundRow![_boundField!] = finalDateTime.toIso8601String();
+      } else {
+        _boundRow![_boundField!] = finalDateTime;
+      }
     }
 
     // Update display
-    _textController.text = _formatDate(newDate);
+    _textController.text = _formatDate(finalDateTime);
 
     // Validate
     _validate();
 
     // Callback
-    widget.onChanged?.call(newDate);
+    widget.onChanged?.call(finalDateTime);
 
     _isUpdating = false;
 
@@ -591,7 +648,14 @@ class _CyberDateState extends State<CyberDate> {
     }
 
     if (_boundRow != null && _boundField != null) {
-      _boundRow![_boundField!] = nullVal;
+      final originalValue = _boundRow![_boundField!];
+
+      // ✅ Nếu binding value là ISO string, giữ nguyên format
+      if (originalValue is String) {
+        _boundRow![_boundField!] = nullVal.toIso8601String();
+      } else {
+        _boundRow![_boundField!] = nullVal;
+      }
     }
 
     // Update display - sẽ hiển thị hint text vì là nullValue
@@ -631,7 +695,29 @@ class _CyberDateState extends State<CyberDate> {
 
     if (result != null) {
       _updateValue(result);
-      widget.onLeaver?.call(result);
+
+      // ✅ onLeaver callback - trả về DateTime đầy đủ (có time part nếu isResetTime = false)
+      if (widget.onLeaver != null) {
+        DateTime finalDateTime;
+        if (!widget.isResetTime) {
+          final oldValue = _getRawBindingValue();
+          if (oldValue != null) {
+            finalDateTime = DateTime(
+              result.year,
+              result.month,
+              result.day,
+              oldValue.hour,
+              oldValue.minute,
+              oldValue.second,
+            );
+          } else {
+            finalDateTime = result;
+          }
+        } else {
+          finalDateTime = DateTime(result.year, result.month, result.day);
+        }
+        widget.onLeaver!(finalDateTime);
+      }
     }
   }
 
@@ -791,9 +877,9 @@ class _CyberDateState extends State<CyberDate> {
                 )
               : null);
 
-    // ✅ Suffix icon: Hiển thị Clear hoặc Dropdown
+    // ✅ Suffix icon: Hiển thị Clear hoặc Dropdown (nếu showSuffixIcon = true)
     Widget? suffixWidget;
-    if (widget.enabled) {
+    if (widget.enabled && widget.showSuffixIcon) {
       if (hasValue && widget.showClearButton) {
         // Hiển thị nút Clear khi có giá trị
         suffixWidget = Row(
@@ -830,11 +916,11 @@ class _CyberDateState extends State<CyberDate> {
         fontSize: 15,
         fontWeight: FontWeight.w400,
       ),
-      prefixIcon: iconData != null
-          ? Icon(iconData, size: 18)
-          : (widget.showprefixIcon
-                ? const Icon(Icons.calendar_today, size: 18)
-                : null),
+      prefixIcon: widget.showprefixIcon
+          ? (iconData != null
+                ? Icon(iconData, size: 18)
+                : const Icon(Icons.calendar_today, size: 18))
+          : null,
       suffixIcon: suffixWidget,
 
       // ✅ Border based on error state and borderSize

@@ -15,7 +15,8 @@ class CyberTime extends StatefulWidget {
   // ✅ BINDING SUPPORT: text có thể là:
   // - CyberBindingExpression: dr.bind("gio_bat_dau")
   // - TimeOfDay: giá trị trực tiếp
-  // - String: "14:30" (sẽ parse)
+  // - DateTime: lấy hour và minute từ DateTime
+  // - String: "HH:mm" hoặc "HH:mm:ss" (sẽ parse)
   // - null: sử dụng initialValue
   final dynamic text;
 
@@ -29,6 +30,12 @@ class CyberTime extends StatefulWidget {
 
   /// Icon code hiển thị bên trái (VD: "e8b5")
   final String? prefixIcon;
+
+  /// Hiển thị prefix icon hay không (mặc định: true)
+  final bool showprefixIcon;
+
+  /// Hiển thị suffix icon (dropdown) hay không (mặc định: true)
+  final bool showSuffixIcon;
 
   /// Kích thước border (đơn vị: pixel)
   final int? borderSize;
@@ -66,6 +73,8 @@ class CyberTime extends StatefulWidget {
     this.hint,
     this.format = "HH:mm",
     this.prefixIcon,
+    this.showprefixIcon = true,
+    this.showSuffixIcon = true,
     this.borderSize = 1,
     this.borderRadius,
     this.enabled = true,
@@ -151,8 +160,8 @@ class _CyberTimeState extends State<CyberTime> {
       _parseBinding();
       _attachBinding(_boundRow);
 
-      // Reload value from new binding
-      _loadValueFromBinding();
+      // ✅ Reload value - hỗ trợ cả binding, String, DateTime, TimeOfDay
+      _loadValueFromText();
       _updateTextController();
     }
 
@@ -170,8 +179,8 @@ class _CyberTimeState extends State<CyberTime> {
       _validate();
     }
 
-    // ✅ 4. Handle initial value changes (khi không có binding)
-    if (_boundRow == null && oldWidget.initialValue != widget.initialValue) {
+    // ✅ 4. Handle initial value changes (khi không có text)
+    if (widget.text == null && oldWidget.initialValue != widget.initialValue) {
       _controller.value = widget.initialValue;
       _updateTextController();
     }
@@ -281,7 +290,7 @@ class _CyberTimeState extends State<CyberTime> {
     _isUpdating = true;
 
     // ✅ Load value từ binding vào controller
-    _loadValueFromBinding();
+    _loadValueFromText();
 
     // ✅ Update UI (thông qua controller listener)
     _updateTextController();
@@ -300,7 +309,7 @@ class _CyberTimeState extends State<CyberTime> {
   // ✅ VALUE FLOW - Unidirectional Data Flow
   // =========================================================================
 
-  /// ✅ Get value từ props (binding hoặc direct value)
+  /// ✅ Get value từ props (binding, String, DateTime, TimeOfDay hoặc initialValue)
   TimeOfDay? _getValueFromProps() {
     // Priority 1: Binding
     if (_boundRow != null && _boundField != null) {
@@ -308,7 +317,7 @@ class _CyberTimeState extends State<CyberTime> {
       return _parseTimeOfDay(rawValue);
     }
 
-    // Priority 2: Direct value
+    // Priority 2: Direct value (String, DateTime, TimeOfDay)
     if (widget.text != null && widget.text is! CyberBindingExpression) {
       return _parseTimeOfDay(widget.text);
     }
@@ -321,8 +330,8 @@ class _CyberTimeState extends State<CyberTime> {
     return null;
   }
 
-  /// ✅ Load value từ binding vào controller
-  void _loadValueFromBinding() {
+  /// ✅ Load value từ text (binding hoặc direct value) vào controller
+  void _loadValueFromText() {
     final value = _getValueFromProps();
     if (!_sameTime(_controller.value, value)) {
       _controller.setSilently(value);
@@ -353,7 +362,29 @@ class _CyberTimeState extends State<CyberTime> {
       return;
     }
 
-    // ✅ Ngược lại, sync as string
+    // ✅ Nếu binding value là ISO datetime string, preserve date part
+    if (originalValue is String && controllerValue != null) {
+      final originalDt = DateTime.tryParse(originalValue);
+      if (originalDt != null) {
+        // Đây là ISO datetime string
+        final newDateTime = DateTime(
+          originalDt.year,
+          originalDt.month,
+          originalDt.day,
+          controllerValue.hour,
+          controllerValue.minute,
+          0,
+        );
+        final newIsoString = newDateTime.toIso8601String();
+
+        if (originalValue != newIsoString) {
+          _boundRow![_boundField!] = newIsoString;
+        }
+        return;
+      }
+    }
+
+    // ✅ Ngược lại, sync as time string "HH:mm"
     final timeString = controllerValue != null
         ? _formatTime(controllerValue)
         : '';
@@ -368,17 +399,34 @@ class _CyberTimeState extends State<CyberTime> {
   // ✅ PARSING & FORMATTING
   // =========================================================================
 
+  /// ✅ Parse dynamic value thành TimeOfDay
+  /// Hỗ trợ: TimeOfDay, DateTime, String ("HH:mm", "HH:mm:ss", ISO datetime)
   TimeOfDay? _parseTimeOfDay(dynamic value) {
     if (value == null) return null;
     if (value is TimeOfDay) return value;
 
+    // ✅ DateTime: lấy hour và minute
     if (value is DateTime) {
       return TimeOfDay(hour: value.hour, minute: value.minute);
     }
 
+    // ✅ String: parse nhiều format
     if (value is String) {
+      final trimmed = value.trim();
+      if (trimmed.isEmpty) return null;
+
       try {
-        final parts = value.trim().split(':');
+        // ✅ ISO datetime format: "2026-01-26T14:30:00" hoặc "2026-01-26 14:30:00"
+        if (trimmed.contains('T') ||
+            (trimmed.contains('-') && trimmed.contains(':'))) {
+          final dt = DateTime.tryParse(trimmed);
+          if (dt != null) {
+            return TimeOfDay(hour: dt.hour, minute: dt.minute);
+          }
+        }
+
+        // ✅ Time only format: "HH:mm" hoặc "HH:mm:ss"
+        final parts = trimmed.split(':');
         if (parts.length >= 2) {
           final hour = int.parse(parts[0]);
           final minute = int.parse(parts[1]);
@@ -388,7 +436,7 @@ class _CyberTimeState extends State<CyberTime> {
           }
         }
       } catch (e) {
-        // Invalid format
+        // Invalid format - return null
       }
     }
 
@@ -493,19 +541,69 @@ class _CyberTimeState extends State<CyberTime> {
   // =========================================================================
 
   void _updateValue(TimeOfDay newTime) {
+    if (_isUpdating) return;
+
     _isUpdating = true;
 
-    // ✅ Update controller (single source of truth)
-    _controller.value = newTime;
-    // Controller listener sẽ tự động:
-    // - Update UI
-    // - Sync to binding
-    // - Validate
+    // ✅ 1. Update controller (single source of truth)
+    _controller.setSilently(newTime);
 
-    // ✅ User callback
+    // ✅ 2. Sync to binding TRỰC TIẾP
+    if (_boundRow != null && _boundField != null) {
+      final originalValue = _boundRow![_boundField!];
+
+      if (originalValue is DateTime) {
+        // DateTime: preserve date part
+        final newDateTime = DateTime(
+          originalValue.year,
+          originalValue.month,
+          originalValue.day,
+          newTime.hour,
+          newTime.minute,
+          0,
+        );
+        _boundRow![_boundField!] = newDateTime;
+      } else if (originalValue is String) {
+        final originalDt = DateTime.tryParse(originalValue);
+        if (originalDt != null) {
+          // ISO datetime string: preserve date part
+          final newDateTime = DateTime(
+            originalDt.year,
+            originalDt.month,
+            originalDt.day,
+            newTime.hour,
+            newTime.minute,
+            0,
+          );
+          _boundRow![_boundField!] = newDateTime.toIso8601String();
+        } else {
+          // Time only string
+          _boundRow![_boundField!] = _formatTime(newTime);
+        }
+      } else {
+        // Other cases
+        _boundRow![_boundField!] = _formatTime(newTime);
+      }
+    }
+
+    // ✅ 3. Update UI
+    _updateTextController();
+
+    // ✅ 4. Validate
+    _validate();
+
+    // ✅ 5. User callback
     widget.onChanged?.call(newTime);
 
-    _isUpdating = false;
+    // ✅ 6. Rebuild trước, rồi mới set _isUpdating = false
+    if (mounted) {
+      setState(() {});
+    }
+
+    // ✅ 7. Delay để đảm bảo rebuild xong
+    Future.microtask(() {
+      _isUpdating = false;
+    });
   }
 
   Future<void> _showTimePicker() async {
@@ -526,9 +624,22 @@ class _CyberTimeState extends State<CyberTime> {
     if (result != null) {
       _updateValue(result);
 
-      // ✅ onLeaver callback
+      // ✅ onLeaver callback - trả về đúng type dựa vào giá trị gốc
       if (widget.onLeaver != null) {
-        if (_boundRow != null && _boundField != null) {
+        // Kiểm tra xem text gốc có phải DateTime không
+        final originalText = widget.text;
+        if (originalText is DateTime) {
+          // Preserve date part từ DateTime gốc
+          final newDateTime = DateTime(
+            originalText.year,
+            originalText.month,
+            originalText.day,
+            result.hour,
+            result.minute,
+            0,
+          );
+          widget.onLeaver!(newDateTime);
+        } else if (_boundRow != null && _boundField != null) {
           final originalValue = _boundRow![_boundField!];
           if (originalValue is DateTime) {
             final newDateTime = DateTime(
@@ -540,6 +651,22 @@ class _CyberTimeState extends State<CyberTime> {
               0,
             );
             widget.onLeaver!(newDateTime);
+          } else if (originalValue is String) {
+            // ✅ Check if ISO datetime string
+            final originalDt = DateTime.tryParse(originalValue);
+            if (originalDt != null) {
+              final newDateTime = DateTime(
+                originalDt.year,
+                originalDt.month,
+                originalDt.day,
+                result.hour,
+                result.minute,
+                0,
+              );
+              widget.onLeaver!(newDateTime.toIso8601String());
+            } else {
+              widget.onLeaver!(_formatTime(result));
+            }
           } else {
             widget.onLeaver!(_formatTime(result));
           }
@@ -560,6 +687,36 @@ class _CyberTimeState extends State<CyberTime> {
       return const SizedBox.shrink();
     }
 
+    // ✅ Listen to binding first (if exists), then build UI
+    if (_boundRow != null) {
+      return ListenableBuilder(
+        listenable: _boundRow!,
+        builder: (context, child) {
+          // ✅ Chỉ sync binding → controller khi KHÔNG đang update từ UI
+          if (!_isUpdating) {
+            _syncBindingToController();
+          }
+          return _buildContent();
+        },
+      );
+    }
+
+    return _buildContent();
+  }
+
+  /// ✅ Sync binding value → controller (khi binding thay đổi từ bên ngoài)
+  void _syncBindingToController() {
+    if (_boundRow == null || _boundField == null) return;
+
+    final bindingValue = _parseTimeOfDay(_boundRow![_boundField!]);
+    if (!_sameTime(_controller.value, bindingValue)) {
+      _controller.setSilently(bindingValue);
+      _updateTextController();
+    }
+  }
+
+  /// ✅ Build widget content
+  Widget _buildContent() {
     final currentError = widget.errorText ?? _validationError;
 
     Widget textField = TextField(
@@ -572,11 +729,10 @@ class _CyberTimeState extends State<CyberTime> {
       onTap: widget.enabled ? _showTimePicker : null,
     );
 
-    Widget finalWidget;
     if (widget.isShowLabel &&
         widget.label != null &&
         widget.decoration == null) {
-      finalWidget = Column(
+      return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -617,24 +773,9 @@ class _CyberTimeState extends State<CyberTime> {
             ),
         ],
       );
-    } else {
-      finalWidget = textField;
     }
 
-    // ✅ Listen to controller for reactive updates
-    return ListenableBuilder(
-      listenable: _controller,
-      builder: (context, child) {
-        // ✅ Also listen to binding if exists
-        if (_boundRow != null) {
-          return ListenableBuilder(
-            listenable: _boundRow!,
-            builder: (context, child) => finalWidget,
-          );
-        }
-        return finalWidget;
-      },
-    );
+    return textField;
   }
 
   InputDecoration _buildDecoration(String? errorText) {
@@ -681,10 +822,12 @@ class _CyberTimeState extends State<CyberTime> {
         fontSize: 15,
         fontWeight: FontWeight.w400,
       ),
-      prefixIcon: iconData != null
-          ? Icon(iconData, size: 18)
-          : const Icon(Icons.access_time, size: 18),
-      suffixIcon: widget.enabled
+      prefixIcon: widget.showprefixIcon
+          ? (iconData != null
+                ? Icon(iconData, size: 18)
+                : const Icon(Icons.access_time, size: 18))
+          : null,
+      suffixIcon: (widget.enabled && widget.showSuffixIcon)
           ? IconButton(
               icon: const Icon(Icons.arrow_drop_down, size: 20),
               onPressed: _showTimePicker,
