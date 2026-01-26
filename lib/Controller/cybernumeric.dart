@@ -208,13 +208,14 @@ class _CyberNumericState extends State<CyberNumeric> {
         _thousandsSeparator,
         '',
       );
-      num? value = text.isEmpty ? null : num.tryParse(text);
+      num? value = text.isEmpty ? 0 : num.tryParse(text);
 
-      // Validate min/max (chỉ khi value != null)
-      if (value != null) {
-        if (widget.min != null && value < widget.min!) value = widget.min;
-        if (widget.max != null && value! > widget.max!) value = widget.max;
-      }
+      // Nếu parse thất bại thì về 0
+      value ??= 0;
+
+      // Validate min/max
+      if (widget.min != null && value < widget.min!) value = widget.min;
+      if (widget.max != null && value! > widget.max!) value = widget.max;
 
       _isUpdating = true;
       if (widget.controller == null) {
