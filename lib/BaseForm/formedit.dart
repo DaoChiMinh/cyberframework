@@ -37,7 +37,7 @@ abstract class CyberBaseEdit extends CyberForm {
             initialIndex: initialTabIndex,
             tabs: tabList,
             onTabChanged: onTabChanged,
-            showTabBar: showBar!,
+            showTabBar: showBar! ? tabList.length > 1 : showBar!,
           ),
         ),
       );
