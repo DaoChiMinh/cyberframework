@@ -1532,7 +1532,7 @@ class CyberViewFileState extends State<CyberViewFile> {
         await Share.shareXFiles([xFile], text: _fileInfo!.fileName);
       } else {
         // Android: Use file picker
-        final savePath = await FilePicker.platform.saveFile(
+        final savePath = await FilePicker.saveFile(
           fileName: _fileInfo!.fileName,
           bytes: _fileInfo!.bytes,
         );
