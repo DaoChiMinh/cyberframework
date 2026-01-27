@@ -180,7 +180,7 @@ class _CyberFormViewState extends State<CyberFormView>
         widget.speedMonitorPosition == SpeedMonitorPosition.appBar;
 
     return AppBar(
-      backgroundColor: const Color(0xFF00D287),
+      backgroundColor: const Color(0xFF145A4A),
       iconTheme: const IconThemeData(color: Colors.white),
       title: Text(
         _form.title ?? widget.title,
