@@ -1,6 +1,6 @@
 import 'package:cyberframework/cyberframework.dart';
 
-/// CyberCheckbox - Checkbox control với Internal Controller + Binding
+/// CyberCheckbox - iOS-style Toggle Switch với Internal Controller + Binding
 ///
 /// Hỗ trợ binding 2 chiều:
 /// ```dart
@@ -30,6 +30,9 @@ class CyberCheckbox extends StatefulWidget {
   final double? size;
   final dynamic isVisible;
 
+  /// Vị trí label: true = label bên trái, false = label bên phải (default)
+  final bool labelOnLeft;
+
   const CyberCheckbox({
     super.key,
     this.text,
@@ -42,6 +45,7 @@ class CyberCheckbox extends StatefulWidget {
     this.checkColor,
     this.size,
     this.isVisible = true,
+    this.labelOnLeft = false,
   });
 
   @override
@@ -286,39 +290,41 @@ class _CyberCheckboxState extends State<CyberCheckbox> {
       final isChecked = _controller.value;
       final isEnabled = widget.enabled;
 
-      // iOS-style checkbox display
-      Widget checkboxDisplay = _IOSCheckbox(
+      // iOS-style circle checkbox
+      Widget checkboxDisplay = _IOSCircleCheckbox(
         value: isChecked,
         enabled: isEnabled,
-        activeColor: widget.activeColor ?? const Color(0xFF00D287),
+        activeColor: widget.activeColor ?? const Color(0xFF145A4A), // iOS blue
         checkColor: widget.checkColor ?? Colors.white,
         size: widget.size ?? 24,
       );
 
       // With label: InkWell + Row
       if (widget.label != null && widget.label!.isNotEmpty) {
+        final labelWidget = Flexible(
+          child: Text(
+            widget.label!,
+            style:
+                widget.labelStyle ??
+                TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w400,
+                  color: isEnabled ? Colors.black : Colors.grey,
+                  letterSpacing: -0.4,
+                ),
+          ),
+        );
+
         return InkWell(
           onTap: isEnabled ? _toggleValue : null,
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(8),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
             child: Row(
               mainAxisSize: MainAxisSize.min,
-              children: [
-                checkboxDisplay,
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    widget.label!,
-                    style:
-                        widget.labelStyle ??
-                        TextStyle(
-                          fontSize: 16,
-                          color: isEnabled ? Colors.black87 : Colors.grey,
-                        ),
-                  ),
-                ),
-              ],
+              children: widget.labelOnLeft
+                  ? [labelWidget, const SizedBox(width: 12), checkboxDisplay]
+                  : [checkboxDisplay, const SizedBox(width: 12), labelWidget],
             ),
           ),
         );
@@ -360,17 +366,17 @@ class _InternalCheckboxController extends ChangeNotifier {
 }
 
 // ============================================================================
-// iOS-STYLE CHECKBOX WIDGET
+// iOS-STYLE CIRCLE CHECKBOX WIDGET
 // ============================================================================
 
-class _IOSCheckbox extends StatelessWidget {
+class _IOSCircleCheckbox extends StatelessWidget {
   final bool value;
   final bool enabled;
   final Color activeColor;
   final Color checkColor;
   final double size;
 
-  const _IOSCheckbox({
+  const _IOSCircleCheckbox({
     required this.value,
     required this.enabled,
     required this.activeColor,
@@ -382,23 +388,31 @@ class _IOSCheckbox extends StatelessWidget {
   Widget build(BuildContext context) {
     final opacity = enabled ? 1.0 : 0.5;
 
+    // iOS colors
+    final Color fillColor = value ? activeColor : Colors.transparent;
+    final Color borderColor = value ? activeColor : const Color(0xFFD1D1D6);
+
     return Opacity(
       opacity: opacity,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+        duration: const Duration(milliseconds: 150),
         curve: Curves.easeInOut,
         width: size,
         height: size,
         decoration: BoxDecoration(
-          color: value ? activeColor : Colors.transparent,
-          border: Border.all(
-            color: value ? activeColor : Colors.grey[400]!,
-            width: 2,
-          ),
-          borderRadius: BorderRadius.circular(size * 0.25),
+          color: fillColor,
+          shape: BoxShape.circle,
+          border: Border.all(color: borderColor, width: value ? 0 : 2),
         ),
         child: value
-            ? Icon(Icons.check, color: checkColor, size: size * 0.7)
+            ? Center(
+                child: Icon(
+                  Icons.check,
+                  color: checkColor,
+                  size: size * 0.65,
+                  weight: 600,
+                ),
+              )
             : null,
       ),
     );
