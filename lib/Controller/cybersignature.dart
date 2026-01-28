@@ -12,7 +12,7 @@ import 'package:cyberframework/cyberframework.dart';
 ///
 /// CÁCH DÙNG:
 ///
-/// // Cách 1: Chỉ binding (không cần controller)
+/// // Cách 1: Chỉ binding (không cần controller) - Lưu base64
 /// CyberSignature(
 ///   text: drEdit.bind("signature"),
 ///   label: "Chữ ký",
@@ -20,13 +20,25 @@ import 'package:cyberframework/cyberframework.dart';
 ///   isClear: true,
 /// )
 ///
-/// // Cách 2: Có controller để điều khiển
+/// // Cách 2: Auto upload lên server - Lưu URL
+/// CyberSignature(
+///   text: drEdit.bind("signature_url"),
+///   label: "Chữ ký",
+///   isSign: true,
+///   autoUpload: true,
+///   uploadFilePath: '/signatures/',
+///   onSigned: (base64, url) => print('Signed: $url'),
+///   onUploadSuccess: (url) => print('Uploaded: $url'),
+/// )
+///
+/// // Cách 3: Có controller để điều khiển
 /// final signCtrl = CyberSignatureController();
 /// CyberSignature(
 ///   controller: signCtrl,
-///   text: drEdit.bind("signature"),
+///   text: drEdit.bind("signature_url"),
 ///   label: "Chữ ký",
-///   onSigned: (base64) => print('Đã ký: $base64'),
+///   autoUpload: true,
+///   onSigned: (base64, url) => print('Đã ký: $url'),
 /// )
 /// signCtrl.triggerSign(); // Trigger action
 ///
@@ -54,10 +66,31 @@ class CyberSignature extends StatefulWidget {
   /// Callbacks
   final ValueChanged<String>? onChanged;
   final Function(dynamic)? onLeaver;
-  final ValueChanged<String>? onSigned; // Callback sau khi ký xong
+
+  /// Callback sau khi ký xong
+  /// Parameters: (base64Data, uploadedUrl)
+  /// - base64Data: Dữ liệu chữ ký dạng base64
+  /// - uploadedUrl: URL sau khi upload (rỗng nếu autoUpload = false hoặc upload thất bại)
+  final void Function(String base64Data, String uploadedUrl)? onSigned;
+
   final VoidCallback? onSignRequested; // Callback khi bắt đầu ký
   final VoidCallback? onViewRequested; // Callback khi xem
   final VoidCallback? onClearRequested; // Callback khi xóa
+
+  /// Auto upload chữ ký lên server sau khi ký
+  /// Nếu true: upload và lưu URL vào binding
+  /// Nếu false: chỉ lưu base64 vào binding (default)
+  final bool autoUpload;
+
+  /// Đường dẫn folder lưu file trên server (optional)
+  /// Ví dụ: '/signatures/' hoặc '/documents/signs/'
+  final String? uploadFilePath;
+
+  /// Callback khi upload thành công, trả về URL
+  final ValueChanged<String>? onUploadSuccess;
+
+  /// Callback khi upload thất bại
+  final ValueChanged<String>? onUploadError;
 
   final Color? backgroundColor;
   final Color? borderColor;
@@ -96,6 +129,10 @@ class CyberSignature extends StatefulWidget {
     this.onSignRequested,
     this.onViewRequested,
     this.onClearRequested,
+    this.autoUpload = false,
+    this.uploadFilePath,
+    this.onUploadSuccess,
+    this.onUploadError,
     this.backgroundColor,
     this.borderColor,
     this.borderWidth = 2.0,
@@ -127,6 +164,7 @@ class _CyberSignatureState extends State<CyberSignature> {
 
   /// State flags
   bool _isSyncing = false;
+  bool _isLoading = false;
 
   /// Cache
   bool? _cachedVisibility;
@@ -327,7 +365,7 @@ class _CyberSignatureState extends State<CyberSignature> {
   /// UPDATE VALUE
   /// ============================================================================
 
-  void _updateValue(String? newValue) {
+  void _updateValue(String? newValue, {String uploadedUrl = ''}) {
     if (!_effectiveController.enabled || !widget.enabled || _isSyncing) return;
 
     _isSyncing = true;
@@ -344,9 +382,9 @@ class _CyberSignatureState extends State<CyberSignature> {
     widget.onChanged?.call(newValue ?? '');
     widget.onLeaver?.call(newValue);
 
-    // onSigned callback nếu có giá trị
+    // onSigned callback với cả base64 và url
     if (newValue != null && newValue.isNotEmpty) {
-      widget.onSigned?.call(newValue);
+      widget.onSigned?.call(newValue, uploadedUrl);
     }
 
     _isSyncing = false;
@@ -511,13 +549,115 @@ class _CyberSignatureState extends State<CyberSignature> {
       );
 
       if (result != null && result.isNotEmpty) {
-        _updateValue(result);
+        await _processAndUploadSignature(result);
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Lỗi khi ký: $e')));
+      }
+    }
+  }
+
+  /// ============================================================================
+  /// PROCESS AND UPLOAD SIGNATURE
+  /// ============================================================================
+
+  /// Xử lý và upload chữ ký (nếu autoUpload = true)
+  Future<void> _processAndUploadSignature(String base64Data) async {
+    if (!mounted) return;
+
+    // Nếu không auto upload, chỉ lưu base64
+    if (!widget.autoUpload) {
+      _updateValue(base64Data, uploadedUrl: '');
+      return;
+    }
+
+    // Auto upload lên server
+    setState(() => _isLoading = true);
+
+    try {
+      debugPrint('🚀 Starting auto upload signature...');
+
+      // Decode base64 to bytes
+      String base64Content = base64Data;
+      if (base64Data.contains(',')) {
+        base64Content = base64Data.split(',').last;
+      }
+      final bytes = base64Decode(base64Content);
+
+      // Tạo tên file unique
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final fileName = 'signature_$timestamp.png';
+
+      // Tạo upload path
+      final uploadPath = widget.uploadFilePath != null
+          ? '${widget.uploadFilePath}$fileName'
+          : '/$fileName';
+
+      debugPrint('📁 Upload path: $uploadPath');
+
+      // Upload sử dụng uploadSingleObjectAndCheck
+      final (uploadedFile, status) = await context.uploadSingleObjectAndCheck(
+        object: bytes,
+        filePath: uploadPath,
+        showLoading: true,
+        showError: false,
+      );
+
+      if (!status || uploadedFile == null) {
+        debugPrint('❌ Upload failed: status=$status');
+
+        // Upload thất bại - fallback lưu base64
+        if (mounted) {
+          await 'Upload chữ ký thất bại. Đã lưu chữ ký tạm thời.'.V_MsgBox(
+            context,
+            type: CyberMsgBoxType.warning,
+          );
+
+          // Lưu base64 như fallback, url trả về rỗng
+          _updateValue(base64Data, uploadedUrl: '');
+
+          widget.onUploadError?.call('Upload failed');
+        }
+        return;
+      }
+
+      debugPrint('✅ Upload success: ${uploadedFile.url}');
+
+      // Upload thành công - lưu URL vào binding, callback với cả base64 và url
+      _updateValue(uploadedFile.url, uploadedUrl: uploadedFile.url);
+
+      // Callback success
+      widget.onUploadSuccess?.call(uploadedFile.url);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Upload chữ ký thành công!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ Process/Upload error: $e');
+
+      if (mounted) {
+        await 'Lỗi xử lý chữ ký: $e'.V_MsgBox(
+          context,
+          type: CyberMsgBoxType.error,
+        );
+
+        // Fallback lưu base64
+        _updateValue(base64Data, uploadedUrl: '');
+
+        widget.onUploadError?.call(e.toString());
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
       }
     }
   }
@@ -671,7 +811,9 @@ class _CyberSignatureState extends State<CyberSignature> {
 
     Widget signatureWidget;
 
-    if (hasSignature) {
+    if (_isLoading) {
+      signatureWidget = _buildLoading();
+    } else if (hasSignature) {
       signatureWidget = _buildSignatureWidget(signatureData);
     } else {
       signatureWidget = _buildPlaceholder();
@@ -718,6 +860,24 @@ class _CyberSignatureState extends State<CyberSignature> {
 
   Widget _buildSignatureWidget(String signatureData) {
     try {
+      // Nếu là URL (đã upload)
+      if (signatureData.startsWith('http://') ||
+          signatureData.startsWith('https://')) {
+        return Container(
+          color: Colors.white,
+          padding: const EdgeInsets.all(8),
+          child: CachedNetworkImage(
+            imageUrl: signatureData,
+            fit: BoxFit.contain,
+            placeholder: (context, url) => _buildLoading(),
+            errorWidget: (context, url, error) {
+              return widget.errorWidget ?? _buildErrorWidget();
+            },
+          ),
+        );
+      }
+
+      // Base64
       final bytes = _decodeBase64(signatureData);
       if (bytes == null) {
         return widget.errorWidget ?? _buildErrorWidget();
@@ -763,6 +923,19 @@ class _CyberSignatureState extends State<CyberSignature> {
                 ),
               ],
             ),
+    );
+  }
+
+  Widget _buildLoading() {
+    final height = widget.height ?? 200;
+    final isSmall = height < 120;
+
+    return Center(
+      child: SizedBox(
+        width: isSmall ? height * 0.3 : 40,
+        height: isSmall ? height * 0.3 : 40,
+        child: const CircularProgressIndicator(strokeWidth: 3),
+      ),
     );
   }
 
