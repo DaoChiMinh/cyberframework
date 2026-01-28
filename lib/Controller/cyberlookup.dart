@@ -714,8 +714,8 @@ class _CyberLookupState extends State<CyberLookup> {
                       onTap: _clearValues,
                       borderRadius: BorderRadius.circular(12),
                       child: Icon(
-                        Icons.clear,
-                        color: Colors.grey[600],
+                        Icons.cancel,
+                        color: Colors.grey[400],
                         size: 20,
                       ),
                     ),
