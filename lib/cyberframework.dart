@@ -12,8 +12,9 @@ export 'package:cyberframework/Module/CallData/cyberdatapost.dart';
 export 'package:cyberframework/Module/CallData/loadingoverlay.dart';
 export 'package:cyberframework/Module/CallData/returndata.dart';
 //cyberoauthservice.dart
-//cyberoauthservice.dart
-export 'package:cyberframework/Module/cyberoauthservice.dart';
+//cyberoathconfig.dart
+export 'package:cyberframework/Module/OATH/cyberoathconfig.dart';
+export 'package:cyberframework/Module/OATH/cyberoauthservice.dart';
 export 'package:cyberframework/Module/CallData/cyberconnectivityservice.dart';
 export 'package:cyberframework/Core/app_navigator.dart';
 
