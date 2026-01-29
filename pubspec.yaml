@@ -19,7 +19,7 @@ dependencies:
   get_it: ^9.2.0
   crypto: ^3.0.7
   http: ^1.6.0
-  flutter_secure_storage: ^9.0.0
+  flutter_secure_storage: ^10.0.0
   flutter_slidable: ^4.0.3
   intl: ^0.20.2
   image_picker: ^1.2.1
@@ -56,8 +56,8 @@ dependencies:
   onesignal_flutter: ^5.3.5
   fluttertoast: ^9.0.0
   mime: ^2.0.0
-  google_sign_in: ^7.2.0
-  aad_oauth: ^1.0.1
+  # google_sign_in: ^7.2.0
+  # aad_oauth: ^1.0.1
   # flutter_app_badger: ^1.5.0
 
 dev_dependencies:
