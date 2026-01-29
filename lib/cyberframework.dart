@@ -11,7 +11,9 @@ export 'package:cyberframework/Module/CallData/cyberapifilepost.dart';
 export 'package:cyberframework/Module/CallData/cyberdatapost.dart';
 export 'package:cyberframework/Module/CallData/loadingoverlay.dart';
 export 'package:cyberframework/Module/CallData/returndata.dart';
-//cyberconnectivityservice
+//cyberoauthservice.dart
+//cyberoauthservice.dart
+export 'package:cyberframework/Module/cyberoauthservice.dart';
 export 'package:cyberframework/Module/CallData/cyberconnectivityservice.dart';
 export 'package:cyberframework/Core/app_navigator.dart';
 
