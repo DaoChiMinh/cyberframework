@@ -862,10 +862,15 @@ class CyberDataRow extends ChangeNotifier implements ICyberIdentifiable {
   // ============================================================================
 
   // ignore: non_constant_identifier_names
-  Future<ReturnFormData> V_Call(BuildContext context) async {
+  Future<ReturnFormData> V_Call(
+    BuildContext context, {
+    String TitleDefault = "",
+  }) async {
     if (!hasField("PageName")) return ReturnFormData(isOk: false);
     String pageName = this["PageName"];
-    String title = !hasField("TitlePage") ? "" : this["TitlePage"].toString();
+    String title = !hasField("TitlePage")
+        ? TitleDefault
+        : this["TitlePage"].toString();
     String cpName = !hasField("cp_name") ? "" : this["cp_name"].toString();
     String typepage = !hasField("TypePageName")
         ? ""
