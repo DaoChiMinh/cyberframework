@@ -26,6 +26,106 @@ class UserInfo {
   static bool istantrang = false;
   static bool ischangpass = false;
   static String _strTokenKey = "";
+
+  // ============================================================================
+  // ✅ SL_Notify - Số lượng thông báo chưa đọc
+  // ============================================================================
+
+  /// Số lượng thông báo (static value)
+  // ignore: non_constant_identifier_names
+  static int SL_Notify = 0;
+
+  /// ValueNotifier để UI có thể listen và tự động rebuild khi SL_Notify thay đổi
+  /// Usage trong Widget:
+  /// ```dart
+  /// ValueListenableBuilder<int>(
+  ///   valueListenable: UserInfo.notifyCountNotifier,
+  ///   builder: (context, count, child) {
+  ///     return Badge(
+  ///       label: Text('$count'),
+  ///       isLabelVisible: count > 0,
+  ///       child: Icon(Icons.notifications),
+  ///     );
+  ///   },
+  /// )
+  /// ```
+  static final ValueNotifier<int> notifyCountNotifier = ValueNotifier<int>(0);
+
+  /// Cập nhật số lượng thông báo
+  // ignore: non_constant_identifier_names
+  static void updateSL_Notify(int count) {
+    SL_Notify = count;
+    notifyCountNotifier.value = count;
+  }
+
+  /// Tăng số lượng thông báo
+  static void incrementNotify([int amount = 1]) {
+    SL_Notify += amount;
+    notifyCountNotifier.value = SL_Notify;
+  }
+
+  /// Giảm số lượng thông báo
+  static void decrementNotify([int amount = 1]) {
+    SL_Notify = (SL_Notify - amount).clamp(0, 999999);
+    notifyCountNotifier.value = SL_Notify;
+  }
+
+  /// Đánh dấu đã đọc hết thông báo
+  static void clearNotify() {
+    SL_Notify = 0;
+    notifyCountNotifier.value = 0;
+  }
+
+  /// Fetch số lượng thông báo từ server
+  // ignore: non_constant_identifier_names
+  static Future<bool> fetchSL_Notify(
+    BuildContext context, {
+    bool showLoading = false,
+    bool showError = false,
+  }) async {
+    try {
+      ReturnData? retData = await context.callApi(
+        functionName: "CP_GetNotifyCount", // Tên API lấy số lượng notify
+        parameter: "",
+        showLoading: showLoading,
+        showError: showError,
+      );
+
+      if (!retData.isValid()) return false;
+
+      CyberDataset? ds = retData.toCyberDataset();
+      if (ds == null) return false;
+
+      CyberDataTable? dt = ds[0];
+      if (dt == null || dt.rowCount == 0) return false;
+
+      final row = dt[0];
+      if (dt.containerColumn("SL_Notify")) {
+        int count = _parseIntSafe(row["SL_Notify"]);
+        updateSL_Notify(count);
+        return true;
+      }
+
+      return false;
+    } catch (e) {
+      debugPrint('❌ Error fetching SL_Notify: $e');
+      return false;
+    }
+  }
+
+  /// Helper: Parse int an toàn
+  static int _parseIntSafe(dynamic value) {
+    if (value == null) return 0;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) return int.tryParse(value) ?? 0;
+    return 0;
+  }
+
+  // ============================================================================
+  // LOGIN / LOGOUT
+  // ============================================================================
+
   // ignore: non_constant_identifier_names
   static Future<bool> V_LoginOTP(
     BuildContext contex, {
@@ -143,6 +243,19 @@ class UserInfo {
       id_otp = "";
     }
 
+    // ✅ Handle SL_Notify - Số lượng thông báo
+    if (dtlogin.containerColumn("SL_Notify")) {
+      int count = _parseIntSafe(loginRow["SL_Notify"]);
+      updateSL_Notify(count);
+    } else if (dtlogin.containerColumn("sl_notify")) {
+      // Fallback lowercase
+      int count = _parseIntSafe(loginRow["sl_notify"]);
+      updateSL_Notify(count);
+    } else {
+      // Reset nếu không có cột
+      updateSL_Notify(0);
+    }
+
     // ✅ Save token
     final tokenKey = loginRow["tokenkey"]?.toString();
     if (tokenKey != null && tokenKey.isNotEmpty) {
@@ -182,5 +295,8 @@ class UserInfo {
     comment = "";
     isOTP = "";
     id_otp = "";
+
+    // ✅ Reset SL_Notify khi logout
+    clearNotify();
   }
 }
