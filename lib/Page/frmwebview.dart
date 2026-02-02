@@ -3,6 +3,16 @@ import 'package:cyberframework/cyberframework.dart';
 class Frmwebview extends CyberForm {
   // ignore: non_constant_identifier_names
   String? Url;
+  // Tự động wrap PDF URL với Google Docs Viewer
+  String? get _processedUrl {
+    if (Url == null) return null;
+
+    // Kiểm tra nếu là PDF URL
+    if (Url!.toLowerCase().endsWith('.pdf')) {
+      return "https://docs.google.com/gview?embedded=true&url=${Uri.encodeComponent(Url!)}";
+    }
+    return Url;
+  }
 
   final GlobalKey<CyberWebViewState> _webViewKey =
       GlobalKey<CyberWebViewState>();
@@ -18,7 +28,11 @@ class Frmwebview extends CyberForm {
 
   @override
   Widget buildBody(BuildContext context) {
-    return CyberWebView(key: _webViewKey, url: Url, clearCacheOnDispose: true);
+    return CyberWebView(
+      key: _webViewKey,
+      url: _processedUrl,
+      clearCacheOnDispose: true,
+    );
   }
 
   // ✅ OVERRIDE onDispose() để cleanup WebView
