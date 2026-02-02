@@ -942,10 +942,20 @@ class _CyberImageState extends State<CyberImage> {
     return buildImage();
   }
 
+  /// ============================================================================
+  /// ✅ FIX: _buildImageContainer - Cho phép event pass through khi không có action
+  /// ============================================================================
   Widget _buildImageContainer() {
     final imageValue = _getCurrentValue();
     final hasImage = imageValue != null && imageValue.isNotEmpty;
     final isEnabled = _effectiveController.enabled && widget.enabled;
+
+    // ✅ FIX: Kiểm tra có action nào khả dụng không
+    final canUpload = _canUpload();
+    final canView = _canView() && hasImage; // View chỉ có ý nghĩa khi có ảnh
+    final canDelete =
+        _canDelete() && hasImage; // Delete chỉ có ý nghĩa khi có ảnh
+    final hasAnyAction = canUpload || canView || canDelete;
 
     Widget imageWidget;
 
@@ -957,35 +967,47 @@ class _CyberImageState extends State<CyberImage> {
       imageWidget = _buildPlaceholder();
     }
 
-    return GestureDetector(
-      onTap: isEnabled ? _handleImageTap : null,
-      child: Opacity(
-        opacity: isEnabled ? 1.0 : 0.5,
-        child: Container(
-          width: widget.width ?? double.infinity,
-          height: widget.height,
-          decoration: BoxDecoration(
-            color: widget.backgroundColor ?? Colors.grey[100],
-            border: widget.borderColor != null
-                ? Border.all(
-                    color: widget.borderColor!,
-                    width: widget.borderWidth,
-                  )
-                : null,
-            borderRadius: widget.isCircle
-                ? null
-                : BorderRadius.circular(widget.borderRadius),
-            shape: widget.isCircle ? BoxShape.circle : BoxShape.rectangle,
-          ),
-          child: ClipRRect(
-            borderRadius: widget.isCircle
-                ? BorderRadius.circular(widget.height ?? 200)
-                : BorderRadius.circular(widget.borderRadius),
-            child: imageWidget,
-          ),
+    // ✅ Build container widget
+    Widget container = Opacity(
+      opacity: isEnabled ? 1.0 : 0.5,
+      child: Container(
+        width: widget.width ?? double.infinity,
+        height: widget.height,
+        decoration: BoxDecoration(
+          color: widget.backgroundColor ?? Colors.grey[100],
+          border: widget.borderColor != null
+              ? Border.all(
+                  color: widget.borderColor!,
+                  width: widget.borderWidth,
+                )
+              : null,
+          borderRadius: widget.isCircle
+              ? null
+              : BorderRadius.circular(widget.borderRadius),
+          shape: widget.isCircle ? BoxShape.circle : BoxShape.rectangle,
+        ),
+        child: ClipRRect(
+          borderRadius: widget.isCircle
+              ? BorderRadius.circular(widget.height ?? 200)
+              : BorderRadius.circular(widget.borderRadius),
+          child: imageWidget,
         ),
       ),
     );
+
+    // ✅ FIX: Chỉ wrap GestureDetector nếu có action khả dụng
+    // Nếu không có action → return container trực tiếp để event pass through lên parent
+    if (isEnabled && hasAnyAction) {
+      return GestureDetector(
+        onTap: _handleImageTap,
+        behavior: HitTestBehavior.opaque,
+        child: container,
+      );
+    }
+
+    // ✅ Không có action → return container không có GestureDetector
+    // Event sẽ pass through lên parent widget
+    return container;
   }
 
   Uint8List? _getImageBytes(String imageValue) {
