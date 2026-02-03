@@ -994,7 +994,7 @@ class _LookupBottomSheetState extends State<_LookupBottomSheet> {
       final response = await context.callApi(
         functionName: "CP_W10SysListoDir",
         parameter:
-            "$pageIndex#${widget.pageSize}#$filter#${widget.strFilter}#${widget.tbName}##",
+            "$pageIndex#${widget.pageSize}#$filter#${widget.strFilter}#${widget.tbName}#${UserInfo.ma_dvcs}#${UserInfo.user_name}",
         showLoading: false,
       );
 
