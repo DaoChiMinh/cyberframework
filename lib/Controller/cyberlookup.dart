@@ -44,6 +44,7 @@ class CyberLookup extends StatefulWidget {
   final bool enabled;
   final bool readOnly;
   final bool allowClear;
+  final bool isShowIconsearch;
   final bool isShowLabel;
   final dynamic isVisible;
   final dynamic isCheckEmpty;
@@ -73,6 +74,7 @@ class CyberLookup extends StatefulWidget {
     this.enabled = true,
     this.readOnly = false,
     this.allowClear = true,
+    this.isShowIconsearch = true,
     this.isShowLabel = true,
     this.isVisible = true,
     this.isCheckEmpty = false,
@@ -721,13 +723,14 @@ class _CyberLookupState extends State<CyberLookup> {
                     ),
                     const SizedBox(width: 4),
                   ] else ...[
-                    Icon(
-                      Icons.search,
-                      color: isInteractive
-                          ? Colors.grey[600]
-                          : Colors.grey[400],
-                      size: 20,
-                    ),
+                    if (widget.isShowIconsearch)
+                      Icon(
+                        Icons.search,
+                        color: isInteractive
+                            ? Colors.grey[600]
+                            : Colors.grey[400],
+                        size: 20,
+                      ),
                   ],
                 ],
               ),
