@@ -135,12 +135,12 @@ class UserInfo {
     bool isShowMsg = true,
     bool isShowloading = true,
   }) async {
-    String _certificate = await DeviceInfo.cetificate;
+    String certificate = await DeviceInfo.cetificate;
 
     ReturnData returnDatalogin = await contex.callApi(
       functionName: "CP_APPNBSysLoginCheckOTP",
       parameter:
-          "$id_otp#$Ma_otp#$_strTokenKey#$_certificate#$Ma_Dvcs#$User_Name",
+          "$id_otp#$Ma_otp#$_strTokenKey#$certificate#$Ma_Dvcs#$User_Name",
       showError: isShowMsg,
       showLoading: isShowloading,
     );
