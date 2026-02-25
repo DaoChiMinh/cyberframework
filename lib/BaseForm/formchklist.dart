@@ -52,7 +52,7 @@ abstract class CyberFormchklist extends CyberForm {
         isOne = _dtMaster![0].getBool("isone");
         isExec = _dtMaster![0].getBool("isExecute");
       }
-      if (ds1!.tableCount > 2) _dttag = ds1![ds1.tableCount - 1];
+      if (ds1!.tableCount > 2) _dttag = ds1[ds1.tableCount - 1];
       return ds1[0]!;
     } else {
       return CyberDataTable(tableName: "data");
