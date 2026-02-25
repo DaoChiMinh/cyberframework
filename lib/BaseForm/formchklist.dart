@@ -18,7 +18,7 @@ abstract class CyberFormchklist extends CyberForm {
     _ma_tag = "";
     dtList = await v_loadData(1, 20, "");
     v_updateIndex();
-    this.title = _dtMaster![0]["title"] ?? this.title;
+    title = _dtMaster![0]["title"] ?? title;
     return super.onLoadData();
   }
 
@@ -184,20 +184,20 @@ abstract class CyberFormchklist extends CyberForm {
   @override
   // ignore: override_on_non_overriding_member
   Future<void> SaveData() async {
-    ReturnFormData _formData = ReturnFormData(isOk: false);
+    ReturnFormData formData = ReturnFormData(isOk: false);
     var selectedRows = selectedIndices
         .map((index) => dtList!.rows[index])
         .toList();
-    for (var _dr in selectedRows) {
-      _dr["chk"] = "1";
+    for (var dr in selectedRows) {
+      dr["chk"] = "1";
     }
     CyberDataTable dt = CyberDataTable(tableName: "SAVE");
     dt.loadDataFromRows(selectedRows);
 
     if (!isExec) {
-      _formData.isOk = true;
-      _formData.objectData = dt;
-      close(result: _formData);
+      formData.isOk = true;
+      formData.objectData = dt;
+      close(result: formData);
     } else {
       String strXML = dt.toXml(tableNameOverride: "SAVE");
 
@@ -211,11 +211,11 @@ abstract class CyberFormchklist extends CyberForm {
       if (ds1.tableCount < 2) return;
 
       if (ds1[1]!.rowCount > 0) {
-        _formData.isOk = true;
-        _formData.objectData = ds1[1];
+        formData.isOk = true;
+        formData.objectData = ds1[1];
       }
-      _formData.isOk = true;
-      close(result: _formData);
+      formData.isOk = true;
+      close(result: formData);
     }
   }
 
