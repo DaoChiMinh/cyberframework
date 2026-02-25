@@ -50,4 +50,9 @@ class DeviceInfo extends ChangeNotifier {
   static String get manufacturer => CyberDeviceInfo().manufacturer;
   static String get appVersion => CyberDeviceInfo().appVersion;
   static String get platform => CyberDeviceInfo().platform;
+  static String urlServerName = "";
+
+  static void vgetInfo() async {
+    urlServerName = await servername;
+  }
 }
