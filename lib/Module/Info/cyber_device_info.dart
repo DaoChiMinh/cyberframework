@@ -147,9 +147,9 @@ class CyberDeviceInfo {
       return _androidInfo!.id;
     }
     if (_iosInfo != null) {
-      return _iosInfo!.identifierForVendor ?? 'Unknown';
+      return _iosInfo!.identifierForVendor ?? '';
     }
-    return 'Unknown';
+    return '';
   }
 
   /// Is physical device (not emulator)

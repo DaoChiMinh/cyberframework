@@ -32,7 +32,7 @@ class DeviceInfo extends ChangeNotifier {
   static Future<String> get cetificate async {
     String cer = await AppStorage.get("cetificate");
     if (cer == "") {
-      cer = manufacturer;
+      cer = deviceId;
       if (cer == "") {
         var uuid = Uuid();
         cer = uuid.v1();
