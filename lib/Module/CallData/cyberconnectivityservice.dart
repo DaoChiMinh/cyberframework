@@ -501,6 +501,29 @@ class CyberConnectivityService {
     }
   }
 
+  /// Stream vị trí liên tục, chỉ emit khi di chuyển >= [distanceFilter] mét
+  Stream<LocationResult> getLocationStream({
+    LocationAccuracy accuracy = LocationAccuracy.high,
+    int distanceFilter = 10,
+  }) {
+    return Geolocator.getPositionStream(
+      locationSettings: LocationSettings(
+        accuracy: accuracy,
+        distanceFilter: distanceFilter,
+      ),
+    ).map(
+      (position) => LocationResult.success(
+        latitude: position.latitude,
+        longitude: position.longitude,
+        accuracy: position.accuracy,
+        altitude: position.altitude,
+        speed: position.speed,
+        heading: position.heading,
+        timestamp: position.timestamp,
+      ),
+    );
+  }
+
   /// Mở cài đặt location của thiết bị
   Future<void> openLocationSettings() async {
     await Geolocator.openLocationSettings();

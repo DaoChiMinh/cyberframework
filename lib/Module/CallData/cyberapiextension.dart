@@ -469,4 +469,15 @@ extension CyberLocationExtension on BuildContext {
   Future<void> openAppSettings() {
     return CyberConnectivityService().openAppSettings();
   }
+
+  /// Stream vị trí liên tục — chỉ emit khi di chuyển >= [distanceFilter] mét
+  Stream<LocationResult> getLocationStream({
+    LocationAccuracy accuracy = LocationAccuracy.high,
+    int distanceFilter = 10,
+  }) {
+    return CyberConnectivityService().getLocationStream(
+      accuracy: accuracy,
+      distanceFilter: distanceFilter,
+    );
+  }
 }
