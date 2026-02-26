@@ -424,13 +424,13 @@ class _CyberCameraState extends State<CyberCamera> with WidgetsBindingObserver {
       widget.onUploadSuccess?.call(uploadedFile.url);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Upload ảnh thành công!'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-          ),
-        );
+        // ScaffoldMessenger.of(context).showSnackBar(
+        //   const SnackBar(
+        //     content: Text('Upload ảnh thành công!'),
+        //     backgroundColor: Colors.green,
+        //     duration: Duration(seconds: 2),
+        //   ),
+        // );
       }
     } catch (e) {
       debugPrint('❌ CyberCamera upload error: $e');
