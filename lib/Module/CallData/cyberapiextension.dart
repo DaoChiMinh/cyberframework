@@ -407,3 +407,18 @@ extension CyberApiUploadObjectExtension on BuildContext {
     return null;
   }
 }
+
+extension CyberConnectivityExtension on BuildContext {
+  /// Lấy địa chỉ IP public của client
+  ///
+  /// Ví dụ:
+  /// ```dart
+  /// final ip = await context.getPublicIP();
+  /// if (ip != null) {
+  ///   print('IP: $ip'); // "203.113.x.x"
+  /// }
+  /// ```
+  Future<String?> getPublicIP({Duration timeout = const Duration(seconds: 5)}) {
+    return CyberConnectivityService().getPublicIP(timeout: timeout);
+  }
+}

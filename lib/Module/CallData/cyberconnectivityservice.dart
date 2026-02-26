@@ -313,6 +313,76 @@ class CyberConnectivityService {
   Stream<List<ConnectivityResult>> get onConnectivityChanged {
     return _connectivity.onConnectivityChanged;
   }
+
+  /// Lấy địa chỉ IP public của client
+  ///
+  /// Thử lần lượt nhiều service để đảm bảo độ tin cậy:
+  /// - api.ipify.org (plain text)
+  /// - api4.my-ip.io (JSON)
+  /// - ipinfo.io/ip (plain text)
+  ///
+  /// Trả về IP string nếu thành công, null nếu thất bại.
+  ///
+  /// Ví dụ:
+  /// ```dart
+  /// final ip = await CyberConnectivityService().getPublicIP();
+  /// print('Public IP: $ip'); // "203.113.x.x"
+  /// ```
+  Future<String?> getPublicIP({
+    Duration timeout = const Duration(seconds: 5),
+  }) async {
+    final services = [
+      _IPService(url: 'https://api.ipify.org', parser: (body) => body.trim()),
+      _IPService(
+        url: 'https://api4.my-ip.io/ip.txt',
+        parser: (body) => body.trim(),
+      ),
+      _IPService(url: 'https://ipinfo.io/ip', parser: (body) => body.trim()),
+    ];
+
+    for (final service in services) {
+      try {
+        final response = await http
+            .get(Uri.parse(service.url))
+            .timeout(timeout);
+
+        if (response.statusCode == 200) {
+          final ip = service.parser(response.body);
+          // Validate IP format (basic check)
+          if (_isValidIP(ip)) {
+            return ip;
+          }
+        }
+      } catch (_) {
+        // Thử service tiếp theo
+        continue;
+      }
+    }
+
+    return null;
+  }
+
+  /// Validate định dạng IPv4 / IPv6 cơ bản
+  bool _isValidIP(String ip) {
+    if (ip.isEmpty) return false;
+    // IPv4
+    final ipv4 = RegExp(r'^(\d{1,3}\.){3}\d{1,3}$');
+    if (ipv4.hasMatch(ip)) {
+      final parts = ip.split('.');
+      return parts.every((p) => int.tryParse(p) != null && int.parse(p) <= 255);
+    }
+    // IPv6 (basic)
+    final ipv6 = RegExp(r'^[0-9a-fA-F:]+$');
+    return ipv6.hasMatch(ip) && ip.contains(':');
+  }
+}
+
+/// Helper để cấu hình IP service endpoint
+class _IPService {
+  final String url;
+  final String Function(String body) parser;
+
+  _IPService({required this.url, required this.parser});
 }
 
 /// Kết quả kiểm tra internet
