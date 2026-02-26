@@ -422,3 +422,51 @@ extension CyberConnectivityExtension on BuildContext {
     return CyberConnectivityService().getPublicIP(timeout: timeout);
   }
 }
+
+extension CyberLocationExtension on BuildContext {
+  /// Lấy tọa độ hiện tại của thiết bị
+  ///
+  /// Ví dụ:
+  /// ```dart
+  /// final result = await context.getCurrentLocation();
+  ///
+  /// if (result.isSuccess) {
+  ///   print('Lat: ${result.latitude}');
+  ///   print('Lng: ${result.longitude}');
+  ///   print('Maps: ${result.googleMapsUrl}');
+  /// } else {
+  ///   if (result.errorType == LocationErrorType.permissionDeniedForever) {
+  ///     await context.openAppSettings(); // Mở cài đặt để cấp quyền
+  ///   }
+  /// }
+  /// ```
+  Future<LocationResult> getCurrentLocation({
+    LocationAccuracy accuracy = LocationAccuracy.high,
+    Duration timeout = const Duration(seconds: 10),
+  }) {
+    return CyberConnectivityService().getCurrentLocation(
+      accuracy: accuracy,
+      timeout: timeout,
+    );
+  }
+
+  /// Lấy tọa độ nhanh (dùng vị trí cached nếu có)
+  ///
+  /// Ví dụ:
+  /// ```dart
+  /// final result = await context.getLastKnownLocation();
+  /// ```
+  Future<LocationResult> getLastKnownLocation() {
+    return CyberConnectivityService().getLastKnownLocation();
+  }
+
+  /// Mở cài đặt GPS của thiết bị
+  Future<void> openLocationSettings() {
+    return CyberConnectivityService().openLocationSettings();
+  }
+
+  /// Mở cài đặt app để user tự cấp quyền
+  Future<void> openAppSettings() {
+    return CyberConnectivityService().openAppSettings();
+  }
+}

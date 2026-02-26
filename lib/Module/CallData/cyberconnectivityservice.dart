@@ -1,4 +1,5 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'dart:io';
@@ -375,6 +376,286 @@ class CyberConnectivityService {
     final ipv6 = RegExp(r'^[0-9a-fA-F:]+$');
     return ipv6.hasMatch(ip) && ip.contains(':');
   }
+
+  // ============================================================================
+  // 📍 LOCATION - LẤY TỌA ĐỘ THIẾT BỊ
+  // ============================================================================
+
+  /// Lấy tọa độ hiện tại của thiết bị
+  ///
+  /// Tự động xử lý:
+  /// - Kiểm tra service location có bật không
+  /// - Xin quyền nếu chưa có
+  /// - Lấy vị trí với độ chính xác tùy chỉnh
+  ///
+  /// [accuracy] : Độ chính xác (mặc định: high ~10m)
+  /// [timeout]  : Thời gian chờ tối đa (mặc định: 10s)
+  ///
+  /// Ví dụ:
+  /// ```dart
+  /// final result = await CyberConnectivityService().getCurrentLocation();
+  ///
+  /// if (result.isSuccess) {
+  ///   print('Lat: ${result.latitude}');
+  ///   print('Lng: ${result.longitude}');
+  ///   print('Accuracy: ${result.accuracy}m');
+  /// } else {
+  ///   print('Error: ${result.errorMessage}');
+  /// }
+  /// ```
+  Future<LocationResult> getCurrentLocation({
+    LocationAccuracy accuracy = LocationAccuracy.high,
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
+    try {
+      // 1. Kiểm tra GPS service có bật không
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        return LocationResult.failure(
+          errorType: LocationErrorType.serviceDisabled,
+          errorMessage: 'Dịch vụ vị trí đang tắt. Vui lòng bật GPS và thử lại.',
+        );
+      }
+
+      // 2. Kiểm tra & xin quyền
+      final permissionResult = await _checkAndRequestPermission();
+      if (!permissionResult.isGranted) {
+        return LocationResult.failure(
+          errorType: permissionResult.errorType,
+          errorMessage: permissionResult.errorMessage,
+        );
+      }
+
+      // 3. Lấy vị trí
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: LocationSettings(
+          accuracy: accuracy,
+          timeLimit: timeout,
+        ),
+      );
+
+      return LocationResult.success(
+        latitude: position.latitude,
+        longitude: position.longitude,
+        accuracy: position.accuracy,
+        altitude: position.altitude,
+        speed: position.speed,
+        heading: position.heading,
+        timestamp: position.timestamp,
+      );
+    } on TimeoutException {
+      return LocationResult.failure(
+        errorType: LocationErrorType.timeout,
+        errorMessage: 'Không thể lấy vị trí. Vui lòng thử lại.',
+      );
+    } on LocationServiceDisabledException {
+      return LocationResult.failure(
+        errorType: LocationErrorType.serviceDisabled,
+        errorMessage: 'Dịch vụ vị trí đang tắt. Vui lòng bật GPS.',
+      );
+    } catch (e) {
+      return LocationResult.failure(
+        errorType: LocationErrorType.unknown,
+        errorMessage: 'Lỗi lấy vị trí: $e',
+      );
+    }
+  }
+
+  /// Lấy tọa độ nhanh (ưu tiên tốc độ, độ chính xác thấp hơn)
+  ///
+  /// Dùng khi cần tọa độ nhanh, không cần chính xác cao.
+  /// Timeout ngắn hơn (5s), accuracy: medium (~100m).
+  ///
+  /// Ví dụ:
+  /// ```dart
+  /// final result = await CyberConnectivityService().getLastKnownLocation();
+  /// ```
+  Future<LocationResult> getLastKnownLocation() async {
+    try {
+      // Thử lấy vị trí cuối cùng đã biết (cực nhanh, không cần GPS fix)
+      final position = await Geolocator.getLastKnownPosition();
+
+      if (position != null) {
+        return LocationResult.success(
+          latitude: position.latitude,
+          longitude: position.longitude,
+          accuracy: position.accuracy,
+          altitude: position.altitude,
+          speed: position.speed,
+          heading: position.heading,
+          timestamp: position.timestamp,
+          isLastKnown: true,
+        );
+      }
+
+      // Fallback: lấy vị trí mới với accuracy thấp hơn
+      return await getCurrentLocation(
+        accuracy: LocationAccuracy.medium,
+        timeout: const Duration(seconds: 5),
+      );
+    } catch (e) {
+      return LocationResult.failure(
+        errorType: LocationErrorType.unknown,
+        errorMessage: 'Lỗi lấy vị trí: $e',
+      );
+    }
+  }
+
+  /// Mở cài đặt location của thiết bị
+  Future<void> openLocationSettings() async {
+    await Geolocator.openLocationSettings();
+  }
+
+  /// Mở cài đặt app (để user cấp quyền thủ công)
+  Future<void> openAppSettings() async {
+    await Geolocator.openAppSettings();
+  }
+
+  /// Kiểm tra và xin quyền location
+  Future<_PermissionResult> _checkAndRequestPermission() async {
+    LocationPermission permission = await Geolocator.checkPermission();
+
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+
+      if (permission == LocationPermission.denied) {
+        return _PermissionResult(
+          isGranted: false,
+          errorType: LocationErrorType.permissionDenied,
+          errorMessage: 'Quyền truy cập vị trí bị từ chối.',
+        );
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      return _PermissionResult(
+        isGranted: false,
+        errorType: LocationErrorType.permissionDeniedForever,
+        errorMessage:
+            'Quyền truy cập vị trí bị từ chối vĩnh viễn. '
+            'Vui lòng vào Cài đặt để cấp quyền.',
+      );
+    }
+
+    return _PermissionResult(isGranted: true);
+  }
+}
+
+/// Helper class cho kết quả kiểm tra quyền
+class _PermissionResult {
+  final bool isGranted;
+  final LocationErrorType errorType;
+  final String errorMessage;
+
+  _PermissionResult({
+    required this.isGranted,
+    this.errorType = LocationErrorType.none,
+    this.errorMessage = '',
+  });
+}
+// ============================================================================
+// 📍 LOCATION MODELS
+// ============================================================================
+
+/// Kết quả lấy tọa độ
+class LocationResult {
+  final bool isSuccess;
+
+  // Tọa độ
+  final double? latitude;
+  final double? longitude;
+  final double? accuracy; // meters
+  final double? altitude; // meters
+  final double? speed; // m/s
+  final double? heading; // degrees (0-360)
+  final DateTime? timestamp;
+
+  // Trạng thái
+  final bool isLastKnown; // true nếu là vị trí cached
+  final LocationErrorType errorType;
+  final String errorMessage;
+
+  const LocationResult._({
+    required this.isSuccess,
+    this.latitude,
+    this.longitude,
+    this.accuracy,
+    this.altitude,
+    this.speed,
+    this.heading,
+    this.timestamp,
+    this.isLastKnown = false,
+    this.errorType = LocationErrorType.none,
+    this.errorMessage = '',
+  });
+
+  factory LocationResult.success({
+    required double latitude,
+    required double longitude,
+    double? accuracy,
+    double? altitude,
+    double? speed,
+    double? heading,
+    DateTime? timestamp,
+    bool isLastKnown = false,
+  }) {
+    return LocationResult._(
+      isSuccess: true,
+      latitude: latitude,
+      longitude: longitude,
+      accuracy: accuracy,
+      altitude: altitude,
+      speed: speed,
+      heading: heading,
+      timestamp: timestamp ?? DateTime.now(),
+      isLastKnown: isLastKnown,
+    );
+  }
+
+  factory LocationResult.failure({
+    required LocationErrorType errorType,
+    required String errorMessage,
+  }) {
+    return LocationResult._(
+      isSuccess: false,
+      errorType: errorType,
+      errorMessage: errorMessage,
+    );
+  }
+
+  /// Tọa độ dạng Map (tiện để gửi API)
+  Map<String, dynamic> toJson() => {
+    'latitude': latitude,
+    'longitude': longitude,
+    'accuracy': accuracy,
+    'altitude': altitude,
+    'speed': speed,
+    'heading': heading,
+    'timestamp': timestamp?.toIso8601String(),
+    'isLastKnown': isLastKnown,
+  };
+
+  /// Google Maps URL
+  String? get googleMapsUrl {
+    if (latitude == null || longitude == null) return null;
+    return 'https://www.google.com/maps?q=$latitude,$longitude';
+  }
+
+  @override
+  String toString() {
+    if (!isSuccess) return 'LocationResult(error: $errorMessage)';
+    return 'LocationResult(lat: $latitude, lng: $longitude, accuracy: ${accuracy?.toStringAsFixed(1)}m)';
+  }
+}
+
+/// Loại lỗi location
+enum LocationErrorType {
+  none,
+  serviceDisabled, // GPS tắt
+  permissionDenied, // User từ chối lần này
+  permissionDeniedForever, // User từ chối vĩnh viễn
+  timeout, // Quá thời gian chờ
+  unknown, // Lỗi khác
 }
 
 /// Helper để cấu hình IP service endpoint

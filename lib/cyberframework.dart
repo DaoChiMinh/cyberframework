@@ -34,6 +34,7 @@ export 'package:cyberframework/Module/Info/cyber_device_info.dart';
 export 'package:cyberframework/Module/Info/deviceinfo.dart';
 export 'package:cyberframework/Module/Info/userinfo.dart';
 export 'package:cyberframework/Module/cyber_vietnamese_utils.dart';
+export 'package:geolocator/geolocator.dart';
 //cyberchartcir.dart
 export 'package:cyberframework/BaseForm/formchklist.dart';
 export 'package:cyberframework/BaseForm/formedit.dart';
