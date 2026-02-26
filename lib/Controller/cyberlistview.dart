@@ -428,7 +428,7 @@ class _CyberListViewState extends State<CyberListView> {
   bool _isLoading = false;
   bool _isLoadingMore = false;
   bool _hasMoreData = true;
-  int _currentPage = 0;
+  int _currentPage = 1;
   String _currentSearchText = '';
 
   /// 🎯 OPTIMIZATION: Version counters thay vì hashCode
@@ -747,7 +747,7 @@ class _CyberListViewState extends State<CyberListView> {
       // Reset tất cả state
       _filteredIndices = null;
       _currentSearchText = '';
-      _currentPage = 0;
+      _currentPage = 1;
       _hasMoreData = true;
       _searchController.clear();
       _incrementDataVersion();
@@ -841,7 +841,7 @@ class _CyberListViewState extends State<CyberListView> {
     if (!mounted) return;
     if (widget.onLoadData == null) return;
 
-    _currentPage = 0;
+    _currentPage = 1;
 
     // 🎯 Chỉ 1 setState ở đầu
     if (mounted) {
