@@ -1058,6 +1058,44 @@ class CyberDataRow extends ChangeNotifier implements ICyberIdentifiable {
     return '<![CDATA[$strValue]]>';
   }
 
+  List<String> getValueData({
+    String fieldExclusion = '',
+    String strSplit = '!~!',
+  }) {
+    final exclusionSet = fieldExclusion.isEmpty
+        ? <String>{}
+        : fieldExclusion.toUpperCase().split(',').map((e) => e.trim()).toSet();
+
+    final List<String> valueList = [];
+    final List<String> fieldList = [];
+
+    for (var fieldName in _data.keys) {
+      if (exclusionSet.contains(fieldName.toUpperCase())) continue;
+
+      final dynamic rawValue = _data[fieldName];
+      String value;
+
+      if (rawValue == null) {
+        value = '';
+      } else if (rawValue is DateTime) {
+        value = DateFormat('yyyyMMdd HH:mm:ss').format(rawValue);
+      } else if (rawValue is num) {
+        value = rawValue.toDouble().toStringAsFixed(4).replaceAll(',', '.');
+      } else if (rawValue is bool) {
+        value = rawValue ? '1' : '0';
+      } else {
+        value = rawValue.toString();
+      }
+
+      valueList.add(value);
+      fieldList.add(fieldName);
+    }
+
+    return [
+      valueList.join(strSplit), // "John!~!25.0000!~!1"
+      fieldList.join(strSplit), // "name!~!age!~!is_active"
+    ];
+  }
   // ============================================================================
   // ENHANCED: Equality based on identity
   // ============================================================================
