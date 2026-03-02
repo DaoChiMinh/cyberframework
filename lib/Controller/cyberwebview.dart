@@ -238,7 +238,7 @@ class CyberWebViewState extends State<CyberWebView>
     final lower = url.toLowerCase();
     // Bỏ query string để check extension
     final path = Uri.tryParse(url)?.path.toLowerCase() ?? lower;
-    return path.endsWith('.pdf') || lower.contains("/Vvewpdfcustom?key=");
+    return path.endsWith('.pdf') || lower.contains("/viewpdfcustom?key=");
   }
 
   void _loadHtml(String html) {
