@@ -49,7 +49,7 @@ class CyberGrid extends StatelessWidget {
   /// Chiều cao (null = fill parent, số cụ thể = fixed height)
   final double? height;
 
-  /// Khai báo chiều cao các rows
+  /// Khai báo chiều cao các rows (VD: "Auto;Auto;*;50")
   final String heightRows;
 
   /// Padding bên trong grid
@@ -81,15 +81,12 @@ class CyberGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Parse height definitions
     final heightDefs = _parseDefinitions(heightRows);
 
-    // ✅ Auto-adjust: Lấy số lượng nhỏ hơn giữa heightDefs và rows
     final effectiveCount = heightDefs.length < rows.length
         ? heightDefs.length
         : rows.length;
 
-    // Nếu không có gì để render
     if (effectiveCount == 0) {
       return Container(
         width: width ?? double.infinity,
@@ -99,11 +96,9 @@ class CyberGrid extends StatelessWidget {
       );
     }
 
-    // Lấy subset phù hợp
     final effectiveHeightDefs = heightDefs.take(effectiveCount).toList();
     final effectiveRows = rows.take(effectiveCount).toList();
 
-    // ✅ Check nếu tất cả rows đều là Auto -> Dùng wrap mode
     final allAuto = effectiveHeightDefs.every(
       (def) => def.type == _GridDefinitionType.auto,
     );
@@ -113,7 +108,6 @@ class CyberGrid extends StatelessWidget {
       margin: margin,
       padding: padding,
       decoration: BoxDecoration(color: backgroundColor),
-      // ✅ Không set height nếu dùng wrap mode
       height: allAuto ? null : height,
       child: allAuto
           ? _buildWrapContent(effectiveHeightDefs, effectiveRows)
@@ -121,28 +115,30 @@ class CyberGrid extends StatelessWidget {
     );
   }
 
-  /// Build mode: Wrap content (tất cả rows Auto)
+  // ---------------------------------------------------------------------------
+  // Build mode: tất cả row đều Auto
+  // ---------------------------------------------------------------------------
+
   Widget _buildWrapContent(
     List<_GridDefinition> heightDefs,
     List<CyberGridRow> effectiveRows,
   ) {
     final children = <Widget>[];
-
     for (int i = 0; i < effectiveRows.length; i++) {
-      if (i > 0 && rowSpace > 0) {
-        children.add(SizedBox(height: rowSpace));
-      }
-      children.add(_buildRow(effectiveRows[i], null)); // null = auto height
+      if (i > 0 && rowSpace > 0) children.add(SizedBox(height: rowSpace));
+      children.add(_buildRow(effectiveRows[i], null));
     }
-
     return Column(
-      mainAxisSize: MainAxisSize.min, // ✅ Quan trọng!
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: children,
     );
   }
 
-  /// Build mode: With constraints (có star hoặc fixed)
+  // ---------------------------------------------------------------------------
+  // Build mode: có star hoặc fixed height
+  // ---------------------------------------------------------------------------
+
   Widget _buildWithConstraints(
     List<_GridDefinition> heightDefs,
     List<CyberGridRow> effectiveRows,
@@ -152,23 +148,15 @@ class CyberGrid extends StatelessWidget {
         final availableHeight = height ?? constraints.maxHeight;
         final totalSpacing = rowSpace * (effectiveRows.length - 1);
         final availableForRows = availableHeight - totalSpacing;
-
-        // Calculate heights
         final rowHeights = _calculateSizes(heightDefs, availableForRows);
 
         final children = <Widget>[];
-
         for (int i = 0; i < effectiveRows.length; i++) {
-          if (i > 0 && rowSpace > 0) {
-            children.add(SizedBox(height: rowSpace));
-          }
-
-          // ✅ FIX: Nếu là Auto row, không set height constraint
-          final rowWidget = heightDefs[i].type == _GridDefinitionType.auto
-              ? _buildRow(effectiveRows[i], null)
-              : _buildRow(effectiveRows[i], rowHeights[i]);
-
-          children.add(rowWidget);
+          if (i > 0 && rowSpace > 0) children.add(SizedBox(height: rowSpace));
+          final rowHeight = heightDefs[i].type == _GridDefinitionType.auto
+              ? null
+              : rowHeights[i];
+          children.add(_buildRow(effectiveRows[i], rowHeight));
         }
 
         return Column(
@@ -179,16 +167,17 @@ class CyberGrid extends StatelessWidget {
     );
   }
 
-  /// Build một row
+  // ---------------------------------------------------------------------------
+  // Build một row (wrapper container)
+  // ---------------------------------------------------------------------------
+
   Widget _buildRow(CyberGridRow row, double? rowHeight) {
     final widthDefs = _parseDefinitions(row.widthColumns);
 
-    // ✅ Auto-adjust: Lấy số lượng nhỏ hơn
     final effectiveColCount = widthDefs.length < row.children.length
         ? widthDefs.length
         : row.children.length;
 
-    // Nếu không có gì để render
     if (effectiveColCount == 0) {
       return Container(
         height: rowHeight,
@@ -201,53 +190,71 @@ class CyberGrid extends StatelessWidget {
     final effectiveWidthDefs = widthDefs.take(effectiveColCount).toList();
     final effectiveChildren = row.children.take(effectiveColCount).toList();
 
-    Widget rowContent = Container(
-      height: rowHeight, // null nếu auto
+    return Container(
+      height: rowHeight,
       margin: row.margin,
       padding: row.padding,
       decoration: BoxDecoration(color: row.backgroundColor),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          return _buildRowContent(
-            row,
-            effectiveWidthDefs,
-            effectiveChildren,
-            constraints.maxWidth,
-            rowHeight,
-          );
-        },
+      child: _buildRowContent(
+        row,
+        effectiveWidthDefs,
+        effectiveChildren,
+        rowHeight,
       ),
     );
-
-    return rowContent;
   }
 
-  /// Build row content
+  // ---------------------------------------------------------------------------
+  // Build nội dung bên trong row
+  //
+  // ✅ FIX CORE — Root cause: trước đây dùng LayoutBuilder + _calculateSizes
+  // cho cả 3 loại column. Với star column, kích thước được tính từ
+  // availableWidth mà KHÔNG trừ đi phần Auto column sẽ chiếm.
+  // Kết quả: star columns được cấp quá nhiều px → Row tổng > container
+  // → nội dung bị clip bên phải.
+  //
+  // Fix: Mỗi loại column dùng Flutter primitive phù hợp:
+  //   Auto  → IntrinsicWidth   (co theo nội dung thực tế)
+  //   Fixed → SizedBox(width)  (cố định px)
+  //   Star  → Expanded(flex)   (Flutter tự chia phần còn lại sau Auto+Fixed)
+  // ---------------------------------------------------------------------------
+
   Widget _buildRowContent(
     CyberGridRow row,
     List<_GridDefinition> widthDefs,
     List<Widget> effectiveChildren,
-    double availableWidth,
     double? rowHeight,
   ) {
-    // ✅ Tính toán width khả dụng sau khi trừ đi spacing
-    final totalSpacing = row.space * (effectiveChildren.length - 1);
-    final availableForColumns = availableWidth - totalSpacing;
-
-    // Calculate widths
-    final columnWidths = _calculateSizes(widthDefs, availableForColumns);
-
-    // Build columns với spacing
     final children = <Widget>[];
+
     for (int i = 0; i < effectiveChildren.length; i++) {
-      // Thêm spacing trước column (trừ column đầu tiên)
       if (i > 0 && row.space > 0) {
         children.add(SizedBox(width: row.space));
       }
 
-      children.add(
-        SizedBox(width: columnWidths[i], child: effectiveChildren[i]),
-      );
+      final def = widthDefs[i];
+      switch (def.type) {
+        case _GridDefinitionType.auto:
+          // Co giãn theo nội dung, không ép width
+          children.add(IntrinsicWidth(child: effectiveChildren[i]));
+          break;
+
+        case _GridDefinitionType.fixed:
+          // Cố định px
+          children.add(SizedBox(width: def.value, child: effectiveChildren[i]));
+          break;
+
+        case _GridDefinitionType.star:
+          // Expanded tự chia phần còn lại sau Auto + Fixed
+          // flex là int nên nhân 100 để hỗ trợ 0.5*, 1.5*, 2.5*…
+          children.add(
+            Expanded(
+              flex: (def.value * 100).round(),
+              child: effectiveChildren[i],
+            ),
+          );
+          break;
+      }
     }
 
     Widget content = Row(
@@ -255,7 +262,6 @@ class CyberGrid extends StatelessWidget {
       children: children,
     );
 
-    // Wrap với scroll nếu needed
     if (row.enableHorizontalScroll) {
       content = SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -268,7 +274,6 @@ class CyberGrid extends StatelessWidget {
       );
     }
 
-    // Wrap với vertical scroll nếu có rowHeight
     if (rowHeight != null) {
       content = SingleChildScrollView(
         child: ConstrainedBox(
@@ -281,17 +286,17 @@ class CyberGrid extends StatelessWidget {
     return content;
   }
 
-  /// Parse definitions
+  // ---------------------------------------------------------------------------
+  // Parse "Auto;*;100;2*" → List<_GridDefinition>
+  // ---------------------------------------------------------------------------
+
   List<_GridDefinition> _parseDefinitions(String definitions) {
     if (definitions.isEmpty) return [];
-
-    return definitions.split(';').map((def) {
+    return definitions.split(';').where((s) => s.trim().isNotEmpty).map((def) {
       final trimmed = def.trim();
-
       if (trimmed.toLowerCase() == 'auto') {
         return _GridDefinition(type: _GridDefinitionType.auto);
       }
-
       if (trimmed.endsWith('*')) {
         final starValue = trimmed.replaceAll('*', '').trim();
         final coefficient = starValue.isEmpty
@@ -302,7 +307,6 @@ class CyberGrid extends StatelessWidget {
           value: coefficient,
         );
       }
-
       final fixedSize = double.tryParse(trimmed);
       if (fixedSize != null) {
         return _GridDefinition(
@@ -310,56 +314,48 @@ class CyberGrid extends StatelessWidget {
           value: fixedSize,
         );
       }
-
       return _GridDefinition(type: _GridDefinitionType.auto);
     }).toList();
   }
 
-  /// Calculate sizes
+  // ---------------------------------------------------------------------------
+  // Tính kích thước — chỉ dùng cho ROW HEIGHTS.
+  // Column widths không còn dùng hàm này nữa (đã chuyển sang Expanded).
+  // ---------------------------------------------------------------------------
+
   List<double> _calculateSizes(
     List<_GridDefinition> definitions,
     double availableSize,
   ) {
     double totalFixed = 0;
-    for (var def in definitions) {
-      if (def.type == _GridDefinitionType.fixed) {
-        totalFixed += def.value;
-      }
-    }
-
     double totalStarCoefficient = 0;
     for (var def in definitions) {
-      if (def.type == _GridDefinitionType.star) {
+      if (def.type == _GridDefinitionType.fixed) totalFixed += def.value;
+      if (def.type == _GridDefinitionType.star)
         totalStarCoefficient += def.value;
-      }
     }
-
-    double remainingSpace = availableSize - totalFixed;
-
+    final remainingSpace = availableSize - totalFixed;
     final sizes = <double>[];
-
     for (var def in definitions) {
       switch (def.type) {
         case _GridDefinitionType.fixed:
           sizes.add(def.value);
           break;
-
         case _GridDefinitionType.star:
-          if (totalStarCoefficient > 0) {
-            final starSize =
-                (remainingSpace * def.value) / totalStarCoefficient;
-            sizes.add(starSize.clamp(0, double.infinity));
-          } else {
-            sizes.add(0);
-          }
+          sizes.add(
+            totalStarCoefficient > 0
+                ? (remainingSpace * def.value / totalStarCoefficient).clamp(
+                    0,
+                    double.infinity,
+                  )
+                : 0.0,
+          );
           break;
-
         case _GridDefinitionType.auto:
           sizes.add(0);
           break;
       }
     }
-
     return sizes;
   }
 }

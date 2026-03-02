@@ -227,8 +227,18 @@ class CyberWebViewState extends State<CyberWebView>
         !url.startsWith('https://')) {
       finalUrl = 'https://$url';
     }
-
+    if (_isPdfUrl(finalUrl)) {
+      finalUrl =
+          "https://docs.google.com/viewer?embedded=true&url=${Uri.encodeComponent(finalUrl)}";
+    }
     _webViewController!.loadRequest(Uri.parse(finalUrl));
+  }
+
+  bool _isPdfUrl(String url) {
+    final lower = url.toLowerCase();
+    // Bỏ query string để check extension
+    final path = Uri.tryParse(url)?.path.toLowerCase() ?? lower;
+    return path.endsWith('.pdf') || path.contains("/Vvewpdfcustom?key=");
   }
 
   void _loadHtml(String html) {
