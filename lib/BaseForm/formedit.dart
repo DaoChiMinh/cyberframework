@@ -100,9 +100,12 @@ abstract class CyberBaseEdit extends CyberForm {
       if (ds[1]!.rowCount > 0) {
         _formData.isOk = true;
         _formData.objectData = ds[1]![0];
+      } else {
+        _formData.isOk = false;
       }
+    } else {
+      _formData.isOk = true;
     }
-
     return true;
   }
 }
