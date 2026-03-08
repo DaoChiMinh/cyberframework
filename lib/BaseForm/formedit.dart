@@ -71,6 +71,7 @@ abstract class CyberBaseEdit extends CyberForm {
   Future<bool> buildSaveXml({
     String Cp_Name = "",
     String StrParameter = "",
+    int CountTableReturn = 2,
   }) async {
     _formData.isOk = false;
     ReturnData returnData = await context.callApi(
@@ -88,17 +89,20 @@ abstract class CyberBaseEdit extends CyberForm {
     }
 
     if (!await ds.checkStatus(context)) return false;
-    if (ds.tableCount < 2) {
-      await "Không tồn tại bảng 2".V_MsgBox(
+    if (ds.tableCount < CountTableReturn) {
+      await "Không tồn tại bảng $CountTableReturn".V_MsgBox(
         context,
         type: CyberMsgBoxType.error,
       );
       return false;
     }
-    if (ds[1]!.rowCount > 0) {
-      _formData.isOk = true;
-      _formData.objectData = ds[1]![0];
+    if (CountTableReturn > 2) {
+      if (ds[1]!.rowCount > 0) {
+        _formData.isOk = true;
+        _formData.objectData = ds[1]![0];
+      }
     }
+
     return true;
   }
 }
