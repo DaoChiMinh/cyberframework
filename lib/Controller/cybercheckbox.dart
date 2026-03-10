@@ -306,12 +306,7 @@ class _CyberCheckboxState extends State<CyberCheckbox> {
             widget.label!,
             style:
                 widget.labelStyle ??
-                TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w400,
-                  color: isEnabled ? Colors.black : Colors.grey,
-                  letterSpacing: -0.4,
-                ),
+                TextStyle(color: isEnabled ? Colors.black : Colors.grey),
           ),
         );
 
