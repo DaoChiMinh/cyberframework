@@ -40,7 +40,7 @@ class CyberLabel extends StatelessWidget {
     this.rippleBorderRadius,
     this.tapPadding,
     this.maxLines,
-    this.overflow,
+    this.overflow = TextOverflow.ellipsis,
   });
 
   /// Convert dynamic value sang bool
