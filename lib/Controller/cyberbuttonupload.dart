@@ -1,131 +1,134 @@
 import 'package:cyberframework/cyberframework.dart';
+import 'package:cyberframework/Module/cybersupportfile.dart';
 
-/// CyberButtonUpload - Button upload file với binding support
+/// CyberButtonUpload - Upload file trigger dùng CyberLabel làm giao diện.
 ///
-/// Kết hợp tính năng của:
-/// - [CyberButton]: Styling button
-/// - [CyberLabel]: Label có thể là text hoặc icon, hỗ trợ binding
-/// - [showFilePickerActionSheet]: File picker & upload
+/// - Label: đầy đủ tính năng CyberLabel (text/icon, binding, ripple, style...)
+/// - text: binding nhận kết quả URL/base64 sau upload
+/// - Bên dưới hiện tên file đã upload, có thể tap để mở
 ///
-/// Usage:
 /// ```dart
-/// // Basic upload button
+/// // Text label
 /// CyberButtonUpload(
 ///   label: 'Tải lên hợp đồng',
 ///   text: dr.bind('contract_url'),
-///   actions: ['Chọn PDF', 'Chụp ảnh'],
 ///   types: [FilePickerType.pdf, FilePickerType.camera],
 ///   uploadFilePath: '/contracts/',
-///   onUploaded: (result) => print(result?.urlFile),
+///   onUploaded: (r) => print(r?.urlFile),
 /// )
 ///
-/// // Icon button
+/// // Icon label
 /// CyberButtonUpload(
-///   label: 'e5c9', // Material icon code point
+///   label: 'e5c9',
 ///   isIcon: true,
+///   iconSize: 28,
+///   textcolor: Colors.blue,
 ///   text: dr.bind('avatar_url'),
 ///   types: [FilePickerType.image, FilePickerType.camera],
 /// )
 /// ```
 class CyberButtonUpload extends StatefulWidget {
   // ============================================================
-  // LABEL (Nội dung hiển thị trên button)
+  // LABEL — toàn bộ props của CyberLabel
   // ============================================================
   /// Text hoặc icon code point. Hỗ trợ CyberBindingExpression.
   final dynamic label;
 
-  /// true = hiển thị label như icon (parse code point)
-  final bool isIcon;
+  final String? format;
+  final TextStyle? style;
+  final TextAlign? textalign;
+  final Color? textcolor;
+  final Color? backgroundColor;
 
-  /// Kích thước icon (khi isIcon = true)
+  final dynamic isVisible;
+
+  /// true = hiển thị label như icon
+  final bool isIcon;
+  final double? iconSpacing;
   final double? iconSize;
 
-  /// Style cho text label
-  final TextStyle? labelStyle;
+  final bool? showRipple;
+  final Color? rippleColor;
+  final BorderRadius? rippleBorderRadius;
+  final EdgeInsets? tapPadding;
 
-  /// Màu icon (mặc định dùng textColor)
-  final Color? iconColor;
+  final int? maxLines;
+  final TextOverflow? overflow;
 
   // ============================================================
-  // TEXT (File URL - binding output)
+  // TEXT — field nhận kết quả URL sau upload
   // ============================================================
-  /// Field binding nhận kết quả URL sau upload.
-  /// Hỗ trợ CyberBindingExpression (dr.bind('field')) hoặc String tĩnh.
+  /// Binding nhận URL/base64 kết quả upload.
+  /// Hỗ trợ CyberBindingExpression hoặc String tĩnh.
   final dynamic text;
 
-  /// Hiện đường dẫn file bên dưới button sau khi upload
+  /// Hiện tên file bên dưới label sau khi upload
   final bool showText;
 
-  /// Format hiển thị text (ít dùng, để mở rộng sau)
+  /// Format hiển thị text
   final String? textFormat;
 
-  /// Callback khi user tap vào đường dẫn file
+  /// Callback khi tap vào đường dẫn file
   final Function(dynamic url)? onTextTap;
 
   // ============================================================
-  // BUTTON STYLING
+  // GENERAL
   // ============================================================
-  final Color backgroundColor;
-  final Color textColor;
-  final double borderRadius;
-  final double paddingVertical;
-  final double paddingHorizontal;
-
-  /// Chiếm toàn bộ chiều ngang (mặc định true, giống CyberButton)
-  final bool fullWidth;
-
-  /// Chỉ đọc - không cho phép upload
   final bool isReadOnly;
 
   // ============================================================
   // FILE PICKER CONFIG
   // ============================================================
-  /// Danh sách nhãn hiển thị trong ActionSheet
-  /// Nếu null → dùng mặc định: ['Chọn ảnh', 'Chụp ảnh', 'Chọn file']
+  /// Nhãn hiển thị trong ActionSheet.
+  /// Nếu null → mặc định: ['Chọn ảnh', 'Chụp ảnh', 'Chọn file']
   final List<String>? actions;
 
-  /// Loại file tương ứng với [actions]
-  /// Nếu null → dùng mặc định: [image, camera, file]
+  /// Loại file tương ứng với [actions].
+  /// Nếu null → mặc định: [image, camera, file]
   final List<FilePickerType>? types;
 
-  /// true = tự động upload và lưu URL, false = chỉ lấy base64
+  /// true = tự động upload lên server, false = chỉ lấy base64
   final bool autoUpload;
 
-  /// Đường dẫn thư mục upload trên server (vd: '/contracts/')
+  /// Thư mục upload trên server (vd: '/contracts/')
   final String? uploadFilePath;
 
-  /// Tiêu đề của ActionSheet picker
+  /// Tiêu đề ActionSheet
   final String? pickerTitle;
 
-  /// Hiển thị dialog đổi tên trước khi upload
+  /// Hiện dialog đổi tên trước khi upload
   final bool isChangeName;
 
   // ============================================================
   // CALLBACKS
   // ============================================================
-  /// Callback sau khi upload xong (hoặc chọn file xong nếu autoUpload=false)
   final Function(CyberFilePickerResult? result)? onUploaded;
 
   const CyberButtonUpload({
     super.key,
-    // Label
+    // Label (CyberLabel props)
     this.label = 'Tải lên',
+    this.format,
+    this.style,
+    this.textalign,
+    this.textcolor,
+    this.backgroundColor,
+    this.isVisible = true,
     this.isIcon = false,
+    this.iconSpacing,
     this.iconSize,
-    this.labelStyle,
-    this.iconColor,
+    this.showRipple,
+    this.rippleColor,
+    this.rippleBorderRadius,
+    this.tapPadding,
+    this.maxLines,
+    this.overflow,
     // Text binding
     this.text,
     this.showText = true,
     this.textFormat,
     this.onTextTap,
-    // Styling
-    this.backgroundColor = const Color(0xFF00D287),
-    this.textColor = Colors.white,
-    this.borderRadius = 30.0,
-    this.paddingVertical = 12.0,
-    this.paddingHorizontal = 10.0,
-    this.fullWidth = true,
+    // General
     this.isReadOnly = false,
     // File picker
     this.actions,
@@ -143,32 +146,22 @@ class CyberButtonUpload extends StatefulWidget {
 }
 
 class _CyberButtonUploadState extends State<CyberButtonUpload> {
-  bool _isUploading = false;
-
-  // ── Text binding ──────────────────────────────────────────────
   CyberDataRow? _textBoundRow;
   String? _textBoundField;
-
-  // ── Label binding ─────────────────────────────────────────────
-  CyberDataRow? _labelBoundRow;
-  String? _labelBoundField;
 
   @override
   void initState() {
     super.initState();
-    _resolveBindings();
+    _resolveTextBinding();
   }
 
   @override
   void didUpdateWidget(covariant CyberButtonUpload oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.text != widget.text || oldWidget.label != widget.label) {
-      _resolveBindings();
-    }
+    if (oldWidget.text != widget.text) _resolveTextBinding();
   }
 
-  void _resolveBindings() {
-    // Resolve text binding
+  void _resolveTextBinding() {
     if (widget.text is CyberBindingExpression) {
       final expr = widget.text as CyberBindingExpression;
       _textBoundRow = expr.row;
@@ -177,19 +170,8 @@ class _CyberButtonUploadState extends State<CyberButtonUpload> {
       _textBoundRow = null;
       _textBoundField = null;
     }
-
-    // Resolve label binding
-    if (widget.label is CyberBindingExpression) {
-      final expr = widget.label as CyberBindingExpression;
-      _labelBoundRow = expr.row;
-      _labelBoundField = expr.fieldName;
-    } else {
-      _labelBoundRow = null;
-      _labelBoundField = null;
-    }
   }
 
-  // ── Default picker config ─────────────────────────────────────
   static const _defaultActions = ['Chọn ảnh', 'Chụp ảnh', 'Chọn file'];
   static const _defaultTypes = [
     FilePickerType.image,
@@ -197,11 +179,8 @@ class _CyberButtonUploadState extends State<CyberButtonUpload> {
     FilePickerType.file,
   ];
 
-  // ── Upload handler ────────────────────────────────────────────
   Future<void> _handleUpload() async {
-    if (_isUploading || widget.isReadOnly) return;
-
-    setState(() => _isUploading = true);
+    if (widget.isReadOnly) return;
 
     try {
       final result = await context.showFilePickerActionSheet(
@@ -214,7 +193,6 @@ class _CyberButtonUploadState extends State<CyberButtonUpload> {
       );
 
       if (result != null) {
-        // Ghi kết quả vào bound field
         if (_textBoundRow != null && _textBoundField != null) {
           final value = widget.autoUpload
               ? (result.urlFile ?? result.strBase64 ?? '')
@@ -223,208 +201,118 @@ class _CyberButtonUploadState extends State<CyberButtonUpload> {
         }
         widget.onUploaded?.call(result);
       }
-    } finally {
-      if (mounted) setState(() => _isUploading = false);
-    }
+    } catch (_) {}
   }
 
-  // ── Build label content bên trong button ─────────────────────
-  Widget _buildLabelContent() {
-    // Loading state
-    if (_isUploading) {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          SizedBox(
-            width: 16,
-            height: 16,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: widget.textColor,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            setText('Đang tải lên...', 'Uploading...'),
-            style: TextStyle(
-              color: widget.textColor,
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-            ),
-          ),
-        ],
-      );
-    }
-
-    // Lấy giá trị label (có thể từ binding)
-    dynamic labelValue;
-    if (_labelBoundRow != null && _labelBoundField != null) {
-      labelValue = _labelBoundRow![_labelBoundField!];
-    } else {
-      labelValue = widget.label;
-    }
-
-    // Icon mode
-    if (widget.isIcon) {
-      final valueStr = labelValue?.toString() ?? '';
-      final iconData = v_parseIcon(valueStr);
-
-      if (iconData != null) {
-        return Icon(
-          iconData,
-          size: widget.iconSize ?? (widget.labelStyle?.fontSize ?? 24),
-          color: widget.iconColor ?? widget.textColor,
-        );
-      }
-      // Fallback to text nếu không parse được icon
-    }
-
-    // Text mode
-    return Text(
-      labelValue?.toString() ?? '',
-      style:
-          widget.labelStyle?.copyWith(color: widget.textColor) ??
-          TextStyle(
-            color: widget.textColor,
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
+  // ── label dùng CyberLabel trực tiếp ──────────────────────────
+  Widget _buildLabel() {
+    return CyberLabel(
+      text: widget.label,
+      format: widget.format,
+      style: widget.style,
+      textalign: widget.textalign,
+      textcolor: widget.textcolor,
+      backgroundColor: widget.backgroundColor,
+      isVisible: widget.isVisible,
+      isIcon: widget.isIcon,
+      iconSpacing: widget.iconSpacing,
+      iconSize: widget.iconSize,
+      showRipple: widget.showRipple,
+      rippleColor: widget.rippleColor,
+      rippleBorderRadius: widget.rippleBorderRadius,
+      tapPadding: widget.tapPadding,
+      maxLines: widget.maxLines,
+      overflow: widget.overflow,
+      onLeaver: widget.isReadOnly ? null : (_) => _handleUpload(),
     );
   }
 
-  // ── Build button ──────────────────────────────────────────────
-  Widget _buildButton() {
-    return SizedBox(
-      width: widget.fullWidth ? double.infinity : null,
-      child: ElevatedButton(
-        onPressed: (widget.isReadOnly || _isUploading) ? null : _handleUpload,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: widget.backgroundColor,
-          foregroundColor: widget.textColor,
-          disabledBackgroundColor: widget.backgroundColor.withValues(
-            alpha: 0.5,
-          ),
-          padding: EdgeInsets.symmetric(
-            vertical: widget.paddingVertical,
-            horizontal: widget.paddingHorizontal,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(widget.borderRadius),
-          ),
-        ),
-        child: _buildLabelContent(),
-      ),
-    );
-  }
-
-  // ── Build text display (file URL/name) ────────────────────────
+  // ── text display ──────────────────────────────────────────────
   Widget _buildTextDisplay() {
     if (!widget.showText) return const SizedBox.shrink();
 
-    // Lấy giá trị URL
     dynamic rawValue;
     if (_textBoundRow != null && _textBoundField != null) {
       rawValue = _textBoundRow![_textBoundField!];
     } else if (widget.text is String) {
       rawValue = widget.text as String;
-    } else {
-      rawValue = null;
     }
 
     final urlStr = rawValue?.toString() ?? '';
     if (urlStr.isEmpty) return const SizedBox.shrink();
 
-    // Format hiển thị
     String displayText;
     if (widget.textFormat != null && widget.textFormat!.isNotEmpty) {
       displayText = widget.textFormat!.format([urlStr]);
     } else {
-      // Chỉ hiện tên file (phần cuối của URL/path)
       displayText = urlStr.contains('/')
           ? urlStr.split('/').last
           : urlStr.contains('\\')
           ? urlStr.split('\\').last
           : urlStr;
-
-      // Nếu là base64 thì hiện "[Dữ liệu file]"
       if (urlStr.length > 200 && !urlStr.startsWith('http')) {
         displayText = setText('[Dữ liệu file]', '[File data]');
       }
     }
 
-    final bool hasTapAction = widget.onTextTap != null;
+    final bool hasTap = widget.onTextTap != null;
 
     Widget textRow = Row(
-      mainAxisSize: MainAxisSize.min,
       children: [
         Icon(
           Icons.attach_file,
-          size: 14,
-          color: hasTapAction ? Colors.blue[600] : Colors.grey[600],
+          size: 13,
+          color: hasTap ? Colors.blue[600] : Colors.grey[600],
         ),
         const SizedBox(width: 4),
-        Flexible(
+        Expanded(
           child: Text(
             displayText,
             style: TextStyle(
               fontSize: 13,
-              color: hasTapAction ? Colors.blue[600] : Colors.grey[700],
-              decoration: hasTapAction
-                  ? TextDecoration.underline
-                  : TextDecoration.none,
+              color: hasTap ? Colors.blue[600] : Colors.grey[700],
+              decoration: hasTap ? TextDecoration.underline : null,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        if (hasTapAction) ...[
+        if (hasTap) ...[
           const SizedBox(width: 4),
           Icon(Icons.open_in_new, size: 12, color: Colors.blue[600]),
         ],
       ],
     );
 
-    if (hasTapAction) {
+    if (hasTap) {
       textRow = GestureDetector(
         onTap: () => widget.onTextTap!(rawValue),
         child: textRow,
       );
     }
 
-    return Padding(padding: const EdgeInsets.only(top: 6), child: textRow);
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: SizedBox(width: double.infinity, child: textRow),
+    );
   }
 
-  // ── Main build ────────────────────────────────────────────────
+  // ── build ─────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    // Xác định các row cần listen
-    final Set<CyberDataRow> listenRows = {};
-    if (_textBoundRow != null) listenRows.add(_textBoundRow!);
-    if (_labelBoundRow != null) listenRows.add(_labelBoundRow!);
-
-    Widget content = Column(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
-      children: [_buildButton(), _buildTextDisplay()],
+      children: [
+        _buildLabel(),
+        if (_textBoundRow != null)
+          ListenableBuilder(
+            listenable: _textBoundRow!,
+            builder: (_, __) => _buildTextDisplay(),
+          )
+        else
+          _buildTextDisplay(),
+      ],
     );
-
-    // Wrap với ListenableBuilder nếu có binding
-    if (listenRows.isNotEmpty) {
-      final listenable = listenRows.length == 1
-          ? listenRows.first as Listenable
-          : Listenable.merge(listenRows.toList());
-
-      return ListenableBuilder(
-        listenable: listenable,
-        builder: (context, _) => Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [_buildButton(), _buildTextDisplay()],
-        ),
-      );
-    }
-
-    return content;
   }
 }
