@@ -693,7 +693,6 @@ class _CyberComboBoxState extends State<CyberComboBox> {
 
     if (_isMultiSelect) {
       // === MULTI-SELECT: bottom sheet với checkbox ===
-      // Parse current selected values từ chuỗi ';'
       final currentSelected = currentValue != null
           ? currentValue
                 .toString()
@@ -718,10 +717,12 @@ class _CyberComboBoxState extends State<CyberComboBox> {
         ),
       );
     } else {
-      // === SINGLE-SELECT: iOS Cupertino Picker (giữ nguyên) ===
+      // === SINGLE-SELECT: iOS Cupertino Picker với search ===
       await showModalBottomSheet(
         context: context,
         backgroundColor: Colors.transparent,
+        // isScrollControlled để sheet mở rộng khi keyboard xuất hiện
+        isScrollControlled: true,
         builder: (context) => _IOSPickerSheet(
           filteredRows: filteredRows,
           valueMember: valueMember,
@@ -826,7 +827,7 @@ class _CyberComboBoxState extends State<CyberComboBox> {
                     Expanded(
                       child: Text(
                         displayText,
-                        maxLines: 2,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style:
                             widget.textStyle ??
@@ -1144,7 +1145,7 @@ class _MultiSelectSheetState extends State<_MultiSelectSheet> {
 }
 
 // ============================================================================
-// IOS PICKER SHEET - Single select (giữ nguyên)
+// IOS PICKER SHEET - Single select với search (hiện khi > 10 bản ghi)
 // ============================================================================
 
 class _IOSPickerSheet extends StatefulWidget {
@@ -1168,22 +1169,22 @@ class _IOSPickerSheet extends StatefulWidget {
 
 class _IOSPickerSheetState extends State<_IOSPickerSheet> {
   late FixedExtentScrollController _scrollController;
+  final TextEditingController _searchController = TextEditingController();
   int _selectedIndex = 0;
+
+  /// Danh sách rows sau khi filter search
+  late List<CyberDataRow> _displayRows;
+
+  /// Số bản ghi tối thiểu để hiển thị ô tìm kiếm
+  static const int _searchThreshold = 10;
+
+  bool get _showSearch => widget.filteredRows.length > _searchThreshold;
 
   @override
   void initState() {
     super.initState();
-
-    _selectedIndex = 0;
-    for (int i = 0; i < widget.filteredRows.length; i++) {
-      final row = widget.filteredRows[i];
-      final rowValue = row[widget.valueMember];
-      if (rowValue?.toString() == widget.currentValue?.toString()) {
-        _selectedIndex = i;
-        break;
-      }
-    }
-
+    _displayRows = List.from(widget.filteredRows);
+    _initSelectedIndex();
     _scrollController = FixedExtentScrollController(
       initialItem: _selectedIndex,
     );
@@ -1192,81 +1193,211 @@ class _IOSPickerSheetState extends State<_IOSPickerSheet> {
   @override
   void dispose() {
     _scrollController.dispose();
+    _searchController.dispose();
     super.dispose();
+  }
+
+  /// Tìm index của giá trị hiện tại trong _displayRows
+  void _initSelectedIndex() {
+    _selectedIndex = 0;
+    for (int i = 0; i < _displayRows.length; i++) {
+      final rowValue = _displayRows[i][widget.valueMember];
+      if (rowValue?.toString() == widget.currentValue?.toString()) {
+        _selectedIndex = i;
+        break;
+      }
+    }
+  }
+
+  /// Row đang được focus trong picker
+  CyberDataRow? get _selectedRow {
+    if (_displayRows.isEmpty) return null;
+    final safeIndex = _selectedIndex.clamp(0, _displayRows.length - 1);
+    return _displayRows[safeIndex];
+  }
+
+  /// Xử lý tìm kiếm theo displayMember
+  void _onSearch(String query) {
+    final filtered = query.trim().isEmpty
+        ? List<CyberDataRow>.from(widget.filteredRows)
+        : widget.filteredRows.where((row) {
+            final display =
+                row[widget.displayMember]?.toString().toLowerCase() ?? '';
+            return display.contains(query.trim().toLowerCase());
+          }).toList();
+
+    setState(() {
+      _displayRows = filtered;
+      _selectedIndex = 0;
+
+      // Nếu có giá trị đang chọn, cố giữ vị trí
+      if (widget.currentValue != null) {
+        for (int i = 0; i < _displayRows.length; i++) {
+          final rowValue = _displayRows[i][widget.valueMember];
+          if (rowValue?.toString() == widget.currentValue?.toString()) {
+            _selectedIndex = i;
+            break;
+          }
+        }
+      }
+    });
+
+    // Scroll đến vị trí mới sau khi rebuild
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients && _displayRows.isNotEmpty) {
+        final safeIndex = _selectedIndex.clamp(0, _displayRows.length - 1);
+        _scrollController.jumpToItem(safeIndex);
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Hủy'),
-                ),
-                TextButton(
-                  onPressed: () {
-                    if (widget.filteredRows.isNotEmpty) {
-                      final selectedRow = widget.filteredRows[_selectedIndex];
-                      final selectedValue = selectedRow[widget.valueMember];
-                      widget.onSelected(selectedValue);
-                    }
-                    Navigator.pop(context);
-                  },
-                  child: const Text(
-                    'Xong',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(
-            height: 250,
-            child: CupertinoPicker(
-              scrollController: _scrollController,
-              itemExtent: 44,
-              onSelectedItemChanged: (index) {
-                setState(() {
-                  _selectedIndex = index;
-                });
-              },
-              children: widget.filteredRows.map((row) {
-                final displayText = row[widget.displayMember]?.toString() ?? '';
-                final rowValue = row[widget.valueMember];
-                final isSelected =
-                    rowValue?.toString() == widget.currentValue?.toString();
+    // Padding bottom để tránh keyboard che mất picker
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
-                return Center(
-                  child: Text(
-                    displayText,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: isSelected
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                      color: isSelected ? Colors.blue : Colors.black87,
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // ── Toolbar: Hủy / Search (hoặc preview) / Xong ─────────────
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
+              ),
+              child: Row(
+                children: [
+                  // Nút Hủy
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Hủy'),
+                  ),
+
+                  // Giữa: search box (> 10 bản ghi) hoặc tên item đang chọn
+                  Expanded(
+                    child: _showSearch
+                        ? TextField(
+                            controller: _searchController,
+                            autofocus: false,
+                            decoration: InputDecoration(
+                              hintText: 'Tìm kiếm...',
+                              suffixIcon: _searchController.text.isNotEmpty
+                                  ? IconButton(
+                                      icon: const Icon(Icons.clear, size: 16),
+                                      onPressed: () {
+                                        _searchController.clear();
+                                        _onSearch('');
+                                      },
+                                    )
+                                  : null,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              isDense: true,
+                            ),
+                            onChanged: (value) {
+                              setState(() {});
+                              _onSearch(value);
+                            },
+                          )
+                        : Text(
+                            _selectedRow?[widget.displayMember]?.toString() ??
+                                '',
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey,
+                            ),
+                          ),
+                  ),
+
+                  // Nút Xong
+                  TextButton(
+                    onPressed: () {
+                      if (_selectedRow != null) {
+                        widget.onSelected(_selectedRow![widget.valueMember]);
+                      }
+                      Navigator.pop(context);
+                    },
+                    child: const Text(
+                      'Xong',
+                      style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ),
-                );
-              }).toList(),
+                ],
+              ),
             ),
-          ),
-          SizedBox(height: MediaQuery.of(context).padding.bottom),
-        ],
+
+            // ── Picker ────────────────────────────────────────────────────
+            _displayRows.isEmpty
+                ? SizedBox(
+                    height: 200,
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: const [
+                          Icon(Icons.search_off, size: 40, color: Colors.grey),
+                          SizedBox(height: 8),
+                          Text(
+                            'Không tìm thấy kết quả',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : SizedBox(
+                    height: 220,
+                    child: CupertinoPicker(
+                      scrollController: _scrollController,
+                      itemExtent: 44,
+                      onSelectedItemChanged: (index) {
+                        setState(() => _selectedIndex = index);
+                      },
+                      children: _displayRows.map((row) {
+                        final displayText =
+                            row[widget.displayMember]?.toString() ?? '';
+                        final rowValue = row[widget.valueMember];
+                        final isCurrentValue =
+                            rowValue?.toString() ==
+                            widget.currentValue?.toString();
+
+                        return Center(
+                          child: Text(
+                            displayText,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: isCurrentValue
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                              color: isCurrentValue
+                                  ? Colors.blue
+                                  : Colors.black87,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+
+            SizedBox(height: MediaQuery.of(context).padding.bottom),
+          ],
+        ),
       ),
     );
   }
