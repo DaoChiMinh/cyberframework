@@ -320,6 +320,12 @@ class CyberListView extends StatefulWidget {
   /// 🆕 Elevation của group header (như Card)
   final double? groupHeaderElevation;
 
+  final Color? searchBarBackgroundColor;
+  final Color? searchFieldBorderColor;
+  final Color? searchFieldBackgroundColor;
+  final Color? searchtextColor;
+  final bool ShowIconSearch;
+
   const CyberListView({
     super.key,
     this.dataSource,
@@ -416,6 +422,11 @@ class CyberListView extends StatefulWidget {
     this.groupCountBackgroundColor,
     this.groupCountTextColor,
     this.groupHeaderElevation,
+    this.ShowIconSearch = true,
+    this.searchBarBackgroundColor,
+    this.searchFieldBorderColor,
+    this.searchFieldBackgroundColor,
+    this.searchtextColor,
   }) : assert(columnCount >= 1, 'columnCount phải >= 1');
 
   @override
@@ -1269,20 +1280,30 @@ class _CyberListViewState extends State<CyberListView> {
   }
 
   Widget _buildSearchBar() {
+    final barBgColor =
+        widget.searchBarBackgroundColor ??
+        CupertinoColors.systemGroupedBackground.resolveFrom(context);
+    final fieldBgColor =
+        widget.searchFieldBackgroundColor ??
+        CupertinoColors.systemFill.resolveFrom(context);
+    final txtColor =
+        widget.searchtextColor ??
+        CupertinoColors.systemFill.resolveFrom(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      color: CupertinoColors.systemGroupedBackground.resolveFrom(context),
+      color: barBgColor,
       child: Row(
         children: [
           Expanded(
             child: Container(
               height: 42,
               decoration: BoxDecoration(
-                color: CupertinoColors.systemFill.resolveFrom(context),
+                color: fieldBgColor,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: TextField(
                 controller: _searchController,
+                style: TextStyle(color: txtColor),
                 //style: const TextStyle(fontSize: 16),
                 decoration: InputDecoration(
                   hintText: setText('Tìm kiếm', "Search"),
