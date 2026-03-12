@@ -1084,7 +1084,12 @@ class CyberDataRow extends ChangeNotifier implements ICyberIdentifiable {
       } else if (rawValue is bool) {
         value = rawValue ? '1' : '0';
       } else {
-        value = rawValue.toString();
+        DateTime? dt = DateTime.tryParse(rawValue);
+        if (dt != null) {
+          value = DateFormat('yyyyMMdd').format(dt);
+        } else {
+          value = rawValue;
+        }
       }
 
       valueList.add(value);

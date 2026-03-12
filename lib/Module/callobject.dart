@@ -427,12 +427,13 @@ Future<ReturnFormData> V_callform(
     case "pb":
     case "popupbotton":
     case "popup_botton":
-      await V_callViewBottom(
+      var data = await V_callViewBottom(
         context,
         strfrm,
         cpName: cpName,
         strParameter: strparameter,
       );
+      return ReturnFormData(isOk: true, objectData: data);
       break;
     case "pd":
     case "popupdialog":
