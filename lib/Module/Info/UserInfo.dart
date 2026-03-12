@@ -26,7 +26,7 @@ class UserInfo {
   static bool istantrang = false;
   static bool ischangpass = false;
   static String _strTokenKey = "";
-
+  static String UrlImage = "";
   // ============================================================================
   // ✅ SL_Notify - Số lượng thông báo chưa đọc
   // ============================================================================
@@ -226,6 +226,9 @@ class UserInfo {
           : loginRow["tamtrang"]! == 1.0 ||
                 loginRow["tamtrang"].toString() == "1";
     }
+    if (dtlogin.containerColumn("url_image")) {
+      UrlImage = loginRow["url_image"] ?? "";
+    }
 
     if (dtlogin.containerColumn("changepass")) {
       ischangpass = loginRow["changepass"] == null
@@ -295,7 +298,7 @@ class UserInfo {
     comment = "";
     isOTP = "";
     id_otp = "";
-
+    UrlImage = "";
     // ✅ Reset SL_Notify khi logout
     clearNotify();
   }
