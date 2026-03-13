@@ -63,7 +63,7 @@ class CyberChartCir extends StatefulWidget {
 }
 
 class _CyberChartCirState extends State<CyberChartCir> {
-  List<DataChartSeries> _chartData = [];
+  final List<DataChartSeries> _chartData = [];
   VoidCallback? _dataSourceListener;
 
   @override
@@ -345,7 +345,7 @@ class CyberPieSeries extends StatefulWidget {
 }
 
 class _CyberPieSeriesState extends State<CyberPieSeries> {
-  List<DataChartSeries> _data = [];
+  final List<DataChartSeries> _data = [];
   VoidCallback? _dataSourceListener;
 
   @override
@@ -507,7 +507,7 @@ class CyberDoughnutSeries extends StatefulWidget {
 }
 
 class _CyberDoughnutSeriesState extends State<CyberDoughnutSeries> {
-  List<DataChartSeries> _data = [];
+  final List<DataChartSeries> _data = [];
   VoidCallback? _dataSourceListener;
 
   @override
@@ -677,7 +677,7 @@ class CyberRadialBarSeries extends StatefulWidget {
 }
 
 class _CyberRadialBarSeriesState extends State<CyberRadialBarSeries> {
-  List<DataChartSeries> _data = [];
+  final List<DataChartSeries> _data = [];
   VoidCallback? _dataSourceListener;
 
   @override

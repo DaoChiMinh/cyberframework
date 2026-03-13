@@ -8,10 +8,10 @@ Widget widgetFillterEdit(CyberDataTable dtHeader, CyberDataRow row) {
 
     rowGroups.putIfAbsent(rowId, () => []);
 
-    Widget? _child;
+    Widget? child;
     switch (field_type) {
       case "n":
-        _child = CyberNumeric(
+        child = CyberNumeric(
           label: dr["Field_Head1"],
           hint: dr["Field_Head1"],
           text: row.bind(dr["field_name"]),
@@ -19,7 +19,7 @@ Widget widgetFillterEdit(CyberDataTable dtHeader, CyberDataRow row) {
         );
         break;
       case "d":
-        _child = CyberDate(
+        child = CyberDate(
           label: dr["Field_Head1"],
           hint: dr["Field_Head1"],
           text: row.bind(dr["field_name"]),
@@ -27,7 +27,7 @@ Widget widgetFillterEdit(CyberDataTable dtHeader, CyberDataRow row) {
         );
         break;
       case "L":
-        _child = CyberLookup(
+        child = CyberLookup(
           label: dr["Field_Head1"],
           hint: dr["Field_Head1"],
           text: row.bind(dr["field_name"]),
@@ -41,7 +41,7 @@ Widget widgetFillterEdit(CyberDataTable dtHeader, CyberDataRow row) {
         );
         break;
       case "C":
-        _child = CyberText(
+        child = CyberText(
           label: dr["Field_Head1"],
           hint: dr["Field_Head1"],
           text: row.bind(dr["field_name"]),
@@ -49,14 +49,14 @@ Widget widgetFillterEdit(CyberDataTable dtHeader, CyberDataRow row) {
         );
         break;
       default:
-        _child = CyberLabel(text: row.bind(dr["field_name"]));
+        child = CyberLabel(text: row.bind(dr["field_name"]));
         break;
     }
     rowGroups[rowId]!.add(
       Expanded(
         child: Padding(
           padding: const EdgeInsets.only(right: 8.0),
-          child: _child,
+          child: child,
         ),
       ),
     );

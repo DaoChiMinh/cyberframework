@@ -1027,8 +1027,8 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
     int count,
   ) {
     final name = row.getString(widget.nameField);
-    final _color = widget.colorField;
-    final _iconcolor = widget.iconcolor;
+    final color = widget.colorField;
+    final iconcolor = widget.iconcolor;
     final icon = row.getString(widget.iconField);
 
     // Hiển thị tên với số lượng nếu count > 0
@@ -1050,10 +1050,10 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
           mainAxisSize: MainAxisSize.min,
           children: [
             DefectIcon(
-              color: row[_color].toString().parseColor(
+              color: row[color].toString().parseColor(
                 defaultColor: Colors.grey,
               ),
-              iconcolor: row[_iconcolor].toString().parseColor(
+              iconcolor: row[iconcolor].toString().parseColor(
                 defaultColor: Colors.grey,
               ),
               icon: icon,
@@ -1179,13 +1179,13 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
         marker = widget.markerBuilder!(row, defectType, widget.iconSize);
       } else {
         // Default marker
-        final _color = defectType?.getString(widget.colorField) ?? '';
-        final _iconcolor = defectType?.getString(widget.iconcolor) ?? '';
+        final color = defectType?.getString(widget.colorField) ?? '';
+        final iconcolor = defectType?.getString(widget.iconcolor) ?? '';
         final icon = defectType?.getString(widget.iconField) ?? '';
 
         marker = DefectIcon(
-          color: _color.toString().parseColor(defaultColor: Colors.grey),
-          iconcolor: _iconcolor.toString().parseColor(
+          color: color.toString().parseColor(defaultColor: Colors.grey),
+          iconcolor: iconcolor.toString().parseColor(
             defaultColor: Colors.grey,
           ),
           icon: icon,

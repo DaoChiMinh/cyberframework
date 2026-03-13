@@ -363,7 +363,7 @@ abstract class CyberForm {
   // ✅ Memory leak detection (debug only)
   static final _activeInstances = <WeakReference<CyberForm>>[];
 
-  CyberForm() {}
+  CyberForm();
 
   // ============================================================================
   // CONTEXT MANAGEMENT (SAFE)
@@ -770,7 +770,7 @@ abstract class CyberForm {
     // ✅ Memory estimation
     final estimatedMemory =
         (_namedControllers.length * 200) + (_disposables.length * 50);
-    debugPrint('   Estimated Memory: ~${estimatedMemory} bytes');
+    debugPrint('   Estimated Memory: ~$estimatedMemory bytes');
 
     // ✅ Warning thresholds
     if (_namedControllers.length > 10) {
@@ -780,7 +780,7 @@ abstract class CyberForm {
     }
     if (estimatedMemory > 10000) {
       debugPrint(
-        '   ⚠️ Warning: High memory usage (~${estimatedMemory} bytes)',
+        '   ⚠️ Warning: High memory usage (~$estimatedMemory bytes)',
       );
     }
   }

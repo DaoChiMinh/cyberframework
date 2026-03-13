@@ -285,8 +285,9 @@ class _CyberCameraState extends State<CyberCamera> with WidgetsBindingObserver {
     if (_cameraController == null ||
         !_cameraController!.value.isInitialized ||
         _isCapturing ||
-        !widget.enabled)
+        !widget.enabled) {
       return;
+    }
 
     setState(() => _isCapturing = true);
 

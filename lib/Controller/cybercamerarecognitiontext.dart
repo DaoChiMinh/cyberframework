@@ -407,7 +407,6 @@ class _CyberCameraRecognitionTextState extends State<CyberCameraRecognitionText>
 
       // Xử lý kết quả
       _handleRecognizedText(recognizedText);
-    } catch (e) {
     } finally {
       _isProcessing = false;
     }

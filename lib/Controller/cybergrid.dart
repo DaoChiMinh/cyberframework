@@ -331,8 +331,9 @@ class CyberGrid extends StatelessWidget {
     double totalStarCoefficient = 0;
     for (var def in definitions) {
       if (def.type == _GridDefinitionType.fixed) totalFixed += def.value;
-      if (def.type == _GridDefinitionType.star)
+      if (def.type == _GridDefinitionType.star) {
         totalStarCoefficient += def.value;
+      }
     }
     final remainingSpace = availableSize - totalFixed;
     final sizes = <double>[];

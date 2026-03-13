@@ -749,8 +749,8 @@ class _CyberComboBoxState extends State<CyberComboBox> {
     return ListenableBuilder(
       listenable: Listenable.merge([
         _controller,
-        if (dataSource != null) dataSource,
-        if (_boundRow != null) _boundRow!,
+        ?dataSource,
+        ?_boundRow,
         if (_displayBoundRow != null && _displayBoundRow != _boundRow)
           _displayBoundRow!,
         if (_visibilityBoundRow != null &&
