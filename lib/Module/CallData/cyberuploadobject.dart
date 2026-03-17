@@ -219,7 +219,7 @@ class UploadObject {
         // Đọc file từ path
         final file = File(source as String);
         if (!await file.exists()) {
-          throw Exception('File không tồn tại: ${source}');
+          throw Exception('File không tồn tại: $source');
         }
         final bytes = await file.readAsBytes();
         base64Data = base64Encode(bytes);

@@ -2357,14 +2357,14 @@ class _MenuBottomSheet extends StatelessWidget {
       if (isMenuClickToScreen) {
         final pageName = menuRow['pagename'] as String?;
         if (pageName != null && pageName.isNotEmpty) {
-          CyberDataRow _menuRow = menuRow.copy();
-          String _pagename = _menuRow['pagename'] as String? ?? '';
-          _menuRow['pagename'] = sourceRow.updatedatatostring(_pagename);
-          String _cp_name = _menuRow['cp_name'] as String? ?? '';
-          _menuRow['cp_name'] = sourceRow.updatedatatostring(_cp_name);
-          String _para = _menuRow['strparameter'] as String? ?? '';
-          _menuRow['strparameter'] = sourceRow.updatedatatostring(_para);
-          _menuRow.V_Call(context);
+          CyberDataRow menuRow0 = menuRow.copy();
+          String pagename = menuRow0['pagename'] as String? ?? '';
+          menuRow0['pagename'] = sourceRow.updatedatatostring(pagename);
+          String cp_name = menuRow0['cp_name'] as String? ?? '';
+          menuRow0['cp_name'] = sourceRow.updatedatatostring(cp_name);
+          String para = menuRow0['strparameter'] as String? ?? '';
+          menuRow0['strparameter'] = sourceRow.updatedatatostring(para);
+          menuRow0.V_Call(context);
         }
       }
       onMenuItemTap?.call(menuRow, sourceRow, sourceIndex);

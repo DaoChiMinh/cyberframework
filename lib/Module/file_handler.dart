@@ -598,8 +598,8 @@ class FileHandler {
     try {
       final ext = _getFileExtension(fileType);
       fileData = await loadFile(source, ext);
-      String _fileType = fileType.replaceAll(".", "").toLowerCase();
-      switch (_fileType.toLowerCase()) {
+      String fileType0 = fileType.replaceAll(".", "").toLowerCase();
+      switch (fileType0.toLowerCase()) {
         case 'pdf':
           await _printPdf(fileData.bytes, documentName);
           break;

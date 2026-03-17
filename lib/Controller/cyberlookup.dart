@@ -751,11 +751,11 @@ class _CyberLookupState extends State<CyberLookup> {
     if (hasBindings) {
       return ListenableBuilder(
         listenable: Listenable.merge([
-          if (_visibilityBoundRow != null) _visibilityBoundRow!,
-          if (_strFilterBoundRow != null) _strFilterBoundRow!,
-          if (_tbNameBoundRow != null) _tbNameBoundRow!,
-          if (_cp_nameCusBoundRow != null) _cp_nameCusBoundRow!,
-          if (_parameterCusBoundRow != null) _parameterCusBoundRow!,
+          ?_visibilityBoundRow,
+          ?_strFilterBoundRow,
+          ?_tbNameBoundRow,
+          ?_cp_nameCusBoundRow,
+          ?_parameterCusBoundRow,
         ]),
         builder: (context, child) => buildLookupWidget(),
       );
