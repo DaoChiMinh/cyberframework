@@ -398,8 +398,13 @@ class _CyberDateState extends State<CyberDate> {
 
   void _setupDateRange() {
     final now = DateTime.now();
-    _minDate = widget.minDate ?? DateTime(now.year - 100, 1, 1);
-    _maxDate = widget.maxDate ?? DateTime(now.year + 100, 12, 31);
+    // ✅ Normalize về 00:00:00 để tránh lỗi so sánh khi minDate = DateTime.now()
+    // Ví dụ: minDate = DateTime.now() lúc 09:28 → normalize → 2026-03-17 00:00:00
+    // Ngày được chọn từ lịch = DateTime(2026,3,17) = 00:00:00 → không bị báo lỗi
+    final minRaw = widget.minDate ?? DateTime(now.year - 100, 1, 1);
+    final maxRaw = widget.maxDate ?? DateTime(now.year + 100, 12, 31);
+    _minDate = DateTime(minRaw.year, minRaw.month, minRaw.day);
+    _maxDate = DateTime(maxRaw.year, maxRaw.month, maxRaw.day);
   }
 
   // ============================================================================
@@ -949,6 +954,9 @@ class _LunarUtils {
     return jd;
   }
 
+  /// Public alias dùng cho tính hoàng đạo / hắc đạo
+  static int jdFromDate(int dd, int mm, int yy) => _jdFromDate(dd, mm, yy);
+
   // ── Ngày Trăng Mới ────────────────────────────────────────────────────────
 
   /// Trả về JD thực (float) của trăng mới thứ k
@@ -1173,10 +1181,8 @@ class _CalendarDatePickerSheetState extends State<_CalendarDatePickerSheet> {
   void _goToToday() {
     if (!_isTodayInRange) return;
     final now = DateTime.now();
-    setState(() {
-      _selectedDate = DateTime(now.year, now.month, now.day);
-      _viewMonth = DateTime(now.year, now.month, 1);
-    });
+    final today = DateTime(now.year, now.month, now.day);
+    Navigator.pop(context, today);
   }
 
   // ============================================================================
@@ -1279,23 +1285,24 @@ class _CalendarDatePickerSheetState extends State<_CalendarDatePickerSheet> {
     return !nextMonthStart.isAfter(max);
   }
 
-  /// Hôm nay có nằm trong khoảng cho phép không
   bool get _isTodayInRange => !_isDisabled(DateTime.now());
 
-  /// Lấy text âm lịch hiển thị dưới mỗi ô ngày
-  /// - Ngày 1 âm lịch: hiển thị "1/m" (ví dụ: "1/2", "1/3")
-  /// - Ngày nhuận: thêm dấu * (ví dụ: "1/3*")
-  /// - Các ngày khác: chỉ hiển thị số ngày âm
-  String _getLunarLabel(DateTime date) {
+  // ============================================================================
+  // LUNAR & HOÀNG ĐẠO
+  // ============================================================================
+
+  /// Kết quả thông tin âm lịch + hoàng đạo cho 1 ngày
+  ({String label, bool isFirstDay}) _getLunarInfo(DateTime date) {
     final lunar = _LunarUtils.toLunar(date.day, date.month, date.year);
     final int lunarDay = lunar[0];
     final int lunarMonth = lunar[1];
     final int isLeap = lunar[3];
 
-    if (lunarDay == 1) {
-      return isLeap == 1 ? '1/${lunarMonth}n' : '1/$lunarMonth';
-    }
-    return '$lunarDay';
+    final String label = (lunarDay == 1)
+        ? (isLeap == 1 ? '1/${lunarMonth}n' : '1/$lunarMonth')
+        : '$lunarDay';
+
+    return (label: label, isFirstDay: lunarDay == 1);
   }
 
   // ============================================================================
@@ -1433,20 +1440,6 @@ class _CalendarDatePickerSheetState extends State<_CalendarDatePickerSheet> {
                   child: const Text('Hôm nay', style: TextStyle(fontSize: 15)),
                 ),
                 TextButton(
-                  onPressed: () => Navigator.pop(context, _selectedDate),
-                  style: TextButton.styleFrom(
-                    foregroundColor: _primaryGreen,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                  ),
-                  child: const Text(
-                    'Xác nhận',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                  ),
-                ),
-                TextButton(
                   onPressed: () => Navigator.pop(context),
                   style: TextButton.styleFrom(
                     foregroundColor: Colors.red,
@@ -1471,7 +1464,9 @@ class _CalendarDatePickerSheetState extends State<_CalendarDatePickerSheet> {
     final isSelected = _isSelected(date);
     final isSun = _isSunday(date);
     final isDisabled = _isDisabled(date);
-    final lunarLabel = _getLunarLabel(date);
+
+    // ── Thông tin âm lịch + hoàng/hắc đạo ───────────────────────────────────
+    final info = _getLunarInfo(date);
 
     // ── Màu text dương lịch ─────────────────────────────────────────────────
     Color solarColor;
@@ -1490,36 +1485,28 @@ class _CalendarDatePickerSheetState extends State<_CalendarDatePickerSheet> {
     }
 
     // ── Màu text âm lịch ────────────────────────────────────────────────────
+    // Ngày 1 âm lịch → đỏ (trừ khi selected/disabled/tháng khác)
     Color lunarColor;
     if (isDisabled) {
       lunarColor = Colors.grey[350]!;
     } else if (isSelected) {
-      lunarColor = Colors.white.withOpacity(0.85);
+      lunarColor = Colors.white.withOpacity(0.9);
     } else if (!isCurrentMonth) {
       lunarColor = Colors.grey[400]!;
+    } else if (info.isFirstDay) {
+      // ✅ Ngày đầu tháng âm → màu đỏ nổi bật
+      lunarColor = Colors.red;
     } else {
       lunarColor = Colors.grey[600]!;
     }
 
     return GestureDetector(
-      onTap: isDisabled
-          ? null // ✅ Không cho tap khi disabled
-          : () {
-              setState(() {
-                _selectedDate = date;
-                // Nếu chọn ngày tháng khác → chuyển sang tháng đó
-                if (!isCurrentMonth) {
-                  _viewMonth = DateTime(date.year, date.month, 1);
-                }
-              });
-            },
+      onTap: isDisabled ? null : () => Navigator.pop(context, date),
       child: Container(
         margin: const EdgeInsets.all(1.5),
         decoration: BoxDecoration(
-          // Disabled: nền gạch chéo nhẹ bằng cách dùng màu rất nhạt
           color: isSelected && !isDisabled ? _primaryGreen : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
-          // Viền nhẹ cho ngày hôm nay (khi chưa chọn và không disabled)
           border: isToday && !isSelected && !isDisabled
               ? Border.all(color: _primaryGreen, width: 1.5)
               : null,
@@ -1527,6 +1514,7 @@ class _CalendarDatePickerSheetState extends State<_CalendarDatePickerSheet> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            // ── Số ngày dương lịch ─────────────────────────────────────────
             Text(
               '${date.day}',
               style: TextStyle(
@@ -1535,20 +1523,17 @@ class _CalendarDatePickerSheetState extends State<_CalendarDatePickerSheet> {
                     ? FontWeight.bold
                     : FontWeight.normal,
                 color: solarColor,
-                // Gạch ngang khi disabled để trực quan hơn
-                decoration: isDisabled
-                    ? TextDecoration.none
-                    : TextDecoration.none,
               ),
             ),
             const SizedBox(height: 1),
+            // ── Label âm lịch ──────────────────────────────────────────────
             Text(
-              lunarLabel,
+              info.label,
               style: TextStyle(
                 fontSize: 9,
                 color: lunarColor,
-                fontWeight: !isDisabled && lunarLabel.startsWith('1/')
-                    ? FontWeight.w600
+                fontWeight: info.isFirstDay && !isDisabled && isCurrentMonth
+                    ? FontWeight.w700
                     : FontWeight.normal,
               ),
             ),
