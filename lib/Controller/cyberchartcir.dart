@@ -181,7 +181,8 @@ class _CyberChartCirState extends State<CyberChartCir> {
           PieSeries<DataChartSeries, dynamic>(
             dataSource: _chartData,
             xValueMapper: (data, _) => data.xSeries,
-            yValueMapper: (data, _) => data.ySeries,
+            yValueMapper: (data, _) =>
+                data.yValue, // Cố định giá trị để tất cả phần bằng nhau
             pointColorMapper: (data, _) => data.color,
             dataLabelSettings: DataLabelSettings(
               isVisible: true,
