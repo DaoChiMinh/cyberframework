@@ -17,7 +17,7 @@ export 'package:cyberframework/Module/CallData/returndata.dart';
 // export 'package:cyberframework/Module/OATH/cyberoauthservice.dart';
 export 'package:cyberframework/Module/CallData/cyberconnectivityservice.dart';
 export 'package:cyberframework/Core/app_navigator.dart';
-
+export 'package:cyberframework/material_icon_map.dart';
 export 'package:cyberframework/Core/cyberspeedmonitorservice.dart';
 export 'package:cyberframework/Core/cyberspeedmonitorwrapper.dart';
 export 'package:cyberframework/Core/cyberspeedoverlay.dart';

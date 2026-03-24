@@ -21,10 +21,30 @@ import 'package:uuid/uuid.dart';
 //     }
 //   }
 /// Parse icon from code point string
+// IconData? v_parseIcon(String codePointStr) {
+//   try {
+//     codePointStr = codePointStr.trim();
+
+//     if (codePointStr.isEmpty) return null;
+
+//     int codePoint;
+
+//     if (codePointStr.toLowerCase().startsWith('0x')) {
+//       codePoint = int.parse(codePointStr.substring(2), radix: 16);
+//     } else if (RegExp(r'^[a-fA-F0-9]+$').hasMatch(codePointStr)) {
+//       codePoint = int.parse(codePointStr, radix: 16);
+//     } else {
+//       codePoint = int.parse(codePointStr);
+//     }
+
+//     return IconData(codePoint, fontFamily: 'MaterialIconsOutlined');
+//   } catch (e) {
+//     return null;
+//   }
+// }
 IconData? v_parseIcon(String codePointStr) {
   try {
     codePointStr = codePointStr.trim();
-
     if (codePointStr.isEmpty) return null;
 
     int codePoint;
@@ -37,9 +57,9 @@ IconData? v_parseIcon(String codePointStr) {
       codePoint = int.parse(codePointStr);
     }
 
-    return IconData(codePoint, fontFamily: 'MaterialIconsOutlined');
-  } catch (e) {
-    return null;
+    return materialIconMap[codePoint] ?? Icons.help_outline;
+  } catch (_) {
+    return Icons.help_outline;
   }
 }
 
