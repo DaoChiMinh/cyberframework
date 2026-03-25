@@ -4,7 +4,6 @@ import 'package:onesignal_flutter/onesignal_flutter.dart';
 Future<void> initOneSignal(String AppId) async {
   OneSignal.initialize(AppId);
   OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
-  await OneSignal.Notifications.requestPermission(true);
 
   // Xử lý khi click notification (app đang chạy hoặc background)
   OneSignal.Notifications.addClickListener((event) {
@@ -18,6 +17,14 @@ Future<void> initOneSignal(String AppId) async {
     // final data = event.notification.additionalData!;
     // int countbage = data["ios_badgeCount"] ?? 0;
     //updatebage(countbage);
+  });
+  final accepted = await OneSignal.Notifications.requestPermission(true);
+  print("permission accepted = $accepted");
+
+  OneSignal.User.pushSubscription.addObserver((state) {
+    print("optedIn = ${state.current.optedIn}");
+    print("token   = ${state.current.token}");
+    print("sub id  = ${state.current.id}");
   });
 }
 
