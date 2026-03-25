@@ -42,11 +42,12 @@ Future<void> LoginOnsinal(CyberDataRow drLogin) async {
   await Future.delayed(const Duration(milliseconds: 500));
 
   OneSignal.User.addTags({
-    "Comment": tokenKey,
+    "Comment": drLogin["comment"] ?? "",
     "User_name": drLogin["User_name"] ?? "",
     "M_Ten_CTy": drLogin["M_Ten_CTy"] ?? "",
     "Ma_So_Thue": drLogin["Ma_So_Thue"] ?? "",
     "Ma_Dvcs": drLogin["Ma_Dvcs"] ?? "",
+    "tokenKey": tokenKey,
   });
 }
 
