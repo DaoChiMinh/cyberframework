@@ -163,7 +163,20 @@ class _CyberFormViewState extends State<CyberFormView>
     if (widget.enablePageAnimation && _pageFadeAnimation != null) {
       body = FadeTransition(opacity: _pageFadeAnimation!, child: body);
     }
-
+    // ✅ Wrap with PopScope for confirm on close
+    if (_form.confirmOnClose == true) {
+      body = PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, route) async {
+          if (didPop) return; // Đã pop rồi, không xử lý nữa
+          final canClose = await _form.onConfirmClose();
+          if (canClose && mounted) {
+            Navigator.of(context).pop();
+          }
+        },
+        child: body,
+      );
+    }
     return body;
   }
 
@@ -410,6 +423,11 @@ abstract class CyberForm {
   bool? _hideAppBar;
   bool? _showSpeedMonitor;
   bool? _hideBottomNavigationBar;
+  bool? _confirmOnClose;
+  String? _confirmCloseTitle;
+  String? _confirmCloseMessage;
+  String? _confirmCloseYes;
+  String? _confirmCloseNo;
 
   String? strtextColorDefault = "#00D287";
   String? strTextColorBlue = "#145A4A";
@@ -436,6 +454,21 @@ abstract class CyberForm {
   bool? get hideBottomNavigationBar => _hideBottomNavigationBar;
   set hideBottomNavigationBar(bool? value) => _hideBottomNavigationBar = value;
 
+  bool? get confirmOnClose => _confirmOnClose;
+  set confirmOnClose(bool? value) => _confirmOnClose = value;
+
+  String? get confirmCloseTitle => _confirmCloseTitle;
+  set confirmCloseTitle(String? value) => _confirmCloseTitle = value;
+
+  String? get confirmCloseMessage => _confirmCloseMessage;
+  set confirmCloseMessage(String? value) => _confirmCloseMessage = value;
+
+  String? get confirmCloseYes => _confirmCloseYes;
+  set confirmCloseYes(String? value) => _confirmCloseYes = value;
+
+  String? get confirmCloseNo => _confirmCloseNo;
+  set confirmCloseNo(String? value) => _confirmCloseNo = value;
+
   // ============================================================================
   // ANIMATION PROPERTIES
   // ============================================================================
@@ -459,6 +492,40 @@ abstract class CyberForm {
   void onDispose() {
     _disposeAllResources();
     _clearContext(); // ✅ Clear context reference
+  }
+
+  Future<bool> onConfirmClose() async {
+    if (!hasContext) return true;
+
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: Text(confirmCloseTitle ?? setText('Xác nhận', 'Confirm')),
+        content: Text(
+          confirmCloseMessage ??
+              setText(
+                'Bạn có chắc muốn thoát màn hình này?',
+                'Are you sure you want to leave this screen?',
+              ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(confirmCloseNo ?? setText('Không', 'No')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              confirmCloseYes ?? setText('Có', 'Yes'),
+              style: const TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    return result ?? false;
   }
 
   Future<(CyberDataset? ms, bool status)> callApiAndCheck({
@@ -779,9 +846,7 @@ abstract class CyberForm {
       );
     }
     if (estimatedMemory > 10000) {
-      debugPrint(
-        '   ⚠️ Warning: High memory usage (~$estimatedMemory bytes)',
-      );
+      debugPrint('   ⚠️ Warning: High memory usage (~$estimatedMemory bytes)');
     }
   }
 
@@ -1013,10 +1078,20 @@ abstract class CyberForm {
     }
   }
 
-  void close({dynamic result}) {
-    if (!_isDisposed && hasContext) {
+  void close({dynamic result}) async {
+    if (_isDisposed || !hasContext) return;
+
+    if (confirmOnClose == true) {
+      final canClose = await onConfirmClose();
+      if (!canClose) return;
+    }
+
+    if (hasContext) {
       Navigator.pop(context, result);
     }
+    // if (!_isDisposed && hasContext) {
+    //   Navigator.pop(context, result);
+    // }
   }
 
   bool get isDisposed => _isDisposed;
