@@ -1459,7 +1459,7 @@ class _CalendarDatePickerSheetState extends State<_CalendarDatePickerSheet> {
   }
 
   Widget _buildDayCell(DateTime date) {
-    final isCurrentMonth = _isCurrentMonth(date);
+    final isCurrentMonth = true; //_isCurrentMonth(date);
     final isToday = _isToday(date);
     final isSelected = _isSelected(date);
     final isSun = _isSunday(date);
