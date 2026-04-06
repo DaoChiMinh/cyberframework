@@ -192,6 +192,20 @@ class _CyberFormViewState extends State<CyberFormView>
         (widget.showSpeedMonitor || _form.showSpeedMonitor == true) &&
         widget.speedMonitorPosition == SpeedMonitorPosition.appBar;
 
+    // Gộp actions: custom actions + speed monitor
+    final List<Widget> actions = [
+      ...?_form.appBarActions,
+      if (showInAppBar)
+        const Padding(
+          padding: EdgeInsets.only(right: 8.0),
+          child: CyberSpeedIndicator(
+            showLabel: false,
+            autoStart: true,
+            compact: true,
+          ),
+        ),
+    ];
+
     return AppBar(
       backgroundColor: const Color(0xFF145A4A),
       iconTheme: const IconThemeData(color: Colors.white),
@@ -200,19 +214,33 @@ class _CyberFormViewState extends State<CyberFormView>
         style: const TextStyle(color: Colors.white),
         textAlign: TextAlign.center,
       ),
-      actions: showInAppBar
-          ? const [
-              Padding(
-                padding: EdgeInsets.only(right: 8.0),
-                child: CyberSpeedIndicator(
-                  showLabel: false,
-                  autoStart: true,
-                  compact: true,
-                ),
-              ),
-            ]
-          : null,
+      actions: actions.isEmpty ? null : actions,
     );
+    // final showInAppBar =
+    //     (widget.showSpeedMonitor || _form.showSpeedMonitor == true) &&
+    //     widget.speedMonitorPosition == SpeedMonitorPosition.appBar;
+
+    // return AppBar(
+    //   backgroundColor: const Color(0xFF145A4A),
+    //   iconTheme: const IconThemeData(color: Colors.white),
+    //   title: Text(
+    //     _form.title ?? widget.title,
+    //     style: const TextStyle(color: Colors.white),
+    //     textAlign: TextAlign.center,
+    //   ),
+    //   actions: showInAppBar
+    //       ? const [
+    //           Padding(
+    //             padding: EdgeInsets.only(right: 8.0),
+    //             child: CyberSpeedIndicator(
+    //               showLabel: false,
+    //               autoStart: true,
+    //               compact: true,
+    //             ),
+    //           ),
+    //         ]
+    //       : null,
+    // );
   }
 
   Widget _buildBodyWithSpeedMonitor() {
@@ -468,7 +496,9 @@ abstract class CyberForm {
 
   String? get confirmCloseNo => _confirmCloseNo;
   set confirmCloseNo(String? value) => _confirmCloseNo = value;
-
+  List<Widget>? _appBarActions;
+  List<Widget>? get appBarActions => _appBarActions;
+  set appBarActions(List<Widget>? value) => _appBarActions = value;
   // ============================================================================
   // ANIMATION PROPERTIES
   // ============================================================================
