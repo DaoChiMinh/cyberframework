@@ -1830,3 +1830,50 @@ class _IOSDatePickerSheetState extends State<_IOSDatePickerSheet> {
     return monthNames[month - 1];
   }
 }
+
+class CyberDatePicker {
+  CyberDatePicker._();
+
+  static Future<DateTime?> show(
+    BuildContext context, {
+    DateTime? initialDate,
+    DateTime? minDate,
+    DateTime? maxDate,
+    CyberDatePickerStyle pickerStyle = CyberDatePickerStyle.scroll,
+    String format = "dd/MM/yyyy",
+  }) async {
+    final now = DateTime.now();
+    final init = initialDate ?? now;
+    final min = DateTime(
+      (minDate ?? DateTime(now.year - 100, 1, 1)).year,
+      (minDate ?? DateTime(now.year - 100, 1, 1)).month,
+      (minDate ?? DateTime(now.year - 100, 1, 1)).day,
+    );
+    final max = DateTime(
+      (maxDate ?? DateTime(now.year + 100, 12, 31)).year,
+      (maxDate ?? DateTime(now.year + 100, 12, 31)).month,
+      (maxDate ?? DateTime(now.year + 100, 12, 31)).day,
+    );
+
+    return showModalBottomSheet<DateTime>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        if (pickerStyle == CyberDatePickerStyle.calendar) {
+          return _CalendarDatePickerSheet(
+            initialDate: init,
+            minDate: min,
+            maxDate: max,
+          );
+        }
+        return _IOSDatePickerSheet(
+          initialDate: init,
+          minDate: min,
+          maxDate: max,
+          dateFormat: DateFormat(format),
+        );
+      },
+    );
+  }
+}
