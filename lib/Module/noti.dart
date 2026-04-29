@@ -19,12 +19,12 @@ Future<void> initOneSignal(String AppId) async {
     //updatebage(countbage);
   });
   final accepted = await OneSignal.Notifications.requestPermission(true);
-  print("permission accepted = $accepted");
+  // print("permission accepted = $accepted");
 
   OneSignal.User.pushSubscription.addObserver((state) {
-    print("optedIn = ${state.current.optedIn}");
-    print("token   = ${state.current.token}");
-    print("sub id  = ${state.current.id}");
+    // print("optedIn = ${state.current.optedIn}");
+    // print("token   = ${state.current.token}");
+    // print("sub id  = ${state.current.id}");
   });
 }
 
