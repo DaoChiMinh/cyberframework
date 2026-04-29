@@ -8,6 +8,7 @@ typedef FutureDataCallback =
       int pageSize,
       String strSearch,
     );
+typedef RefreshCallback = Future<void> Function();
 
 /// Callback khi tap item
 typedef ItemTapCallback = void Function(CyberDataRow row, int index);
@@ -326,6 +327,7 @@ class CyberListView extends StatefulWidget {
   final Color? searchtextColor;
   final bool ShowIconSearch;
 
+  final RefreshCallback? onRefresh;
   const CyberListView({
     super.key,
     this.dataSource,
@@ -345,6 +347,7 @@ class CyberListView extends StatefulWidget {
     this.onToolbarActionTap,
     this.isDelete = false,
     this.onDelete,
+    this.onRefresh,
     this.pageSize = 20,
     this.showSearchBox = false,
     this.emptyWidget,
@@ -1031,10 +1034,37 @@ class _CyberListViewState extends State<CyberListView> {
             _invalidateGroupCache();
           });
         }
-        return;
+        //return;
       }
     }
+    // 🆕 Trường hợp onLoadData = null: gọi onRefresh callback
+    if (widget.onLoadData == null) {
+      if (widget.onRefresh != null) {
+        try {
+          await widget.onRefresh!();
 
+          // Sau khi user refresh xong, invalidate cache để rebuild UI
+          if (!mounted) return;
+
+          _incrementDataVersion();
+          _invalidateCache();
+          _clearSearchCache();
+          _invalidateGroupCache();
+
+          // Re-initialize group states nếu có group
+          if (widget.clmgroup != null) {
+            _initializeGroupStates();
+          }
+
+          if (mounted) {
+            setState(() {});
+          }
+        } catch (e) {
+          _showError('Lỗi khi refresh: $e');
+        }
+      }
+      return;
+    }
     await _loadInitialData();
   }
 
