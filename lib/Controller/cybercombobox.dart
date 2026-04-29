@@ -1061,7 +1061,7 @@ class _MultiSelectSheetState extends State<_MultiSelectSheet> {
                   )
                 : ListView.separated(
                     itemCount: _filteredRows.length,
-                    separatorBuilder: (_, __) => Divider(
+                    separatorBuilder: (_, _) => Divider(
                       height: 1,
                       thickness: 1,
                       color: Colors.grey[200],

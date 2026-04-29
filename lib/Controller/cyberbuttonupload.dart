@@ -307,7 +307,7 @@ class _CyberButtonUploadState extends State<CyberButtonUpload> {
         if (_textBoundRow != null)
           ListenableBuilder(
             listenable: _textBoundRow!,
-            builder: (_, __) => _buildTextDisplay(),
+            builder: (_, _) => _buildTextDisplay(),
           )
         else
           _buildTextDisplay(),

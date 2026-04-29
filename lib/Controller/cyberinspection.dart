@@ -1,10 +1,6 @@
-import 'dart:convert';
-import 'dart:io';
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:cyberframework/Module/file_handler.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:cyberframework/cyberframework.dart';
 
@@ -1097,8 +1093,7 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
                       image: _imageProvider!,
                       fit: BoxFit.contain,
                       width: double.infinity,
-                      errorBuilder: (_, __, ___) =>
-                          _buildPlaceholder(error: true),
+                      errorBuilder: (_, _, _) => _buildPlaceholder(error: true),
                       frameBuilder:
                           (context, child, frame, wasSynchronouslyLoaded) {
                             if (frame != null) {
@@ -1185,9 +1180,7 @@ class _CyberCarInspectionState extends State<CyberCarInspection> {
 
         marker = DefectIcon(
           color: color.toString().parseColor(defaultColor: Colors.grey),
-          iconcolor: iconcolor.toString().parseColor(
-            defaultColor: Colors.grey,
-          ),
+          iconcolor: iconcolor.toString().parseColor(defaultColor: Colors.grey),
           icon: icon,
           size: widget.iconSize,
         );
