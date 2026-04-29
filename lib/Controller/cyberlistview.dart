@@ -1292,21 +1292,72 @@ class _CyberListViewState extends State<CyberListView> {
   }
 
   Widget _buildListViewContainer() {
-    final listViewContent = _isLoading
-        ? _buildLoading()
-        : _workingRows.isEmpty
-        ? _buildEmpty()
-        : widget.horizontal
-        ? _buildHorizontalList()
-        : widget.columnCount > 1
-        ? _buildGridList()
-        : _buildList();
+    // final listViewContent = _isLoading
+    //     ? _buildLoading()
+    //     : _workingRows.isEmpty
+    //     ? _buildEmpty()
+    //     : widget.horizontal
+    //     ? _buildHorizontalList()
+    //     : widget.columnCount > 1
+    //     ? _buildGridList()
+    //     : _buildList();
+
+    // if (widget.height == "*") {
+    //   return listViewContent;
+    // }
+
+    // return Expanded(child: listViewContent);
+    Widget listViewContent;
+
+    if (_isLoading) {
+      listViewContent = _buildLoading();
+    } else if (_workingRows.isEmpty) {
+      // 🆕 FIX: Wrap empty widget để hỗ trợ pull-to-refresh
+      listViewContent = _buildEmptyWithRefresh();
+    } else if (widget.horizontal) {
+      listViewContent = _buildHorizontalList();
+    } else if (widget.columnCount > 1) {
+      listViewContent = _buildGridList();
+    } else {
+      listViewContent = _buildList();
+    }
 
     if (widget.height == "*") {
       return listViewContent;
     }
 
     return Expanded(child: listViewContent);
+  }
+
+  /// 🆕 Build empty state với pull-to-refresh support
+  Widget _buildEmptyWithRefresh() {
+    // Nếu dùng shrinkWrap (height = "*"), không cần refresh wrapper
+    if (_useShrinkWrap) {
+      return _buildEmpty();
+    }
+
+    // Nếu không có cả onLoadData và onRefresh, không cần refresh
+    if (widget.onLoadData == null && widget.onRefresh == null) {
+      return _buildEmpty();
+    }
+
+    // Wrap empty widget trong ListView để có thể scroll/pull
+    return RefreshIndicator(
+      onRefresh: _refresh,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            // BẮT BUỘC dùng AlwaysScrollableScrollPhysics để pull-to-refresh hoạt động
+            // ngay cả khi nội dung không vượt quá viewport
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: _buildEmpty(),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   Widget _buildSearchBar() {
