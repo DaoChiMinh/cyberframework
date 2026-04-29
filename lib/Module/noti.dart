@@ -18,7 +18,8 @@ Future<void> initOneSignal(String AppId) async {
     // int countbage = data["ios_badgeCount"] ?? 0;
     //updatebage(countbage);
   });
-  final accepted = await OneSignal.Notifications.requestPermission(true);
+  // final accepted =
+  await OneSignal.Notifications.requestPermission(true);
   // print("permission accepted = $accepted");
 
   OneSignal.User.pushSubscription.addObserver((state) {

@@ -107,13 +107,13 @@ class _CyberLookupState extends State<CyberLookup> {
 
   // === LOOKUP PARAMS BINDING ===
   CyberDataRow? _strFilterBoundRow;
-  String? _strFilterBoundField;
+  // String? _strFilterBoundField;
   CyberDataRow? _tbNameBoundRow;
-  String? _tbNameBoundField;
+  // String? _tbNameBoundField;
   CyberDataRow? _cp_nameCusBoundRow;
-  String? _cp_nameCusBoundField;
+  // String? _cp_nameCusBoundField;
   CyberDataRow? _parameterCusBoundRow;
-  String? _parameterCusBoundField;
+  // String? _parameterCusBoundField;
 
   // === FLAGS ===
   bool _isInternalUpdate = false;
@@ -261,14 +261,14 @@ class _CyberLookupState extends State<CyberLookup> {
     if (_strFilterBoundRow != null) {
       _strFilterBoundRow!.removeListener(_onStrFilterBindingChanged);
       _strFilterBoundRow = null;
-      _strFilterBoundField = null;
+      // _strFilterBoundField = null;
     }
 
     // Parse new binding
     if (widget.strFilter is CyberBindingExpression) {
       final expr = widget.strFilter as CyberBindingExpression;
       _strFilterBoundRow = expr.row;
-      _strFilterBoundField = expr.fieldName;
+      // _strFilterBoundField = expr.fieldName;
       _strFilterBoundRow!.addListener(_onStrFilterBindingChanged);
     }
   }
@@ -278,14 +278,14 @@ class _CyberLookupState extends State<CyberLookup> {
     if (_tbNameBoundRow != null) {
       _tbNameBoundRow!.removeListener(_onTbNameBindingChanged);
       _tbNameBoundRow = null;
-      _tbNameBoundField = null;
+      // _tbNameBoundField = null;
     }
 
     // Parse new binding
     if (widget.tbName is CyberBindingExpression) {
       final expr = widget.tbName as CyberBindingExpression;
       _tbNameBoundRow = expr.row;
-      _tbNameBoundField = expr.fieldName;
+      // _tbNameBoundField = expr.fieldName;
       _tbNameBoundRow!.addListener(_onTbNameBindingChanged);
     }
   }
@@ -295,14 +295,14 @@ class _CyberLookupState extends State<CyberLookup> {
     if (_cp_nameCusBoundRow != null) {
       _cp_nameCusBoundRow!.removeListener(_onCp_nameCusBindingChanged);
       _cp_nameCusBoundRow = null;
-      _cp_nameCusBoundField = null;
+      // _cp_nameCusBoundField = null;
     }
 
     // Parse new binding
     if (widget.cp_nameCus is CyberBindingExpression) {
       final expr = widget.cp_nameCus as CyberBindingExpression;
       _cp_nameCusBoundRow = expr.row;
-      _cp_nameCusBoundField = expr.fieldName;
+      // _cp_nameCusBoundField = expr.fieldName;
       _cp_nameCusBoundRow!.addListener(_onCp_nameCusBindingChanged);
     }
   }
@@ -312,14 +312,14 @@ class _CyberLookupState extends State<CyberLookup> {
     if (_parameterCusBoundRow != null) {
       _parameterCusBoundRow!.removeListener(_onParameterCusBindingChanged);
       _parameterCusBoundRow = null;
-      _parameterCusBoundField = null;
+      // _parameterCusBoundField = null;
     }
 
     // Parse new binding
     if (widget.parameterCus is CyberBindingExpression) {
       final expr = widget.parameterCus as CyberBindingExpression;
       _parameterCusBoundRow = expr.row;
-      _parameterCusBoundField = expr.fieldName;
+      // _parameterCusBoundField = expr.fieldName;
       _parameterCusBoundRow!.addListener(_onParameterCusBindingChanged);
     }
   }

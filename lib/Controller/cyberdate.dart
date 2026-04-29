@@ -1225,8 +1225,8 @@ class _CalendarDatePickerSheetState extends State<_CalendarDatePickerSheet> {
     return days;
   }
 
-  bool _isCurrentMonth(DateTime date) =>
-      date.month == _viewMonth.month && date.year == _viewMonth.year;
+  // bool _isCurrentMonth(DateTime date) =>
+  //     date.month == _viewMonth.month && date.year == _viewMonth.year;
 
   bool _isToday(DateTime date) {
     final now = DateTime.now();

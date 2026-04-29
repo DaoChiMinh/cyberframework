@@ -452,25 +452,25 @@ class _CyberCameraState extends State<CyberCamera> with WidgetsBindingObserver {
     }
   }
 
-  void _clearImage() {
-    if (!widget.enabled) return;
+  // void _clearImage() {
+  //   if (!widget.enabled) return;
 
-    if (_isBinding && _binding != null) {
-      _binding!.value = null;
-    } else {
-      setState(() {
-        _currentImagePath = null;
-        _showCamera = true;
-      });
-    }
-    _initializeCamera();
-  }
+  //   if (_isBinding && _binding != null) {
+  //     _binding!.value = null;
+  //   } else {
+  //     setState(() {
+  //       _currentImagePath = null;
+  //       _showCamera = true;
+  //     });
+  //   }
+  //   _initializeCamera();
+  // }
 
-  void _openCameraMode() {
-    if (!widget.enabled) return;
-    setState(() => _showCamera = true);
-    _initializeCamera();
-  }
+  // void _openCameraMode() {
+  //   if (!widget.enabled) return;
+  //   setState(() => _showCamera = true);
+  //   _initializeCamera();
+  // }
 
   void _handleError(String error) {
     debugPrint('CyberCamera Error: $error');
@@ -718,28 +718,28 @@ class _CyberCameraState extends State<CyberCamera> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildPlaceholder(ThemeData theme) {
-    return widget.placeholder ??
-        Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.add_a_photo,
-                size: 48,
-                color: theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Chụp ảnh',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
-                ),
-              ),
-            ],
-          ),
-        );
-  }
+  // Widget _buildPlaceholder(ThemeData theme) {
+  //   return widget.placeholder ??
+  //       Center(
+  //         child: Column(
+  //           mainAxisAlignment: MainAxisAlignment.center,
+  //           children: [
+  //             Icon(
+  //               Icons.add_a_photo,
+  //               size: 48,
+  //               color: theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
+  //             ),
+  //             const SizedBox(height: 8),
+  //             Text(
+  //               'Chụp ảnh',
+  //               style: theme.textTheme.bodyMedium?.copyWith(
+  //                 color: theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
+  //               ),
+  //             ),
+  //           ],
+  //         ),
+  //       );
+  // }
 
   Widget _buildCircleButton({
     required IconData icon,

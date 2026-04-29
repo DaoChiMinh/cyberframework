@@ -706,7 +706,7 @@ class _CyberImageState extends State<CyberImage> {
 
     try {
       final bytes = await file.readAsBytes();
-      final fileSize = bytes.length;
+      // final fileSize = bytes.length;
       final fileType = fileName.split('.').last.toLowerCase();
 
       // Nếu không auto upload, chỉ lưu base64
@@ -783,10 +783,10 @@ class _CyberImageState extends State<CyberImage> {
     }
   }
 
-  Future<String> _fileToBase64(File file) async {
-    final bytes = await file.readAsBytes();
-    return 'data:image/jpeg;base64,${base64Encode(bytes)}';
-  }
+  // Future<String> _fileToBase64(File file) async {
+  //   final bytes = await file.readAsBytes();
+  //   return 'data:image/jpeg;base64,${base64Encode(bytes)}';
+  // }
 
   Future<void> _viewImage(String imageValue) async {
     if (!mounted) return;

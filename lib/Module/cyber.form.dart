@@ -880,19 +880,19 @@ abstract class CyberForm {
     }
   }
 
-  /// ✅ Memory leak detection (debug only)
-  static void _checkMemoryLeaks() {
-    _activeInstances.removeWhere((ref) => ref.target == null);
+  // /// ✅ Memory leak detection (debug only)
+  // static void _checkMemoryLeaks() {
+  //   _activeInstances.removeWhere((ref) => ref.target == null);
 
-    if (_activeInstances.length > 10) {
-      debugPrint(
-        '⚠️ Memory leak warning: ${_activeInstances.length} active CyberForm instances',
-      );
-      debugPrint(
-        '   Active forms: ${_activeInstances.map((ref) => ref.target.runtimeType).join(", ")}',
-      );
-    }
-  }
+  //   if (_activeInstances.length > 10) {
+  //     debugPrint(
+  //       '⚠️ Memory leak warning: ${_activeInstances.length} active CyberForm instances',
+  //     );
+  //     debugPrint(
+  //       '   Active forms: ${_activeInstances.map((ref) => ref.target.runtimeType).join(", ")}',
+  //     );
+  //   }
+  // }
 
   /// ✅ Get active instance count
   static int getActiveInstanceCount() {

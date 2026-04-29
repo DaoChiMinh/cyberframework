@@ -260,7 +260,7 @@ class UploadObject {
         break;
 
       case UploadSourceType.unknown:
-      default:
+        // default:
         throw Exception('Không thể xác định loại nguồn: ${source.runtimeType}');
     }
 

@@ -225,7 +225,7 @@ class CyberDataRow extends ChangeNotifier implements ICyberIdentifiable {
         String valueStr;
         if (formatters != null && formatters.containsKey(lowerColumnName)) {
           try {
-            valueStr = formatters[lowerColumnName]!(value) ?? '';
+            valueStr = formatters[lowerColumnName]!(value);
           } catch (e) {
             debugPrint('❌ Formatter error for $columnName: $e');
             valueStr = value?.toString() ?? '';

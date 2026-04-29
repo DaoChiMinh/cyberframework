@@ -545,24 +545,24 @@ extension StringToastExtension on String {
 
     // Chọn màu theo loại toast
     Color backgroundColor;
-    IconData icon;
+    // IconData icon;
 
     switch (toastType) {
       case CyberToastType.success:
         backgroundColor = Colors.green;
-        icon = Icons.check_circle;
+        // icon = Icons.check_circle;
         break;
       case CyberToastType.error:
         backgroundColor = Colors.red;
-        icon = Icons.error;
+        // icon = Icons.error;
         break;
       case CyberToastType.warning:
         backgroundColor = Colors.orange;
-        icon = Icons.warning;
+        // icon = Icons.warning;
         break;
       case CyberToastType.info:
         backgroundColor = Colors.blue;
-        icon = Icons.info;
+        // icon = Icons.info;
         break;
     }
 

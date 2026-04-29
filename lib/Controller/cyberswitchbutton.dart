@@ -202,8 +202,7 @@ class _CyberSwitchButtonState extends State<CyberSwitchButton> {
   Widget build(BuildContext context) {
     // ✅ Default colors
     final bgColor = widget.backgroundColor ?? const Color(0xFFE8F5E9);
-    final selectedBg =
-        widget.selectedColor ?? const Color.fromARGB(255, 224, 224, 224);
+    // final selectedBg = widget.selectedColor ?? const Color.fromARGB(255, 224, 224, 224);
 
     final container = Container(
       height: widget.height,

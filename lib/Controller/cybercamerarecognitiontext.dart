@@ -210,7 +210,7 @@ class _CyberCameraRecognitionTextState extends State<CyberCameraRecognitionText>
   Timer? _messageDurationTimer;
   bool _showTemporaryMessage = false;
   int _frameCount = 0;
-  RecognizedTextResult? _lastResult;
+  // RecognizedTextResult? _lastResult;
 
   // Lưu parsed data cuối cùng để kiểm tra duplicate
   Map<String, dynamic>? _lastParsedData;
@@ -519,7 +519,7 @@ class _CyberCameraRecognitionTextState extends State<CyberCameraRecognitionText>
       timestamp: DateTime.now(),
     );
 
-    _lastResult = result;
+    // _lastResult = result;
 
     // Play sound
     _playBeep();
@@ -830,7 +830,7 @@ class _CyberCameraRecognitionTextState extends State<CyberCameraRecognitionText>
         return text;
 
       case TextFilterType.all:
-      default:
+        // default:
         return text;
     }
   }
