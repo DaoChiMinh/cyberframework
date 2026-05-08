@@ -96,7 +96,7 @@ abstract class CyberBaseEdit extends CyberForm {
       );
       return false;
     }
-    if (CountTableReturn > 2) {
+    if (CountTableReturn > 1) {
       if (ds[1]!.rowCount > 0) {
         _formData.isOk = true;
         _formData.objectData = ds[1]![0];

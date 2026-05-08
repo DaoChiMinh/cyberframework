@@ -496,6 +496,7 @@ abstract class CyberForm {
 
   String? get confirmCloseNo => _confirmCloseNo;
   set confirmCloseNo(String? value) => _confirmCloseNo = value;
+
   List<Widget>? _appBarActions;
   List<Widget>? get appBarActions => _appBarActions;
   set appBarActions(List<Widget>? value) => _appBarActions = value;
