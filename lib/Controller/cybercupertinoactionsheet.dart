@@ -1,7 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
-/// Model cho mỗi action sheet item
 class CyberActionSheet {
   final String label;
   final IconData? icon;
@@ -22,7 +21,6 @@ class CyberActionSheet {
   });
 }
 
-/// Hiển thị CupertinoActionSheet với danh sách actions
 Future<void> showCyberCupertinoActionSheet(
   BuildContext context,
   List<CyberActionSheet> actions, {
@@ -113,7 +111,6 @@ Future<void> showCyberCupertinoActionSheet(
   );
 }
 
-/// Extension để gọi ngắn gọn hơn
 extension CyberCupertinoActionSheetExtension on BuildContext {
   Future<void> showCyberActionSheet(
     List<CyberActionSheet> actions, {
