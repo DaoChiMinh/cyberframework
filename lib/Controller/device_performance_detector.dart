@@ -82,7 +82,7 @@ class DevicePerformanceDetector {
     performanceScore += _getManufacturerScore(manufacturer, model);
 
     // 4. Hardware string analysis
-    final hardware = androidInfo.hardware.toLowerCase() ?? '';
+    final hardware = androidInfo.hardware.toLowerCase();
     if (hardware.contains('snapdragon')) {
       final snapdragonGen = _extractSnapdragonGen(hardware);
       if (snapdragonGen >= 800) {
@@ -121,9 +121,9 @@ class DevicePerformanceDetector {
   static Future<DevicePerformanceLevel> _detectIOSPerformance() async {
     final iosInfo = await _deviceInfo.iosInfo;
 
-    final model = iosInfo.model.toLowerCase() ?? '';
-    final name = iosInfo.name.toLowerCase() ?? '';
-    final systemVersion = iosInfo.systemVersion ?? '';
+    final model = iosInfo.model.toLowerCase();
+    final name = iosInfo.name.toLowerCase();
+    final systemVersion = iosInfo.systemVersion;
 
     // Parse iOS version
     final iosVersion = _parseIOSVersion(systemVersion);

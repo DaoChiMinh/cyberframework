@@ -113,7 +113,7 @@ export 'dart:io';
 export 'package:path_provider/path_provider.dart';
 export 'package:share_plus/share_plus.dart';
 export 'package:printing/printing.dart';
-export 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+// export 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 export 'package:audioplayers/audioplayers.dart';
 export 'package:camera/camera.dart';
 export 'package:cyberframework/Controller/device_performance_detector.dart';

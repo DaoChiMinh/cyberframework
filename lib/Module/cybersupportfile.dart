@@ -214,7 +214,7 @@ extension CyberFilePickerExtension on BuildContext {
     bool isChangeName,
   ) async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf'],
       );
@@ -305,7 +305,7 @@ extension CyberFilePickerExtension on BuildContext {
     bool isChangeName,
   ) async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['doc', 'docx'],
       );
@@ -397,7 +397,7 @@ extension CyberFilePickerExtension on BuildContext {
     bool isChangeName,
   ) async {
     try {
-      final result = await FilePicker.platform.pickFiles(type: FileType.any);
+      final result = await FilePicker.pickFiles(type: FileType.any);
 
       if (result == null || result.files.isEmpty) return null;
 

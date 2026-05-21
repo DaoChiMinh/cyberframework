@@ -548,7 +548,7 @@ class FileHandler {
     required String fileName,
     BuildContext? context,
   }) async {
-    final savePath = await FilePicker.platform.saveFile(
+    final savePath = await FilePicker.saveFile(
       fileName: fileName,
       bytes: fileData.bytes,
     );

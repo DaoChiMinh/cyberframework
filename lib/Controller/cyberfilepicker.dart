@@ -300,7 +300,7 @@ class _CyberFilePickerState extends State<CyberFilePicker> {
     Navigator.pop(context);
 
     try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
+      FilePickerResult? result = await FilePicker.pickFiles(
         type: widget.allowedExtensions != null ? FileType.custom : FileType.any,
         allowedExtensions: widget.allowedExtensions,
         allowMultiple: widget.allowMultiple,
@@ -664,7 +664,7 @@ class _CyberFilePickerFieldState extends State<CyberFilePickerField> {
     Navigator.pop(context);
 
     try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
+      FilePickerResult? result = await FilePicker.pickFiles(
         type: widget.allowedExtensions != null ? FileType.custom : FileType.any,
         allowedExtensions: widget.allowedExtensions,
       );
