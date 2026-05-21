@@ -15,51 +15,58 @@ dependencies:
   flutter:
     sdk: flutter
   plugin_platform_interface: ^2.1.8
-  injectable: ^3.0.0
+  injectable: ^2.7.1+4
   get_it: ^9.2.1
   crypto: ^3.0.7
   http: ^1.6.0
-  flutter_secure_storage: ^10.2.0
+  flutter_secure_storage: ^10.0.0
   flutter_slidable: ^4.0.3
   intl: ^0.20.2
   image_picker: ^1.2.1
-  file_picker: ^11.0.2
+  file_picker: ^10.3.10
   flutter_image_compress: ^2.4.0
   path_provider: ^2.1.5
   path: ^1.9.1
-  camera: ^0.12.0+1
-  mobile_scanner: ^7.2.0
-  uuid: ^4.5.3
+  camera: ^0.11.3
+  mobile_scanner: ^7.1.4
+  uuid: ^4.5.2
   cached_network_image: ^3.4.1
-  webview_flutter: ^4.13.1
-  syncfusion_flutter_pdfviewer: ^33.2.7
-  syncfusion_flutter_pdf: ^33.2.7
-  syncfusion_flutter_charts: ^33.2.7
+  webview_flutter: ^4.13.0
+  syncfusion_flutter_pdfviewer: ^32.1.25
+# File viewers
+  syncfusion_flutter_pdf: ^32.1.25
+  syncfusion_flutter_charts: ^32.1.25
   photo_view: ^0.15.0
   excel: ^4.0.6
   docx_to_text: ^1.0.1
-  pdf: ^3.12.0
+  pdf: ^3.11.3
   url_launcher: ^6.3.2
   gal: ^2.3.2
+  # Utilities
   share_plus: ^12.0.1
-  printing: ^5.14.3
-  connectivity_plus: ^7.1.1
+  printing: ^5.14.2
+  connectivity_plus: ^7.0.0
   network_info_plus: ^7.0.0
-  shared_preferences: ^2.5.5
-  device_info_plus: ^12.1.0    # Device information
-  package_info_plus: ^9.0.1     # App version info
-  audioplayers: ^6.6.0
+  shared_preferences: ^2.5.4
+  device_info_plus: ^12.3.0     # Device information
+  package_info_plus: ^9.0.0      # App version info
+  #google_sign_in: ^7.2.0
+  #sign_in_with_apple: ^7.0.1  # Nếu cần Apple Sign In
+  audioplayers: ^6.5.1
   # google_mlkit_text_recognition: ^0.15.0
-  onesignal_flutter: ^5.5.4
+  onesignal_flutter: ^5.3.5
   fluttertoast: ^9.0.0
   mime: ^2.0.0
   geolocator: ^14.0.2
+  # google_sign_in: ^7.2.0
+  # aad_oauth: ^1.0.1
+  # flutter_app_badger: ^1.5.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
-  injectable_generator: ^3.0.2
+  injectable_generator: ^2.12.0
 
 flutter:
   plugin:

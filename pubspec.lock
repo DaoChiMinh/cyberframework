@@ -181,26 +181,26 @@ packages:
     dependency: "direct main"
     description:
       name: camera
-      sha256: "034c38cb8014d29698dcae6d20276688a1bf74e6487dfeb274d70ea05d5f7777"
+      sha256: "4142a19a38e388d3bab444227636610ba88982e36dff4552d5191a86f65dc437"
       url: "https://pub.dev"
     source: hosted
-    version: "0.12.0+1"
+    version: "0.11.4"
   camera_android_camerax:
     dependency: transitive
     description:
       name: camera_android_camerax
-      sha256: b5064cf25a2787d122d0bf12e77c7b1033a2b983d0730e3091f770ee376efde5
+      sha256: "8516fe308bc341a5067fb1a48edff0ddfa57c0d3cdcc9dbe7ceca3ba119e2577"
       url: "https://pub.dev"
     source: hosted
-    version: "0.7.2"
+    version: "0.6.30"
   camera_avfoundation:
     dependency: transitive
     description:
       name: camera_avfoundation
-      sha256: "90e4cc3fde331581a3b2d35d83be41dbb7393af0ab857eb27b732174289cb96d"
+      sha256: "11b4aee2f5e5e038982e152b4a342c749b414aa27857899d20f4323e94cb5f0b"
       url: "https://pub.dev"
     source: hosted
-    version: "0.10.1"
+    version: "0.9.23+2"
   camera_platform_interface:
     dependency: transitive
     description:
@@ -381,10 +381,10 @@ packages:
     dependency: "direct main"
     description:
       name: file_picker
-      sha256: f13a03000d942e476bc1ff0a736d2e9de711d2f89a95cd4c1d88f861c3348387
+      sha256: "57d9a1dd5063f85fa3107fb42d1faffda52fdc948cefd5fe5ea85267a5fc7343"
       url: "https://pub.dev"
     source: hosted
-    version: "11.0.2"
+    version: "10.3.10"
   file_selector_linux:
     dependency: transitive
     description:
@@ -788,18 +788,18 @@ packages:
     dependency: "direct main"
     description:
       name: injectable
-      sha256: "1da6399509e44ddb0d8a4a35291d7122c4efb5c625a9d733bf5e48d4a72e379e"
+      sha256: "32b36a9d87f18662bee0b1951b81f47a01f2bf28cd6ea94f60bc5453c7bf598c"
       url: "https://pub.dev"
     source: hosted
-    version: "3.0.0"
+    version: "2.7.1+4"
   injectable_generator:
     dependency: "direct dev"
     description:
       name: injectable_generator
-      sha256: "433ad4d94837ff187803b2bf04c6707db6fad8d245f1d693e2e34053bc07ec28"
+      sha256: fcc0d1edcef2c863dec846b0dec27cb2390d9e9b62e61da5cfc2b9a06b9533c2
       url: "https://pub.dev"
     source: hosted
-    version: "3.0.2"
+    version: "2.12.1"
   intl:
     dependency: "direct main"
     description:
@@ -1321,82 +1321,82 @@ packages:
     dependency: "direct main"
     description:
       name: syncfusion_flutter_charts
-      sha256: "860ca84b402b39b034bc24cb09fb93d7afda1dcef57bbfe453f88a0f43aa6bf7"
+      sha256: a7b7be133602bcffd6d6c13020a2869f2f5d0232835b1a15164a5bb57aab3868
       url: "https://pub.dev"
     source: hosted
-    version: "33.2.7"
+    version: "32.2.9"
   syncfusion_flutter_core:
     dependency: transitive
     description:
       name: syncfusion_flutter_core
-      sha256: ae6c13a42ea7012963418b8963b1e097592340eeae1c3421aa8adfc095309492
+      sha256: "7699e129fc48dfdbb6ad7f8396eaddf5b8f06c649c5bfabdeee5a73dbaca845c"
       url: "https://pub.dev"
     source: hosted
-    version: "33.2.7"
+    version: "32.2.9"
   syncfusion_flutter_pdf:
     dependency: "direct main"
     description:
       name: syncfusion_flutter_pdf
-      sha256: "19b50e1afde289ef34b6c7e06209b45562711840daa2e8a1243b74ed53e3bc88"
+      sha256: f61f1cd074fa3a66404795665db2763c79ccae2414492964db62f6cf6224ac2a
       url: "https://pub.dev"
     source: hosted
-    version: "33.2.7"
+    version: "32.2.9"
   syncfusion_flutter_pdfviewer:
     dependency: "direct main"
     description:
       name: syncfusion_flutter_pdfviewer
-      sha256: c1d7104e09582fda42f2e21f9cc90b0faaca3650dd241bb7d12b8ff6193f2f3d
+      sha256: "1fcd826eeacaf2aa1babef809d3532e5734655b22585fb8546f5ad2b6dc41fb4"
       url: "https://pub.dev"
     source: hosted
-    version: "33.2.7"
+    version: "32.2.9"
   syncfusion_flutter_signaturepad:
     dependency: transitive
     description:
       name: syncfusion_flutter_signaturepad
-      sha256: "28bdf1a48ad5160355dec7b1223ef41f255d400a78d034eb15d84195aff3a51e"
+      sha256: "23f504ff32fd34c4d133e823b0fd9e1634a01ae40648349d17d1c623f62e4888"
       url: "https://pub.dev"
     source: hosted
-    version: "33.2.7"
+    version: "32.2.9"
   syncfusion_pdfviewer_linux:
     dependency: transitive
     description:
       name: syncfusion_pdfviewer_linux
-      sha256: "4d704d56e0ebc894981f1093311a3d0074ce2d45de1eb7bd210622ce560d1e04"
+      sha256: "51955fbfa9fde095b13091bdf1af778139056c52d0b5719fbcd0128e8b8e50c4"
       url: "https://pub.dev"
     source: hosted
-    version: "33.2.7"
+    version: "32.2.9"
   syncfusion_pdfviewer_macos:
     dependency: transitive
     description:
       name: syncfusion_pdfviewer_macos
-      sha256: "8e15270cd9d35d9b7fed8ed04e51f7983abcb305bca405a9cdaee3961a8941f5"
+      sha256: "3559d7ff47b89ff186233214aadf28eb2576f2476566a2c6b44e55049efc900b"
       url: "https://pub.dev"
     source: hosted
-    version: "33.2.7"
+    version: "32.2.9"
   syncfusion_pdfviewer_platform_interface:
     dependency: transitive
     description:
       name: syncfusion_pdfviewer_platform_interface
-      sha256: "43d83787e16f52313a40c63d37fbf4758ac54e2be890e8b02bc26a6193ffd2f6"
+      sha256: "6bb4d08e722eebba4d94b8ebe5a4c5f171ce43380e7f0893c5295c42bfefe1bd"
       url: "https://pub.dev"
     source: hosted
-    version: "33.2.7"
+    version: "32.2.9"
   syncfusion_pdfviewer_web:
     dependency: transitive
     description:
       name: syncfusion_pdfviewer_web
-      sha256: e8c972f7fca76c879e9bc0318b6ce01b8e9d62db59d3ad16bbad7b840ff8f6db
+      sha256: b09ee6e74fffabed2c6fe993940a98beee47453f6ae91688bf2e96e09c03037f
       url: "https://pub.dev"
     source: hosted
-    version: "33.2.7"
+    version: "32.2.9"
   syncfusion_pdfviewer_windows:
     dependency: transitive
     description:
       name: syncfusion_pdfviewer_windows
-      sha256: "9cb0cf8a97bc5cfffc96053baf7db703c8916da3e7d6ce6d4cced72f3be341d7"
+      sha256: f1a53b1cc0dd94b8af319987128fa7afc7659ed4eebf454d9b646350c901890e
       url: "https://pub.dev"
     source: hosted
-    version: "33.2.7"
+    version: "32.2.9"
   synchronized:
     dependency: transitive
     description:
