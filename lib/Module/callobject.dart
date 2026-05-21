@@ -19,12 +19,6 @@ MaterialApp V_Root(
     theme: ThemeData(
       colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
       useMaterial3: true,
-      pageTransitionsTheme: const PageTransitionsTheme(
-        builders: {
-          TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
-          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-        },
-      ),
     ),
     home:
         V_getScreen(
