@@ -97,10 +97,12 @@ class Cyberscanbarcode extends StatefulWidget {
   });
 
   @override
-  State<StatefulWidget> createState() => _CyberCameraScreenState();
+  State<StatefulWidget> createState() => CyberscanbarcodeState();
 }
 
-class _CyberCameraScreenState extends State<Cyberscanbarcode>
+/// State được để PUBLIC (giống ScaffoldState/FormState của Flutter) để có thể
+/// điều khiển scanner từ bên ngoài qua GlobalKey<CyberscanbarcodeState>.
+class CyberscanbarcodeState extends State<Cyberscanbarcode>
     with WidgetsBindingObserver {
   late MobileScannerController controller;
   Timer? _debounceTimer;
@@ -112,6 +114,12 @@ class _CyberCameraScreenState extends State<Cyberscanbarcode>
   String _temporaryMessage = '';
   Timer? _messageDurationTimer;
   bool _showTemporaryMessage = false;
+
+  /// Khi true, observer vòng đời (didChangeAppLifecycleState) sẽ bỏ qua mọi
+  /// chuyển trạng thái. Dùng trong lúc mở một overlay hệ thống khác (prompt
+  /// FaceID/vân tay của local_auth) để camera KHÔNG bị stop/start liên tục —
+  /// đây chính là nguyên nhân gây lỗi "app is in background".
+  bool _lifecycleLocked = false;
 
   final AudioPlayer _audioPlayer = AudioPlayer();
 
@@ -275,6 +283,9 @@ class _CyberCameraScreenState extends State<Cyberscanbarcode>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (_isDisposed || !controller.value.hasCameraPermission) return;
+    // Đang chờ xác thực sinh trắc học / overlay hệ thống khác -> bỏ qua,
+    // để camera không bị stop/start gây xung đột.
+    if (_lifecycleLocked) return;
     switch (state) {
       case AppLifecycleState.resumed:
         _resumeScanning();
@@ -391,6 +402,33 @@ class _CyberCameraScreenState extends State<Cyberscanbarcode>
       setState(() {
         _currentMessage = message;
       });
+    }
+  }
+
+  /// Tạm dừng camera và KHÓA xử lý vòng đời TRƯỚC khi mở một overlay hệ thống
+  /// khác (ví dụ prompt FaceID/vân tay của local_auth).
+  ///
+  /// Khi prompt sinh trắc học hiện lên, app chuyển sang inactive/paused; nếu
+  /// không khóa, observer vòng đời sẽ liên tục stop/start camera khiến hệ
+  /// thống coi như app rời foreground -> xác thực bị hủy ("app is in
+  /// background"). Phải gọi hàm này NGAY TRƯỚC khi gọi authenticate().
+  Future<void> pauseForExternalAuth() async {
+    if (_isDisposed) return;
+    _lifecycleLocked = true; // khóa trước, rồi mới dừng camera
+    await _stopScanning();
+  }
+
+  /// Bật lại camera sau khi overlay hệ thống đã đóng và app đã foreground.
+  /// Nên gọi trong khối finally để đảm bảo camera luôn được khôi phục.
+  Future<void> resumeAfterExternalAuth() async {
+    if (_isDisposed) return;
+    // Xoá trạng thái debounce để mã vừa rồi có thể quét lại nếu cần.
+    _lastScannedValue = null;
+    _debounceTimer?.cancel();
+    try {
+      await _startScanning();
+    } finally {
+      _lifecycleLocked = false; // mở khóa sau khi đã start xong
     }
   }
 
