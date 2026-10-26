@@ -1,6 +1,10 @@
 analyzer:
   errors:
     non_constant_identifier_names: ignore
+  exclude:
+    - build/**
+    - android/**
+    - ios/**
 include: package:flutter_lints/flutter.yaml
 
 # Additional information about this file can be found at

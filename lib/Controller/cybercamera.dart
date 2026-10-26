@@ -24,6 +24,10 @@ class CyberCamera extends StatefulWidget {
   /// Image display settings
   final double? width;
   final double? height;
+
+  /// Cách hiển thị preview trong khung, giữ đúng tỉ lệ camera (không méo):
+  /// - cover: lấp đầy khung, cắt bớt phần thừa
+  /// - contain: hiện toàn bộ khung hình sẽ chụp, có viền đen
   final BoxFit fit;
 
   /// Camera settings
@@ -522,7 +526,7 @@ class _CyberCameraState extends State<CyberCamera> with WidgetsBindingObserver {
                       Positioned.fill(
                         child: GestureDetector(
                           onTap: widget.clickCapture ? _captureImage : null,
-                          child: CameraPreview(_cameraController!),
+                          child: _buildPreview(),
                         ),
                       )
                     else
@@ -715,6 +719,28 @@ class _CyberCameraState extends State<CyberCamera> with WidgetsBindingObserver {
           ),
         ),
       ],
+    );
+  }
+
+  /// Preview giữ đúng tỉ lệ camera.
+  /// CameraPreview đặt thẳng trong khung cố định sẽ bị kéo giãn theo khung (méo hình),
+  /// nên bọc trong SizedBox đúng kích thước preview rồi co giãn bằng FittedBox.
+  Widget _buildPreview() {
+    final previewSize = _cameraController!.value.previewSize;
+    if (previewSize == null) return CameraPreview(_cameraController!);
+
+    // previewSize luôn trả về theo chiều ngang, màn hình dọc thì đảo lại
+    final isPortrait =
+        MediaQuery.of(context).orientation == Orientation.portrait;
+    return ClipRect(
+      child: FittedBox(
+        fit: widget.fit,
+        child: SizedBox(
+          width: isPortrait ? previewSize.height : previewSize.width,
+          height: isPortrait ? previewSize.width : previewSize.height,
+          child: CameraPreview(_cameraController!),
+        ),
+      ),
     );
   }
 
