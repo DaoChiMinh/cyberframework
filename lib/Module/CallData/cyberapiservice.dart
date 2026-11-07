@@ -149,11 +149,11 @@ class CyberApiService with WidgetsBindingObserver {
       }
 
       if (!baseUrl.endsWith("/")) {
-        baseUrl = "$baseUrl/api/CyberAPI";
+        baseUrl = "$baseUrl/cyberapi/CyberAPI";
       } else {
         baseUrl = "${baseUrl}api/CyberAPI";
       }
-
+      debugPrint(baseUrl);
       final url = Uri.parse(baseUrl);
 
       final response = await http
@@ -703,9 +703,9 @@ class CyberApiService with WidgetsBindingObserver {
       }
 
       if (!serverUrl.endsWith("/")) {
-        uploadFileUrl = "$serverUrl/api/CyberAPIUploadFile";
+        uploadFileUrl = "$serverUrl/cyberapi/CyberUploadFile";
       } else {
-        uploadFileUrl = "${serverUrl}api/CyberAPIUploadFile";
+        uploadFileUrl = "${serverUrl}cyberapi/CyberUploadFile";
       }
 
       // Convert to request string

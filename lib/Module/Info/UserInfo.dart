@@ -16,6 +16,7 @@ class UserInfo {
   static String ma_dvcs = "";
   static String ten_cty = "";
   static String comment = "";
+  static String ma_bp = "";
   static String chucvu = "";
   static String dienthoai = "";
   static String isOTP = "";
@@ -207,6 +208,7 @@ class UserInfo {
     // ✅ Safe field extraction với null handling
     user_name = loginRow["User_name"]?.toString() ?? "";
     comment = loginRow["Comment"]?.toString() ?? "";
+    ma_bp = loginRow["ma_bp"]?.toString() ?? "";
     ma_dvcs = loginRow["ma_dvcs"]?.toString() ?? "";
     ten_cty = loginRow["m_ten_cty"]?.toString() ?? "";
     isadmin = loginRow["is_admin"]?.toString() ?? "0";
@@ -296,6 +298,8 @@ class UserInfo {
     user_name = "";
     ma_dvcs = "";
     comment = "";
+    ma_bp = "";
+    chucvu = "";
     isOTP = "";
     id_otp = "";
     UrlImage = "";
